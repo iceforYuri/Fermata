@@ -195,6 +195,8 @@ fn main() {
             gika_lib::sys::debug_set_time_scale,
             gika_lib::sys::debug_get_time_scale,
             gika_lib::sys::idle_current,
+            gika_lib::sys::debug_always_on_top,
+            gika_lib::commands::export_events,
             gika_lib::sys::debug_window_visible,
             debug_focus_check,
         ])

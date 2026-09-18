@@ -6,18 +6,14 @@ export type Tab = "board" | "stats" | "settings";
 
 interface UiState {
   tab: Tab;
-  theme: "light" | "dark";
   leftOpen: boolean;
   rightPid: number | null;
   archiveOpen: boolean;
   toast: { pid: number; title: string; wasRunning: boolean; deadline: number } | null;
 }
 
-const themeParam = new URLSearchParams(location.search).get("theme");
-
 let state: UiState = {
   tab: "board",
-  theme: themeParam === "dark" ? "dark" : "light",
   leftOpen: false,
   rightPid: null,
   archiveOpen: false,

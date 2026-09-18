@@ -105,3 +105,17 @@
 
 ### D26 · 未计时完成
 = plans.state=completed 且预定日=该天（含过去天"直接完成"）；在当天视图计划区标「未计时完成」，日网格不画圈（无时间锚点）。
+
+## 2026-09-19 · M4 设置 + 收官
+
+### D27 · 物理 Alt+Q 终验待人工（总说明）
+本机环境对合成输入的过滤已在 PoC 用纯 Win32 探针排除框架嫌疑（scripts/hotkey-probe3/4/5.ps1 + docs/screenshots/poc/ 日志）：SendKeys / keybd_event / SendInput（扫描码）/ WinRT InputInjector 四条注入路径均不触发 RegisterHotKey，与 Tauri/Electron 无关。自动化验收走 `debug_trigger_hotkey`（与物理热键同一 `toggle_switcher` 处理函数）。**遗留人工动作：装包或 dev 运行时物理按一次 Alt+Q，确认切换浮层唤出。**
+
+### D28 · 设置默认值的双层口径
+settings 表只种 M0 任务列明的 7 键；M4 新增键（idle_confirm=1、font_scale=standard、density=standard、lib_width=300）不落库种子，由设置页 `get(k, 默认)` 惰性兜底——读不到即默认，首次改写才落行。理由：迁移最便宜，且默认值的演化不需要动存量库。
+
+### D29 · 提醒样式为只读说明行
+03 文档定"应用内弹窗"+通知兜底，无可调维度；做只读行（非控件），不设假开关。
+
+### D30 · slice_minutes 改动只影响下一个环
+03 文档明文。当前环读数不变是特性；verify-m4-real 断言已按此口径。

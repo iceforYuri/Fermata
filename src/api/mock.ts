@@ -841,6 +841,10 @@ export const mockData: DataApi = {
     return cells.map((c, i) => ({ cell: i, ...c }));
   },
 
+  async exportEvents() {
+    return "mock://events.json（浏览器环境不落盘）";
+  },
+
   async qRestState() {
     return {
       resting: state.resting,

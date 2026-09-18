@@ -1,6 +1,6 @@
 [package]
 name = "gika"
-version = "0.0.0"
+version = "1.0.0"
 description = "gika —— 日常版面与任务调度"
 edition = "2021"
 rust-version = "1.77.2"

@@ -4,7 +4,7 @@
 use crate::db::{self, ops, queries, DbState, Event, PaletteEntry, Plan, Segment};
 use queries::{BoardDay, RestState, SliceStats};
 use std::sync::MutexGuard;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 fn lock<'a, 'r: 'a>(
     state: &'a State<'r, DbState>,
@@ -388,4 +388,24 @@ pub async fn q_day_view(state: State<'_, DbState>, day: String) -> Result<querie
 pub async fn q_day_grid(state: State<'_, DbState>, day: String) -> Result<Vec<queries::GridCell>, String> {
     let c = lock(&state)?;
     queries::q_day_grid(&c, &day)
+}
+
+/// 事件日志导出：JSON 写入 app_data_dir/exports/events-YYYYMMDD-HHmm.json，返回路径
+#[tauri::command]
+pub async fn export_events(app: AppHandle, state: State<'_, DbState>) -> Result<String, String> {
+    let events = {
+        let c = lock(&state)?;
+        queries::q_events(&c, None)?
+    };
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("exports");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let now = chrono::Local::now();
+    let path = dir.join(format!("events-{}-{:02}{:02}.json", now.format("%Y%m%d"), now.format("%H"), now.format("%M")));
+    let json = serde_json::to_string_pretty(&events).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().to_string())
 }

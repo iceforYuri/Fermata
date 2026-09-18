@@ -8,6 +8,8 @@ const OUT = "docs/screenshots/m1";
 const OUT2 = "docs/screenshots/m2";
 const OUT3 = "docs/screenshots/m3";
 mkdirSync(OUT3, { recursive: true });
+const OUT4 = "docs/screenshots/m4";
+mkdirSync(OUT4, { recursive: true });
 mkdirSync(OUT2, { recursive: true });
 mkdirSync(OUT, { recursive: true });
 
@@ -24,6 +26,11 @@ async function shot(name) {
 async function shot2(name) {
   await page.waitForTimeout(350);
   await page.screenshot({ path: `${OUT2}/${name}.png` });
+  console.log("[shot]", name);
+}
+async function shot4(name) {
+  await page.waitForTimeout(350);
+  await page.screenshot({ path: `${OUT4}/${name}.png` });
   console.log("[shot]", name);
 }
 async function shot3(name) {
@@ -155,6 +162,28 @@ await page.waitForSelector("[data-testid=board-page]");
 await page.click("[data-testid=tab-stats]");
 await page.waitForSelector("[data-testid=month-cal]");
 await shot3("stats-month-dark");
+
+// M4：设置页双主题 + 浮层暗主题
+await page.goto(`${BASE}/`);
+await page.waitForSelector("[data-testid=board-page]");
+await page.click("[data-testid=tab-settings]");
+await page.waitForSelector("[data-testid=settings-page]");
+await shot4("settings-light");
+
+await page.click("[data-testid=set-theme-value]");
+await page.click("[data-testid=set-theme-opt-dark]");
+await page.waitForTimeout(400);
+await shot4("settings-dark");
+
+await page.goto(`${BASE}/?theme=dark`);
+await page.waitForSelector("[data-testid=board-page]");
+await shot4("board-dark-v2");
+await page.goto(`${BASE}/?theme=dark#/overlay/switcher`);
+await page.waitForSelector("[data-testid=switcher]");
+await shot4("switcher-dark");
+await page.goto(`${BASE}/?theme=dark#/overlay/restpop`);
+await page.waitForSelector("[data-testid=restpop]");
+await shot4("restpop-dark");
 
 await browser.close();
 console.log("[shot] done");

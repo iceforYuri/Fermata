@@ -6,7 +6,7 @@ import PocPopupPage from "./pages/PocPopupPage";
 import { SwitcherPage } from "./pages/SwitcherPage";
 import { RestpopPage } from "./pages/RestpopPage";
 import { BoardPage } from "./pages/BoardPage";
-import { SettingsPage } from "./pages/Placeholders";
+import { SettingsPage } from "./pages/settings/SettingsPage";
 import { StatsPage } from "./pages/stats/StatsPage";
 import { TitleBar } from "./components/TitleBar";
 import { LibraryPanel } from "./components/LibraryPanel";
@@ -30,12 +30,9 @@ function useHashRoute(): string {
 
 /** 主应用壳：标题栏 + 三栏 + 浮层 + 调度 tick。休息态霸占 tab 1（版面在玻璃后面等着）。 */
 function Shell() {
-  const { tab, theme } = useUi();
+  const { tab } = useUi();
   const { rest } = useBoard();
   useScheduler();
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-  }, [theme]);
 
   const page =
     tab === "stats" ? <StatsPage /> : tab === "settings" ? <SettingsPage /> : <BoardPage />;

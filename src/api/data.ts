@@ -59,6 +59,7 @@ const tauriData: DataApi = {
   qYearOverview: (year) => invoke("q_year_overview", { year }),
   qDayView: (day) => invoke("q_day_view", { day }),
   qDayGrid: (day) => invoke("q_day_grid", { day }),
+  exportEvents: () => invoke("export_events"),
 };
 
 export const data: DataApi = isTauri ? tauriData : mockData;

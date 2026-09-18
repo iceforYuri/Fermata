@@ -168,4 +168,5 @@ export interface DataApi {
   qYearOverview(year: number): Promise<YearOverview>;
   qDayView(day: string): Promise<DayView>;
   qDayGrid(day: string): Promise<GridCell[]>;
+  exportEvents(): Promise<string>;
 }

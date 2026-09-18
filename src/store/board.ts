@@ -75,6 +75,21 @@ export async function refreshBoard() {
     continuousWorkMs,
     fetchedAt: Date.now(),
   });
+  applyPrefs(Object.fromEntries(settings));
+}
+
+/** 外观偏好统一落地（主题/字号阶梯/密度/稿库栏宽），每个窗口每次刷新都应用 */
+const themeOverride = new URLSearchParams(location.search).get("theme");
+
+function applyPrefs(prefs: Record<string, string>) {
+  const root = document.documentElement;
+  root.dataset.theme = themeOverride ?? prefs.theme ?? "light";
+  root.dataset.font = prefs.font_scale ?? "standard";
+  root.dataset.density = prefs.density ?? "standard";
+  if (prefs.lib_width) {
+    const w = Math.max(240, Math.min(360, parseInt(prefs.lib_width, 10) || 300));
+    root.style.setProperty("--panel-w-left", `${w}px`);
+  }
 }
 
 /** 变更动作包装：执行后立即刷新版面 */

@@ -282,3 +282,10 @@ pub async fn debug_window_visible(app: AppHandle, label: String) -> Result<bool,
     let w = get_window(&app, &label)?;
     w.is_visible().map_err(|e| e.to_string())
 }
+
+/// 验收用：主窗置顶状态断言
+#[tauri::command]
+pub async fn debug_always_on_top(app: AppHandle) -> Result<bool, String> {
+    let w = get_window(&app, "main")?;
+    w.is_always_on_top().map_err(|e| e.to_string())
+}
