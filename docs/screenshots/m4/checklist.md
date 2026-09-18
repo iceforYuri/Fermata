@@ -64,3 +64,9 @@
 - `pnpm tauri build` 成功：`src-tauri/target/release/bundle/nsis/gika_1.0.0_x64-setup.exe`（**1.9MB**，NSIS）
 - release 产物直跑验证：`release-binary.png`（空库冷启动空态正常）
 - 静默安装本机挂起（环境问题，非包体缺陷）：完整记录见 `build-troubleshooting.md`
+
+## 证据质量注记（2026-09-19 复验收尾）
+
+- 全部 mock 截图以 `--disable-lcd-text` 重截（消 ClearType 彩边）；边缘彩边率实测 47.4% → 2.7%（scripts/fringe-check.mjs）
+- `board-dark-v2` 与 `board-dark` 字节同源（mock 下两图同链路）："设置切主题 → 版面换肤"的真实环境证据由 verify-m4-real.mjs 跨窗断言承担（主窗+浮层 data-theme 同步翻转），不靠这张图
+- 休止符弹窗暗色展开态见 `restpop-next-dark.png`（色脊入镜）

@@ -8,7 +8,7 @@ const ok = (name, pass, extra = "") => {
   console.log(`${pass ? "✓" : "✗ FAIL"} ${name}${extra ? " — " + extra : ""}`);
 };
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ args: ["--disable-lcd-text"] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 page.on("pageerror", (e) => console.log("[pageerror]", e.message));
 

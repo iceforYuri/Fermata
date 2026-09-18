@@ -13,7 +13,7 @@ mkdirSync(OUT4, { recursive: true });
 mkdirSync(OUT2, { recursive: true });
 mkdirSync(OUT, { recursive: true });
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ args: ["--disable-lcd-text"] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 page.on("console", (m) => m.type() === "error" && console.log("[console.error]", m.text()));
 page.on("pageerror", (e) => console.log("[pageerror]", e.message));
@@ -145,6 +145,7 @@ await shot3("stats-daygrid-today");
 // 悬停浮窗
 const dot = await page.$("[data-testid=dg-dot]");
 if (dot) { await dot.hover(); await shot3("stats-daygrid-hover"); }
+await page.mouse.move(24, 300); // 收浮窗，别挡后续点击
 
 // 空天（昨天往前找无数据天）——用一个确定无记录的过去日：直接换天到上月1日大概率空
 await page.click("[data-testid=daygrid-date]");
@@ -184,6 +185,9 @@ await shot4("switcher-dark");
 await page.goto(`${BASE}/?theme=dark#/overlay/restpop`);
 await page.waitForSelector("[data-testid=restpop]");
 await shot4("restpop-dark");
+await page.click("[data-testid=rest-next]");
+await page.waitForSelector("[data-testid=restpop-next-row]");
+await shot4("restpop-next-dark");
 
 await browser.close();
 console.log("[shot] done");
