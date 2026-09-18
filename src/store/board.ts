@@ -145,11 +145,15 @@ export function useBoard(): BoardState {
 
 let effectRefs = 0;
 
-/** 色标 → 当前主题 hex */
+/** 生效主题（单一来源）：URL override（截图用）优先，其次 settings.theme */
+export function effectiveTheme(s: BoardState): "light" | "dark" {
+  return (themeOverride ?? s.settings.theme) === "dark" ? "dark" : "light";
+}
+
+/** 色标 → 当前生效主题 hex */
 export function markHex(s: BoardState, slot: number | null): string | null {
   if (slot === null) return null;
-  const theme = (s.settings.theme === "dark" ? "dark" : "light") as "light" | "dark";
-  return s.palette[theme][slot] ?? null;
+  return s.palette[effectiveTheme(s)][slot] ?? null;
 }
 
 export function sliceMs(s: BoardState): number {

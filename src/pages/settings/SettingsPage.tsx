@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { data } from "../../api/data";
 import { system } from "../../api/system";
-import { act, useBoard } from "../../store/board";
+import { act, effectiveTheme, useBoard } from "../../store/board";
 
 /* ---------- 双态控件族（排版文字 → 原地变形；1px 下划线唯一编辑指示） ---------- */
 
@@ -207,7 +207,8 @@ const SECTIONS: [string, string][] = [
 ];
 
 export function SettingsPage() {
-  const { settings, palette } = useBoard();
+  const board = useBoard();
+  const { settings, palette } = board;
   const [activeSec, setActiveSec] = useState("slice");
   const [exported, setExported] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -251,7 +252,7 @@ export function SettingsPage() {
   };
 
   const themeNow = get("theme", "light");
-  const pal = themeNow === "dark" ? palette.dark : palette.light;
+  const pal = effectiveTheme(board) === "dark" ? palette.dark : palette.light; // 展示行跟生效主题
 
   return (
     <div className="settings-page" ref={rootRef} data-testid="settings-page">

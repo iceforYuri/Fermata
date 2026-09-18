@@ -119,3 +119,8 @@ settings 表只种 M0 任务列明的 7 键；M4 新增键（idle_confirm=1、fo
 
 ### D30 · slice_minutes 改动只影响下一个环
 03 文档明文。当前环读数不变是特性；verify-m4-real 断言已按此口径。
+
+## 2026-09-19 · 视觉审校修复
+
+### D31 · 主题取值单一来源
+`effectiveTheme()`（src/store/board.ts）：URL override（截图用）> settings.theme。此前 applyPrefs 写 data-theme 用 override，而 markHex/DonutRing 读 settings.theme——`?theme=dark` 截图色标板错用亮板。现 markHex、DonutRing、设置页色板展示行全部收敛到 effectiveTheme；回归断言入 verify-m4 第 11 项（暗色条脊=暗板 rgb(117,149,178)，亮版抽查=#486E8D 无回归）。环内倒计时数字字体统一进等宽族（消两种数字气质并存）。

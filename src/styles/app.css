@@ -317,6 +317,7 @@
 }
 .time-ring .ring-label {
   font-variant-numeric: tabular-nums;
+  font-family: "Cascadia Mono", Consolas, "JetBrains Mono", monospace;
   font-size: var(--fs-body);
   font-weight: 500;
   color: var(--ink);

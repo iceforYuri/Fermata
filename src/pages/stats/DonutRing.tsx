@@ -1,4 +1,4 @@
-import { useBoard } from "../../store/board";
+import { effectiveTheme, useBoard } from "../../store/board";
 import type { ShareByColor } from "../../api/data";
 
 /** 环形统计（大环/迷你日环/月环共用）：shares 按色标聚合，null=中性灰 */
@@ -15,9 +15,8 @@ export function DonutRing({
   testid?: string;
   onClick?: () => void;
 }) {
-  const { palette, settings } = useBoard();
-  const theme = settings.theme === "dark" ? "dark" : "light";
-  const pal = palette[theme];
+  const board = useBoard();
+  const pal = board.palette[effectiveTheme(board)];
   const hex = (slot: number | null) =>
     slot === null ? "var(--ring-neutral)" : pal[slot] ?? "var(--ring-neutral)";
 

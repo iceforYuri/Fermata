@@ -96,6 +96,21 @@ await page.keyboard.up("Control");
 await sleep(300);
 ok("热键录入 Ctrl+Shift+K", (await page.textContent("[data-testid=set-hotkey-value]")).includes("Ctrl+Shift+K"), await page.textContent("[data-testid=set-hotkey-value]"));
 
+// 11. D31 回归：?theme=dark 下色标板读暗色板（条脊=暗板值）
+await page.goto(`${BASE}/?theme=dark`);
+await page.waitForSelector("[data-testid=board-page]");
+await sleep(400);
+const spineColor = await page.evaluate(() => {
+  const row = [...document.querySelectorAll("[data-testid=suspended-row]")][0];
+  const spine = row?.querySelector(".spine");
+  return spine ? getComputedStyle(spine).backgroundColor : null;
+});
+ok(
+  "D31：暗色截图色标板跟生效主题",
+  spineColor === "rgb(117, 149, 178)", // 暗板 #7595B2（mock 回三封邮件 color_tag=5）
+  String(spineColor),
+);
+
 await browser.close();
 const failed = results.filter((r) => !r.pass);
 console.log(`\n== M4 mock ${results.length - failed.length}/${results.length} 通过 ==`);
