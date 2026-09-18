@@ -1,0 +1,67 @@
+[1789752664082] [poc] gika dev 启动
+[1789752664082] [poc] hotkey alt+q registered
+[1789752664083] [poc] idle begin (>=5s)
+[1789752733100] [poc] gika dev 启动
+[1789752733100] [poc] hotkey alt+q registered
+[1789752733101] [poc] idle begin (>=5s)
+[1789752805854] 前台窗口（创建前）: hwnd=0x402b8 标题="Windows 默认锁屏界面"
+[1789752805854] 前台窗口（创建后）: hwnd=0x402b8 标题="Windows 默认锁屏界面"
+[1789752805854] 弹窗 GWL_EXSTYLE = 0x08040118
+[1789752805855] WS_EX_NOACTIVATE (0x08000000): 含
+[1789752805855] 前台未易主: 是
+[1789752805855] [poc] focus-test PASS
+[1789752808138] [poc] idle end
+[1789752813141] [poc] idle begin (>=5s)
+[1789752868166] [poc] idle end
+[1789752873168] [poc] idle begin (>=5s)
+[1789752942208] [poc] idle end
+[1789752947211] [poc] idle begin (>=5s)
+[1789752980443] [poc] gika dev 启动
+[1789752980444] [poc] hotkey alt+q registered
+[1789752980445] [poc] idle begin (>=5s)
+[1789752999896] [poc] gika dev 启动
+[1789752999896] [poc] hotkey alt+q registered
+[1789752999897] [poc] idle begin (>=5s)
+[1789753015420] [poc] gika dev 启动
+[1789753015420] [poc] hotkey alt+q registered
+[1789753015421] [poc] hotkey ctrl+shift+k registered
+[1789753015421] [poc] idle begin (>=5s)
+[1789753042434] [poc] idle end
+[1789753048438] [poc] idle begin (>=5s)
+[1789753124472] [poc] idle end
+[1789753129474] [poc] idle begin (>=5s)
+[1789753141479] [poc] idle end
+[1789753146483] [poc] idle begin (>=5s)
+[1789753171495] [poc] idle end
+[1789753176498] [poc] idle begin (>=5s)
+[1789753186504] [poc] idle end
+[1789753191506] [poc] idle begin (>=5s)
+[1789753226522] [poc] idle end
+[1789753231525] [poc] idle begin (>=5s)
+[1789753293551] [poc] idle end
+[1789753298554] [poc] idle begin (>=5s)
+[1789753375590] [poc] idle end
+[1789753380593] [poc] idle begin (>=5s)
+[1789753424615] [poc] idle end
+[1789753429618] [poc] idle begin (>=5s)
+[1789753606700] [poc] idle end
+[1789753611704] [poc] idle begin (>=5s)
+[1789753696747] [poc] idle end
+[1789753701750] [poc] idle begin (>=5s)
+[1789753730764] [poc] idle end
+[1789753735768] [poc] idle begin (>=5s)
+[1789753812996] [poc] gika dev 启动
+[1789753812996] [poc] hotkey alt+q registered
+[1789753812997] [poc] idle begin (>=5s)
+[1789753888645] 前台窗口（创建前）: hwnd=0x402b8 标题="Windows 默认锁屏界面"
+[1789753888645] 前台窗口（创建后）: hwnd=0x402b8 标题="Windows 默认锁屏界面"
+[1789753888645] 弹窗 GWL_EXSTYLE = 0x08040118
+[1789753888646] WS_EX_NOACTIVATE (0x08000000): 含
+[1789753888646] 前台未易主: 是
+[1789753888646] [poc] focus-test PASS
+[1789753891037] [poc] idle end
+[1789753896039] [poc] idle begin (>=5s)
+[1789753967073] [poc] idle end
+[1789753972077] [poc] idle begin (>=5s)
+[1789754025106] [poc] idle end
+[1789754030109] [poc] idle begin (>=5s)

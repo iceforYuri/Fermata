@@ -1,0 +1,6 @@
+前台窗口（创建前）: hwnd=0x402b8 标题="Windows 默认锁屏界面"
+前台窗口（创建后）: hwnd=0x402b8 标题="Windows 默认锁屏界面"
+弹窗 GWL_EXSTYLE = 0x08040118
+WS_EX_NOACTIVATE (0x08000000): 含
+前台未易主: 是
+[poc] focus-test PASS

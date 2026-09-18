@@ -1,0 +1,4 @@
+{
+  "pass": true,
+  "text": "PASS · 前台未易主，弹窗带 WS_EX_NOACTIVATE\n\n前台句柄（前 → 后）\t0x402b8 → 0x402b8\n前台标题（前 → 后）\tWindows 默认锁屏界面 → Windows 默认锁屏界面\n弹窗 GWL_EXSTYLE\t0x08040118\nWS_EX_NOACTIVATE\t含\n前台未变\t是"
+}

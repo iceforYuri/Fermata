@@ -1,0 +1,191 @@
+/* PoC 页面样式（tokens 之外的布局层） */
+
+.home {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 96px 48px;
+}
+.home h1 {
+  font-size: var(--fs-display);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin: 0 0 8px;
+}
+.home .sub {
+  color: var(--ink-soft);
+  font-size: var(--fs-small);
+  margin-bottom: 48px;
+}
+.home nav {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+}
+.home nav a {
+  font-size: var(--fs-body);
+  text-decoration: none;
+  border-bottom: 1px solid var(--hairline);
+  padding-bottom: 1px;
+}
+.home nav a:hover {
+  border-bottom-color: var(--ink);
+}
+.hotkey-log {
+  margin-top: 56px;
+  border-top: 1px solid var(--hairline);
+  padding-top: 16px;
+}
+.hotkey-log h2 {
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.hotkey-log ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: var(--fs-small);
+  color: var(--ink-soft);
+}
+
+/* ——— 休息页 · 原语B 玻璃小样 ——— */
+.rest-page {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+.rest-board {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  padding: 48px 64px;
+}
+.rest-stripe {
+  height: 64px;
+  border-radius: var(--card-radius);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  color: rgba(250, 247, 242, 0.92);
+  font-size: var(--fs-small);
+  letter-spacing: 0.04em;
+}
+.rest-glass {
+  position: absolute;
+  inset: 0;
+  background: rgba(250, 247, 242, 0.42);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  backdrop-filter: blur(20px) saturate(1.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rest-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+.rest-ring {
+  width: var(--ring-size);
+  height: var(--ring-size);
+  display: block;
+}
+.rest-title {
+  font-size: var(--fs-display);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+/* ——— 焦点实证页 · 原语A 触发 ——— */
+.trigger-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 72px 48px;
+}
+.trigger-page h1 {
+  font-size: var(--fs-display);
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+.trigger-page .sub {
+  color: var(--ink-soft);
+  font-size: var(--fs-small);
+  margin-bottom: 40px;
+}
+.trigger-btn {
+  font: inherit;
+  font-size: var(--fs-body);
+  color: var(--ink);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--ink);
+  padding: 0 0 2px;
+  cursor: pointer;
+}
+.trigger-btn:hover {
+  color: var(--ink-soft);
+  border-bottom-color: var(--ink-soft);
+}
+.focus-result {
+  margin-top: 32px;
+  font-size: var(--fs-small);
+}
+.focus-result .verdict {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.focus-result .verdict.pass {
+  color: var(--mark-4);
+}
+.focus-result .verdict.fail {
+  color: var(--mark-1);
+}
+.focus-result table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.focus-result td {
+  border-top: 1px solid var(--hairline);
+  padding: 6px 8px 6px 0;
+  vertical-align: top;
+}
+.focus-result td:first-child {
+  color: var(--ink-soft);
+  white-space: nowrap;
+  width: 180px;
+}
+
+/* ——— 休止符小样弹窗（实心暖卡，opaque） ——— */
+.poc-popup {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 28px 32px;
+  background: var(--paper-deep);
+  color: var(--ink);
+  border: 1px solid var(--hairline);
+}
+.poc-popup .kicker {
+  font-size: var(--fs-micro);
+  letter-spacing: 0.12em;
+  color: var(--ink-soft);
+  margin-bottom: 10px;
+}
+.poc-popup .title {
+  font-size: var(--fs-display);
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.poc-popup .body {
+  font-size: var(--fs-small);
+  color: var(--ink-soft);
+}

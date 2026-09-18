@@ -1,0 +1,62 @@
+/* gika design tokens —— 视觉底座（PoC 阶段子集，M1 按 docs/01 视觉规格补全） */
+:root {
+  /* 底色：亮 = 暖米白 */
+  --paper: #faf7f2;
+  --paper-deep: #f3efe7;
+  --ink: #26221e;
+  --ink-soft: rgba(38, 34, 30, 0.62);
+  --ink-faint: rgba(38, 34, 30, 0.28);
+  --hairline: rgba(38, 34, 30, 0.14);
+
+  /* 字号阶梯 */
+  --fs-display: 28px;
+  --fs-body: 15px;
+  --fs-small: 12.5px;
+  --fs-micro: 12px;
+
+  /* 色标暖调 7 色（PoC 暂定值，M1 定稿） */
+  --mark-1: #b4532f; /* 赭 */
+  --mark-2: #b98a2e; /* 金 */
+  --mark-3: #6d7f3a; /* 苔 */
+  --mark-4: #3f7a66; /* 青 */
+  --mark-5: #476a85; /* 黛 */
+  --mark-6: #8a5a44; /* 褐 */
+  --mark-7: #97506b; /* 茜 */
+
+  /* 卡片 */
+  --card-radius: 6px;
+
+  /* 时间环 */
+  --ring-size: 64px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family:
+    "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: var(--fs-body);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+.num,
+.mono {
+  font-variant-numeric: tabular-nums;
+  font-family: "Cascadia Mono", Consolas, "JetBrains Mono", monospace;
+}
+
+a {
+  color: inherit;
+}
