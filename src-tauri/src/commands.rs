@@ -253,3 +253,27 @@ pub async fn q_plans(state: State<'_, DbState>) -> Result<Vec<Plan>, String> {
     let c = lock(&state)?;
     queries::q_plans(&c)
 }
+
+#[tauri::command]
+pub async fn q_segments(state: State<'_, DbState>, pid: i64, day: String) -> Result<Vec<crate::db::Segment>, String> {
+    let c = lock(&state)?;
+    queries::q_segments(&c, pid, &day)
+}
+
+#[tauri::command]
+pub async fn segment_note(state: State<'_, DbState>, segment_id: i64, note: String) -> Result<(), String> {
+    let c = lock(&state)?;
+    ops::segment_note(&c, db::now_ms(), segment_id, &note)
+}
+
+#[tauri::command]
+pub async fn process_rename(state: State<'_, DbState>, pid: i64, title: String) -> Result<(), String> {
+    let c = lock(&state)?;
+    ops::process_rename(&c, db::now_ms(), pid, &title)
+}
+
+#[tauri::command]
+pub async fn notes_set(state: State<'_, DbState>, pid: i64, notes: String) -> Result<(), String> {
+    let c = lock(&state)?;
+    ops::notes_set(&c, db::now_ms(), pid, &notes)
+}

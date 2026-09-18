@@ -69,7 +69,9 @@ fn work_day(
 
 fn main() {
     let path = std::env::var("GIKA_DB_PATH").unwrap_or_else(|_| "./gika-seed.db".to_string());
-    let _ = std::fs::remove_file(&path);
+    if std::path::Path::new(&path).exists() {
+        std::fs::remove_file(&path).expect("删除旧种子库失败（可能被 tauri dev 占用）");
+    }
     let conn = db::open(std::path::Path::new(&path)).expect("打开种子库失败");
 
     // ============ 过去六天 ============

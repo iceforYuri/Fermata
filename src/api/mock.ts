@@ -1,0 +1,646 @@
+/**
+ * 浏览器内 mock 内核：非 Tauri 环境（截图/无头验证）时顶替数据层。
+ * 行为对齐 M0 状态机；时间戳相对加载时刻，保证截图确定性。
+ * URL 参数：?fixture=rich（默认）/ empty / rest
+ */
+import type {
+  BoardProcess,
+  DataApi,
+  GikaEvent,
+  PaletteEntry,
+  Plan,
+  Process,
+  ProcessState,
+  Step,
+} from "./types";
+import { PALETTE_DARK, PALETTE_LIGHT } from "./palette";
+
+const DAY_MS = 86_400_000;
+
+interface Seg {
+  pid: number;
+  start: number;
+  end: number | null;
+}
+
+interface MockState {
+  nextId: number;
+  processes: Process[];
+  steps: Step[];
+  plans: Plan[];
+  segs: Seg[];
+  events: GikaEvent[];
+  slices: Record<number, { complete: number; aborted: number }>;
+  suspendedSince: Record<number, number | null>; // 当前挂起开口起点（含等AI前区间已在 agingBase 折现）
+  agingBase: Record<number, number>; // 已闭合挂起区间累计 ms
+  resting: boolean;
+  restSince: number | null;
+  restSource: string | null;
+}
+
+const fixture =
+  new URLSearchParams(location.search).get("fixture") ??
+  (location.hash.includes("rest") ? "rest" : "rich");
+
+function todayStr(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function baseState(): MockState {
+  return {
+    nextId: 1,
+    processes: [],
+    steps: [],
+    plans: [],
+    segs: [],
+    events: [],
+    slices: {},
+    suspendedSince: {},
+    agingBase: {},
+    resting: false,
+    restSince: null,
+    restSource: null,
+  };
+}
+
+function buildRich(): MockState {
+  const s = baseState();
+  const now = Date.now();
+  const day = todayStr();
+  const mk = (
+    title: string,
+    state: ProcessState,
+    opts: Partial<Process> = {},
+  ): Process => {
+    const p: Process = {
+      id: s.nextId++,
+      title,
+      state,
+      prev_state: opts.prev_state ?? null,
+      color_tag: opts.color_tag ?? null,
+      breakpoint: opts.breakpoint ?? null,
+      notes: null,
+      created_at: opts.created_at ?? now,
+      activated_count: opts.activated_count ?? 1,
+      completed_at: opts.completed_at ?? null,
+      queue_position: opts.queue_position ?? null,
+      board_date: day,
+    };
+    s.processes.push(p);
+    return p;
+  };
+  const seg = (pid: number, startAgo: number, endAgo: number | null) =>
+    s.segs.push({ pid, start: now - startAgo, end: endAgo === null ? null : now - endAgo });
+  const H = 3_600_000;
+  const M = 60_000;
+
+  // 已完 ×2
+  const p1 = mk("晨间规划：排今天的版面", "completed", {
+    created_at: now - 8 * H,
+    completed_at: now - 7.6 * H,
+  });
+  seg(p1.id, 8 * H, 7.6 * H);
+  const p2 = mk("审 PR #142：断点续传", "completed", {
+    color_tag: 2,
+    created_at: now - 7.5 * H,
+    completed_at: now - 6.7 * H,
+  });
+  seg(p2.id, 7.4 * H, 6.7 * H);
+  ["通读 diff", "本地跑一遍", "写评审意见"].forEach((t, i) =>
+    s.steps.push({
+      id: s.nextId++,
+      process_id: p2.id,
+      title: t,
+      done: true,
+      done_at: now - 7 * H,
+      position: i + 1,
+    }),
+  );
+
+  // 运行中
+  const run = mk("改 gika 数据内核", "running", {
+    color_tag: 3,
+    created_at: now - 6.6 * H,
+    queue_position: null,
+  });
+  seg(run.id, 6.55 * H, 5.8 * H);
+  seg(run.id, 5.65 * H, 4.85 * H);
+  seg(run.id, 4.55 * H, 3.6 * H);
+  seg(run.id, 3.4 * H, 2.55 * H);
+  seg(run.id, 26 * M, null); // 开口：时间环锚点
+  s.slices[run.id] = { complete: 4, aborted: 1 };
+  [
+    ["定 schema v1", true],
+    ["状态机与命令层", true],
+    ["集成测试三件套", false],
+    ["一周种子数据", false],
+  ].forEach(([t, done], i) =>
+    s.steps.push({
+      id: s.nextId++,
+      process_id: run.id,
+      title: t as string,
+      done: done as boolean,
+      done_at: (done as boolean) ? now - 4 * H : null,
+      position: i + 1,
+    }),
+  );
+
+  // 挂起 ×4（老化各不相同，含等AI）
+  const mails = mk("回三封邮件", "suspended", {
+    color_tag: 5,
+    breakpoint: "已回两封，剩财务那封",
+    created_at: now - 8 * H,
+    queue_position: 1,
+  });
+  seg(mails.id, 4.55 * H, 4.2 * H);
+  s.suspendedSince[mails.id] = now - 4.2 * H;
+  const weekly = mk("写周报", "suspended", {
+    color_tag: 0,
+    created_at: now - 2.9 * H,
+    queue_position: 2,
+  });
+  s.suspendedSince[weekly.id] = now - 2.9 * H;
+  const book = mk("读《形式的起源》第 4 章", "suspended", {
+    color_tag: 6,
+    created_at: now - 1.3 * H,
+    queue_position: 3,
+  });
+  s.suspendedSince[book.id] = now - 1.3 * H;
+  const waiting = mk("等 AI 跑财报数据", "waiting_ai", {
+    color_tag: 1,
+    breakpoint: "Q3 口径已发，等批跑完",
+    prev_state: "suspended",
+    created_at: now - 1.8 * H,
+    queue_position: 4,
+  });
+  s.agingBase[waiting.id] = 5 * M; // 等AI 前只有 5 分钟老化
+  s.suspendedSince[waiting.id] = null;
+
+  // 稿库
+  const plan = (title: string, est: number, date: string, done = false) =>
+    s.plans.push({
+      id: s.nextId++,
+      title,
+      est_minutes: est,
+      scheduled_date: date,
+      state: done ? "completed" : "pool",
+      created_at: now - 9 * H,
+      completed_at: done ? now - 8 * H : null,
+      position: s.plans.length + 1,
+    });
+  const t = todayStr();
+  const tm = new Date(now + DAY_MS);
+  const tmStr = `${tm.getFullYear()}-${String(tm.getMonth() + 1).padStart(2, "0")}-${String(tm.getDate()).padStart(2, "0")}`;
+  const da = new Date(now + 2 * DAY_MS);
+  const daStr = `${da.getFullYear()}-${String(da.getMonth() + 1).padStart(2, "0")}-${String(da.getDate()).padStart(2, "0")}`;
+  plan("整理会议纪要模板", 30, t, true); // 已完成（q_plans 不返回）
+  plan("准备周五评审材料", 60, t);
+  plan("给设计稿写反馈", 25, t);
+  plan("订下周差旅", 15, t);
+  plan("约一对一谈晋升节奏", 30, tmStr);
+  plan("读完 RAG 综述第 3 节", 40, tmStr);
+  plan("整理季度 OKR 草稿", 45, daStr);
+  return s;
+}
+
+function buildEmpty(): MockState {
+  const s = baseState();
+  const now = Date.now();
+  const t = todayStr();
+  s.plans.push({
+    id: s.nextId++,
+    title: "把第一件事拖进版面",
+    est_minutes: 25,
+    scheduled_date: t,
+    state: "pool",
+    created_at: now,
+    completed_at: null,
+    position: 1,
+  });
+  s.plans.push({
+    id: s.nextId++,
+    title: "或者直接写下此刻最惦记的",
+    est_minutes: null,
+    scheduled_date: t,
+    state: "pool",
+    created_at: now,
+    completed_at: null,
+    position: 2,
+  });
+  return s;
+}
+
+const state: MockState =
+  fixture === "empty" ? buildEmpty() : buildRich();
+if (fixture === "rest") {
+  state.resting = true;
+  state.restSince = Date.now() - 12 * 60_000;
+  state.restSource = "时间片走满 · 第 47 分钟";
+  // 休息时计时停：合上运行进程的开口段
+  const run = state.processes.find((p) => p.state === "running");
+  if (run) {
+    const open = state.segs.find((g) => g.pid === run.id && g.end === null);
+    if (open) open.end = state.restSince;
+  }
+}
+
+// ---------- 内核行为 ----------
+
+function proc(pid: number): Process {
+  const p = state.processes.find((x) => x.id === pid);
+  if (!p) throw new Error(`进程 ${pid} 不存在`);
+  return p;
+}
+
+function ev(kind: string, pid: number | null, payload: unknown = {}) {
+  state.events.push({
+    id: state.events.length + 1,
+    ts: Date.now(),
+    kind,
+    process_id: pid,
+    payload: JSON.stringify(payload),
+  });
+}
+
+function closeSeg(pid: number) {
+  const g = state.segs.find((x) => x.pid === pid && x.end === null);
+  if (g) g.end = Date.now();
+}
+
+function openSeg(pid: number) {
+  if (!state.segs.some((x) => x.pid === pid && x.end === null)) {
+    state.segs.push({ pid, start: Date.now(), end: null });
+  }
+}
+
+function queueTail(pid: number) {
+  const day = todayStr();
+  const max = Math.max(
+    0,
+    ...state.processes
+      .filter((p) => p.board_date === day && p.queue_position !== null)
+      .map((p) => p.queue_position!),
+  );
+  proc(pid).queue_position = max + 1;
+}
+
+function suspend(pid: number, breakpoint?: string) {
+  const p = proc(pid);
+  closeSeg(pid);
+  if (breakpoint !== undefined) p.breakpoint = breakpoint;
+  p.state = "suspended";
+  p.prev_state = null;
+  queueTail(pid);
+  ev("switch_out", pid, { breakpoint, to: null });
+  state.suspendedSince[pid] = Date.now();
+}
+
+function dayTotal(pid: number): number {
+  const now = Date.now();
+  return state.segs
+    .filter((g) => g.pid === pid)
+    .reduce((acc, g) => acc + Math.max(0, (g.end ?? now) - g.start), 0);
+}
+
+function aging(p: Process): number | null {
+  if (p.state !== "suspended" && p.state !== "waiting_ai") return null;
+  const base = state.agingBase[p.id] ?? 0;
+  if (p.state === "waiting_ai") return base; // 等AI 不计老化
+  const since = state.suspendedSince[p.id];
+  return base + (since ? Date.now() - since : 0);
+}
+
+function toBoardProcess(p: Process): BoardProcess {
+  const open = state.segs.find((g) => g.pid === p.id && g.end === null);
+  return {
+    process: { ...p },
+    steps: state.steps
+      .filter((x) => x.process_id === p.id)
+      .sort((a, b) => a.position - b.position)
+      .map((x) => ({ ...x })),
+    day_total_ms: dayTotal(p.id),
+    aging_ms: aging(p),
+    active_segment_started_at: open ? open.start : null,
+    timer_open: p.state === "running" && !!open,
+  };
+}
+
+export const mockData: DataApi = {
+  async processCreate(title, colorTag, boardDate) {
+    const day = boardDate ?? todayStr();
+    const p: Process = {
+      id: state.nextId++,
+      title,
+      state: "suspended",
+      prev_state: null,
+      color_tag: colorTag ?? null,
+      breakpoint: null,
+      notes: null,
+      created_at: Date.now(),
+      activated_count: 0,
+      completed_at: null,
+      queue_position: null,
+      board_date: day,
+    };
+    state.processes.push(p);
+    queueTail(p.id);
+    state.suspendedSince[p.id] = Date.now();
+    ev("process_create", p.id, { title });
+    return p.id;
+  },
+
+  async processSwitch(pid, breakpoint) {
+    const target = proc(pid);
+    if (target.state === "completed") throw new Error("已完成，需先重开");
+    if (target.state === "running") throw new Error("已在运行");
+    const cur = state.processes.find((p) => p.state === "running");
+    if (cur) suspend(cur.id, breakpoint);
+    target.state = "running";
+    target.prev_state = null;
+    target.queue_position = null;
+    target.activated_count += 1;
+    ev("switch_in", pid, { from: cur?.id ?? null });
+    openSeg(pid);
+    state.suspendedSince[pid] = null;
+  },
+
+  async processComplete(pid) {
+    const p = proc(pid);
+    if (p.state === "completed") throw new Error("已是完成态");
+    closeSeg(pid);
+    p.state = "completed";
+    p.prev_state = null;
+    p.completed_at = Date.now();
+    p.queue_position = null;
+    ev("process_complete", pid);
+  },
+
+  async processReopen(pid) {
+    const p = proc(pid);
+    if (p.state !== "completed") throw new Error("不在完成态");
+    p.state = "suspended";
+    p.completed_at = null;
+    queueTail(pid);
+    state.suspendedSince[pid] = Date.now();
+    ev("process_reopen", pid);
+  },
+
+  async processPause(pid) {
+    const p = proc(pid);
+    if (p.state !== "running") throw new Error("不在运行");
+    if (!state.segs.some((g) => g.pid === pid && g.end === null)) throw new Error("计时已停");
+    closeSeg(pid);
+    ev("pause", pid);
+  },
+
+  async processResume(pid) {
+    const p = proc(pid);
+    if (p.state !== "running") throw new Error("不在运行");
+    if (state.segs.some((g) => g.pid === pid && g.end === null)) throw new Error("计时本就在走");
+    ev("resume", pid);
+    openSeg(pid);
+  },
+
+  async breakpointSet(pid, text) {
+    proc(pid).breakpoint = text;
+    ev("breakpoint_set", pid, { text });
+  },
+
+  async colorSet(pid, slot) {
+    proc(pid).color_tag = slot;
+    ev("color_set", pid, { slot });
+  },
+
+  async waitingAiSet(pid, on) {
+    const p = proc(pid);
+    if (on) {
+      if (p.state === "waiting_ai") throw new Error("已处于等AI");
+      if (p.state === "completed") throw new Error("已完成");
+      if (p.state === "running") closeSeg(pid);
+      if (p.state === "suspended" && state.suspendedSince[pid]) {
+        state.agingBase[pid] =
+          (state.agingBase[pid] ?? 0) + (Date.now() - state.suspendedSince[pid]!);
+        state.suspendedSince[pid] = null;
+      }
+      p.prev_state = p.state;
+      p.state = "waiting_ai" as ProcessState;
+      ev("waiting_ai_set", pid, { on: true, prev_state: p.prev_state });
+    } else {
+      if (p.state !== "waiting_ai") throw new Error("不在等AI");
+      const back = (p.prev_state ?? "suspended") as ProcessState;
+      p.prev_state = null;
+      p.state = back;
+      if (back === "running") openSeg(pid);
+      else state.suspendedSince[pid] = Date.now();
+      ev("waiting_ai_set", pid, { on: false, restored: back });
+    }
+  },
+
+  async stepAdd(pid, title) {
+    proc(pid);
+    const id = state.nextId++;
+    const max = Math.max(0, ...state.steps.filter((x) => x.process_id === pid).map((x) => x.position));
+    state.steps.push({ id, process_id: pid, title, done: false, done_at: null, position: max + 1 });
+    ev("step_add", pid, { step_id: id, title });
+    return id;
+  },
+
+  async stepCheck(stepId, done) {
+    const st = state.steps.find((x) => x.id === stepId);
+    if (!st) throw new Error("步骤不存在");
+    st.done = done;
+    st.done_at = done ? Date.now() : null;
+    ev("step_check", st.process_id, { step_id: stepId, done });
+  },
+
+  async stepsReorder(pid, orderedStepIds) {
+    orderedStepIds.forEach((sid, i) => {
+      const st = state.steps.find((x) => x.id === sid && x.process_id === pid);
+      if (!st) throw new Error(`步骤 ${sid} 不属于进程 ${pid}`);
+      st.position = i + 1;
+    });
+    ev("steps_reorder", pid, { ordered_step_ids: orderedStepIds });
+  },
+
+  async queueReorder(day, orderedPids) {
+    orderedPids.forEach((pid, i) => {
+      const p = proc(pid);
+      if (p.board_date !== day || (p.state !== "suspended" && p.state !== "waiting_ai")) {
+        throw new Error(`进程 ${pid} 不在挂起队列`);
+      }
+      p.queue_position = i + 1;
+    });
+    ev("queue_reorder", null, { day, ordered_pids: orderedPids });
+  },
+
+  async planCreate(title, estMinutes, scheduledDate) {
+    const id = state.nextId++;
+    state.plans.push({
+      id,
+      title,
+      est_minutes: estMinutes ?? null,
+      scheduled_date: scheduledDate ?? null,
+      state: "pool",
+      created_at: Date.now(),
+      completed_at: null,
+      position: state.plans.length + 1,
+    });
+    ev("plan_create", null, { plan_id: id, title });
+    return id;
+  },
+
+  async planUpdate(id, patch) {
+    const pl = state.plans.find((x) => x.id === id && x.state === "pool");
+    if (!pl) throw new Error("计划不在稿库");
+    if (patch.title !== undefined) pl.title = patch.title;
+    if (patch.estMinutes !== undefined) pl.est_minutes = patch.estMinutes;
+    if (patch.scheduledDate !== undefined) pl.scheduled_date = patch.scheduledDate;
+    ev("plan_update", null, { plan_id: id });
+  },
+
+  async planDone(id) {
+    const pl = state.plans.find((x) => x.id === id && x.state === "pool");
+    if (!pl) throw new Error("计划不在稿库");
+    pl.state = "completed";
+    pl.completed_at = Date.now();
+    ev("plan_done", null, { plan_id: id });
+  },
+
+  async planDelete(id) {
+    const pl = state.plans.find((x) => x.id === id && x.state === "pool");
+    if (!pl) throw new Error("计划不在稿库");
+    pl.state = "deleted";
+    ev("plan_delete", null, { plan_id: id });
+  },
+
+  async idleStart(pid) {
+    if (pid) closeSeg(pid);
+    ev("idle_start", pid ?? null);
+  },
+  async idleEnd(pid) {
+    ev("idle_end", pid ?? null);
+    if (pid && proc(pid).state === "running") openSeg(pid);
+  },
+  async restTrigger(pid, source, readingMs) {
+    ev("rest_trigger", pid, { source, reading_ms: readingMs });
+  },
+  async restChoice(pid, choice) {
+    ev("rest_choice", pid, { choice });
+  },
+  async restStart(pid) {
+    if (pid) closeSeg(pid);
+    state.resting = true;
+    state.restSince = Date.now();
+    state.restSource = "时间片走满";
+    ev("rest_start", pid ?? null);
+  },
+  async restEnd(pid) {
+    ev("rest_end", pid ?? null);
+    state.resting = false;
+    state.restSince = null;
+    if (pid && proc(pid).state === "running") openSeg(pid);
+  },
+  async sliceComplete(pid) {
+    (state.slices[pid] ??= { complete: 0, aborted: 0 }).complete += 1;
+    ev("slice_complete", pid);
+  },
+  async sliceAborted(pid, elapsedMs) {
+    (state.slices[pid] ??= { complete: 0, aborted: 0 }).aborted += 1;
+    ev("slice_aborted", pid, { elapsed_ms: elapsedMs });
+  },
+
+  async qBoard(day) {
+    const rows = state.processes.filter((p) => p.board_date === day);
+    const running = rows.find((p) => p.state === "running") ?? null;
+    const suspended = rows
+      .filter((p) => p.state === "suspended" || p.state === "waiting_ai")
+      .sort((a, b) => (a.queue_position ?? 1e9) - (b.queue_position ?? 1e9));
+    const completed = rows
+      .filter((p) => p.state === "completed")
+      .sort((a, b) => (a.completed_at ?? 0) - (b.completed_at ?? 0));
+    return {
+      day,
+      running: running ? toBoardProcess(running) : null,
+      suspended: suspended.map(toBoardProcess),
+      completed: completed.map(toBoardProcess),
+      completed_total_ms: completed.reduce((a, p) => a + dayTotal(p.id), 0),
+    };
+  },
+
+  async qProcessDayTotal(pid) {
+    return dayTotal(pid);
+  },
+  async qSuspendedMs(pid) {
+    return aging(proc(pid)) ?? 0;
+  },
+  async qSliceStats(pid) {
+    return state.slices[pid] ?? { complete: 0, aborted: 0 };
+  },
+  async qContinuousWorkMs() {
+    return 0;
+  },
+  async qEvents() {
+    return [...state.events];
+  },
+  async qSettings() {
+    return [
+      ["always_on_top", "0"],
+      ["continuous_limit_minutes", "90"],
+      ["hotkey", "Alt+Q"],
+      ["idle_threshold_minutes", "5"],
+      ["rest_mode", "soft"],
+      ["slice_minutes", "45"],
+      ["theme", "light"],
+    ];
+  },
+  async qPalette() {
+    const entries: PaletteEntry[] = [];
+    for (const theme of ["light", "dark"] as const) {
+      const src = theme === "light" ? PALETTE_LIGHT : PALETTE_DARK;
+      src.forEach((hex, slot) => entries.push({ theme, slot, hex }));
+    }
+    return entries;
+  },
+  async qPlans() {
+    return state.plans.filter((p) => p.state === "pool").map((p) => ({ ...p }));
+  },
+
+  async qSegments(pid) {
+    return state.segs
+      .filter((g) => g.pid === pid)
+      .sort((a, b) => a.start - b.start)
+      .map((g, i) => ({
+        id: pid * 1000 + i,
+        process_id: pid,
+        started_at: g.start,
+        ended_at: g.end,
+        day: todayStr(),
+        kind: "focus",
+        note: null,
+      }));
+  },
+
+  async segmentNote() {},
+
+  async processRename(pid, title) {
+    proc(pid).title = title;
+    ev("process_rename", pid, { title });
+  },
+
+  async notesSet(pid, notes) {
+    proc(pid).notes = notes;
+  },
+};
+
+/** 休息态查询（mock 本地状态；Tauri 侧由 M2 接线） */
+export const mockRest = {
+  isResting: () => state.resting,
+  restSince: () => state.restSince,
+  restSource: () => state.restSource,
+  setResting(v: boolean) {
+    state.resting = v;
+    state.restSince = v ? Date.now() : null;
+  },
+};

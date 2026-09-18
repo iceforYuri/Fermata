@@ -1,33 +1,82 @@
-/* gika design tokens —— 视觉底座（PoC 阶段子集，M1 按 docs/01 视觉规格补全） */
+/* gika design tokens —— M1 视觉定稿（2026-09-19）
+ * 原型定稿参数全表同步记录于 docs/deviation.md D10 与 DB palette migration v2。
+ */
+
 :root {
-  /* 底色：亮 = 暖米白 */
+  /* —— 底色与墨色 —— */
   --paper: #faf7f2;
-  --paper-deep: #f3efe7;
+  --paper-deep: #f3eee6;
   --ink: #26221e;
-  --ink-soft: rgba(38, 34, 30, 0.62);
-  --ink-faint: rgba(38, 34, 30, 0.28);
+  --ink-soft: rgba(38, 34, 30, 0.6);
+  --ink-faint: rgba(38, 34, 30, 0.38);
+  --ink-ghost: rgba(38, 34, 30, 0.22);
   --hairline: rgba(38, 34, 30, 0.14);
 
-  /* 字号阶梯 */
+  /* —— 色标 7 色（暖调家族，定稿值） —— */
+  --mark-0: #d0493b; /* 朱 */
+  --mark-1: #d97e33; /* 橙 */
+  --mark-2: #be9229; /* 珀 */
+  --mark-3: #5f8a3c; /* 苔 */
+  --mark-4: #3d7d67; /* 青 */
+  --mark-5: #486e8d; /* 黛 */
+  --mark-6: #97516b; /* 茜 */
+
+  /* —— 卡片定稿参数 —— */
+  --card-tint: 0.13; /* 染底浓度（区间 12–15% 取 13%） */
+  --card-border-alpha: 0.55; /* 1px 边框的不透明度 */
+  --card-radius: 6px; /* 区间 4–6 取 6 */
+  --spine-w: 32px; /* 确认条脊宽（区间 28–40 取 32） */
+
+  /* —— 行高阶梯（定稿） —— */
+  --h-header: 28px;
+  --h-donebar: 40px;
+  --h-active: 112px;
+  --h-suspended: 64px;
+  --h-new: 40px;
+  --row-gap: 10px; /* 区间 8–12 取 10 */
+
+  /* —— 字号阶梯 —— */
   --fs-display: 28px;
   --fs-body: 15px;
   --fs-small: 12.5px;
   --fs-micro: 12px;
 
-  /* 色标暖调 7 色（PoC 暂定值，M1 定稿） */
-  --mark-1: #b4532f; /* 赭 */
-  --mark-2: #b98a2e; /* 金 */
-  --mark-3: #6d7f3a; /* 苔 */
-  --mark-4: #3f7a66; /* 青 */
-  --mark-5: #476a85; /* 黛 */
-  --mark-6: #8a5a44; /* 褐 */
-  --mark-7: #97506b; /* 茜 */
-
-  /* 卡片 */
-  --card-radius: 6px;
-
-  /* 时间环 */
+  /* —— 时间环 —— */
   --ring-size: 64px;
+  --ring-stroke: 3px;
+  --ring-breathe-dur: 2.6s; /* 最后 5 分钟缓慢呼吸 */
+
+  /* —— 动效 —— */
+  --dur-fast: 140ms;
+  --dur: 220ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* —— 玻璃 —— */
+  --glass-bg: rgba(250, 247, 242, 0.55);
+  --glass-blur: blur(22px) saturate(1.25);
+
+  /* 面板 */
+  --panel-w-left: 300px;
+}
+
+[data-theme="dark"] {
+  --paper: #26221e;
+  --paper-deep: #2e2924;
+  --ink: #ede6da;
+  --ink-soft: rgba(237, 230, 218, 0.6);
+  --ink-faint: rgba(237, 230, 218, 0.38);
+  --ink-ghost: rgba(237, 230, 218, 0.22);
+  --hairline: rgba(237, 230, 218, 0.14);
+
+  --mark-0: #e47a6f;
+  --mark-1: #e59a5a;
+  --mark-2: #d3ae57;
+  --mark-3: #8aac63;
+  --mark-4: #66a78f;
+  --mark-5: #7595b2;
+  --mark-6: #bb82a0;
+
+  --glass-bg: rgba(38, 34, 30, 0.55);
 }
 
 * {
@@ -45,10 +94,13 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family:
-    "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    "Source Han Sans SC", "HarmonyOS Sans SC", "PingFang SC",
+    "Microsoft YaHei", system-ui, sans-serif;
   font-size: var(--fs-body);
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
 }
 
 .num,
@@ -57,6 +109,24 @@ body {
   font-family: "Cascadia Mono", Consolas, "JetBrains Mono", monospace;
 }
 
-a {
+button {
+  font: inherit;
   color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* 时间环呼吸：全 app 唯一的"活物"，仅最后 5 分钟启用 */
+@keyframes ring-breathe {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.035);
+  }
 }

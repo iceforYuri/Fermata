@@ -8,6 +8,10 @@ use serde::Serialize;
 pub struct BoardProcess {
     pub process: Process,
     pub steps: Vec<Step>,
+    pub day_total_ms: i64,                    // 当天累计用时（开口段算到 now）
+    pub aging_ms: Option<i64>,                // 挂起中：老化时长（不含等AI 区间）
+    pub active_segment_started_at: Option<i64>, // 运行中：当前开口段起点（时间环锚点）
+    pub timer_open: bool,                     // 计时器是否开口（暂停=闭）
 }
 
 #[derive(Serialize)]
@@ -16,6 +20,7 @@ pub struct BoardDay {
     pub running: Option<BoardProcess>,
     pub suspended: Vec<BoardProcess>, // 含 waiting_ai，按 queue_position
     pub completed: Vec<BoardProcess>, // 按 completed_at
+    pub completed_total_ms: i64,      // 已完栏总时长
 }
 
 #[derive(Serialize)]
@@ -34,10 +39,29 @@ fn steps_of(conn: &Connection, pid: i64) -> Result<Vec<Step>, String> {
     Ok(rows.filter_map(|r| r.ok()).collect())
 }
 
-fn board_process(conn: &Connection, p: Process) -> Result<BoardProcess, String> {
+fn open_segment_started_at(conn: &Connection, pid: i64) -> Result<Option<i64>, String> {
+    let mut stmt = conn
+        .prepare("SELECT started_at FROM segments WHERE process_id = ?1 AND ended_at IS NULL LIMIT 1")
+        .map_err(|e| e.to_string())?;
+    Ok(stmt.query_row(rusqlite::params![pid], |r| r.get(0)).ok())
+}
+
+fn board_process(conn: &Connection, day: &str, p: Process) -> Result<BoardProcess, String> {
+    let steps = steps_of(conn, p.id)?;
+    let day_total_ms = q_process_day_total(conn, p.id, day)?;
+    let aging_ms = if matches!(p.state.as_str(), "suspended" | "waiting_ai") {
+        Some(q_suspended_ms(conn, p.id, day)?)
+    } else {
+        None
+    };
+    let active_segment_started_at = open_segment_started_at(conn, p.id)?;
     Ok(BoardProcess {
-        steps: steps_of(conn, p.id)?,
+        timer_open: p.state == "running" && active_segment_started_at.is_some(),
+        active_segment_started_at,
         process: p,
+        steps,
+        day_total_ms,
+        aging_ms,
     })
 }
 
@@ -65,17 +89,25 @@ pub fn q_board(conn: &Connection, day: &str) -> Result<BoardDay, String> {
     suspended.sort_by_key(|p| p.queue_position.unwrap_or(i64::MAX));
     completed.sort_by_key(|p| p.completed_at.unwrap_or(0));
 
+    let completed_total_ms = completed
+        .iter()
+        .map(|p| q_process_day_total(conn, p.id, day))
+        .collect::<Result<Vec<i64>, _>>()?
+        .into_iter()
+        .sum();
+
     Ok(BoardDay {
         day: day.to_string(),
-        running: running.map(|p| board_process(conn, p)).transpose()?,
+        running: running.map(|p| board_process(conn, day, p)).transpose()?,
         suspended: suspended
             .into_iter()
-            .map(|p| board_process(conn, p))
+            .map(|p| board_process(conn, day, p))
             .collect::<Result<Vec<_>, _>>()?,
         completed: completed
             .into_iter()
-            .map(|p| board_process(conn, p))
+            .map(|p| board_process(conn, day, p))
             .collect::<Result<Vec<_>, _>>()?,
+        completed_total_ms,
     })
 }
 
@@ -362,6 +394,27 @@ pub fn q_plans(conn: &Connection) -> Result<Vec<Plan>, String> {
                 created_at: r.get("created_at")?,
                 completed_at: r.get("completed_at")?,
                 position: r.get("position")?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    Ok(rows.filter_map(|r| r.ok()).collect())
+}
+
+/// 进程当天的分段时长（详情栏用）
+pub fn q_segments(conn: &Connection, pid: i64, day: &str) -> Result<Vec<super::Segment>, String> {
+    let mut stmt = conn
+        .prepare("SELECT * FROM segments WHERE process_id = ?1 AND day = ?2 ORDER BY started_at")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(rusqlite::params![pid, day], |r| {
+            Ok(super::Segment {
+                id: r.get("id")?,
+                process_id: r.get("process_id")?,
+                started_at: r.get("started_at")?,
+                ended_at: r.get("ended_at")?,
+                day: r.get("day")?,
+                kind: r.get("kind")?,
+                note: r.get("note")?,
             })
         })
         .map_err(|e| e.to_string())?;

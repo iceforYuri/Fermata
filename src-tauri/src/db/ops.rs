@@ -571,3 +571,45 @@ pub fn rest_end(conn: &Connection, ts: i64, pid: Option<i64>) -> Result<(), Stri
     }
     Ok(())
 }
+
+/// 分段备注（详情栏内联编辑）
+pub fn segment_note(conn: &Connection, ts: i64, segment_id: i64, note: &str) -> Result<(), String> {
+    let pid: i64 = conn
+        .query_row(
+            "SELECT process_id FROM segments WHERE id = ?1",
+            rusqlite::params![segment_id],
+            |r| r.get(0),
+        )
+        .map_err(|e| format!("分段 {segment_id} 不存在: {e}"))?;
+    conn.execute(
+        "UPDATE segments SET note = ?2 WHERE id = ?1",
+        rusqlite::params![segment_id, note],
+    )
+    .map_err(|e| e.to_string())?;
+    append_event(conn, ts, "segment_note", Some(pid), serde_json::json!({ "segment_id": segment_id, "note": note }))?;
+    Ok(())
+}
+
+/// 改进程标题（详情栏栏头就地编辑）
+pub fn process_rename(conn: &Connection, ts: i64, pid: i64, title: &str) -> Result<(), String> {
+    get_process(conn, pid)?;
+    conn.execute(
+        "UPDATE processes SET title = ?2 WHERE id = ?1",
+        rusqlite::params![pid, title],
+    )
+    .map_err(|e| e.to_string())?;
+    append_event(conn, ts, "process_rename", Some(pid), serde_json::json!({ "title": title }))?;
+    Ok(())
+}
+
+/// 个人记录（详情栏沉底自由文本）
+pub fn notes_set(conn: &Connection, ts: i64, pid: i64, notes: &str) -> Result<(), String> {
+    get_process(conn, pid)?;
+    conn.execute(
+        "UPDATE processes SET notes = ?2 WHERE id = ?1",
+        rusqlite::params![pid, notes],
+    )
+    .map_err(|e| e.to_string())?;
+    append_event(conn, ts, "notes_set", Some(pid), serde_json::json!({})).ok();
+    Ok(())
+}

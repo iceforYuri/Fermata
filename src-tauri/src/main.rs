@@ -120,8 +120,8 @@ async fn poc_spawn_popup(app: AppHandle) -> Result<serde_json::Value, String> {
     }))
 }
 
-/// 原语C · 空闲：user-idle 每秒轮询，阈值由 GIKA_IDLE_SECS 控制（默认 300）。
-fn spawn_idle_watchdog() {
+/// 原语C · 空闲：user-idle 每秒轮询，阈值由 GIKA_IDLE_SECS 控制（默认读 settings: idle_threshold_minutes）。
+fn spawn_idle_watchdog(app: AppHandle) {
     let threshold: u64 = std::env::var("GIKA_IDLE_SECS")
         .ok()
         .and_then(|s| s.parse().ok())
@@ -133,9 +133,11 @@ fn spawn_idle_watchdog() {
                 if !resting && secs >= threshold {
                     resting = true;
                     log_line(&format!("[poc] idle begin (>={threshold}s)"));
+                    let _ = app.emit("gika-idle", true);
                 } else if resting && secs < threshold {
                     resting = false;
                     log_line("[poc] idle end");
+                    let _ = app.emit("gika-idle", false);
                 }
             }
             std::thread::sleep(Duration::from_secs(1));
@@ -198,6 +200,10 @@ fn main() {
             gika_lib::commands::q_settings,
             gika_lib::commands::q_palette,
             gika_lib::commands::q_plans,
+            gika_lib::commands::q_segments,
+            gika_lib::commands::segment_note,
+            gika_lib::commands::process_rename,
+            gika_lib::commands::notes_set,
         ])
         .setup(|app| {
             let _ = fs::create_dir_all(LOG_DIR);
@@ -209,7 +215,7 @@ fn main() {
                 Ok(()) => log_line("[poc] hotkey alt+q registered"),
                 Err(e) => log_line(&format!("[poc] hotkey alt+q register FAILED: {e}")),
             }
-            spawn_idle_watchdog();
+            spawn_idle_watchdog(app.handle().clone());
 
             let db_path = std::env::var("GIKA_DB_PATH")
                 .map(std::path::PathBuf::from)

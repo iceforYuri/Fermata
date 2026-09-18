@@ -24,7 +24,8 @@ CREATE TABLE processes (
   activated_count INTEGER NOT NULL DEFAULT 0,
   completed_at INTEGER,
   queue_position INTEGER,                     -- 挂起队列序；completed 后为 NULL
-  board_date TEXT NOT NULL                    -- 排入版面的日期 YYYY-MM-DD
+  board_date TEXT NOT NULL,                   -- 排入版面的日期 YYYY-MM-DD
+  notes TEXT                                  -- 个人记录（详情栏沉底自由文本）
 );
 
 CREATE TABLE plans (
@@ -91,9 +92,12 @@ const SETTINGS_SEED: &[(&str, &str)] = &[
     ("theme", "light"),
 ];
 
-// 与 src/styles/tokens.css 的 PoC 暂定值一致；dark 暂用同值占位（M4 定稿）
-const PALETTE_SEED: &[&str] = &[
-    "#b4532f", "#b98a2e", "#6d7f3a", "#3f7a66", "#476a85", "#8a5a44", "#97506b",
+// M1 视觉定稿色（2026-09-19）：暖调家族，dark 提明度保饱和
+const PALETTE_LIGHT: &[&str] = &[
+    "#D0493B", "#D97E33", "#BE9229", "#5F8A3C", "#3D7D67", "#486E8D", "#97516B",
+];
+const PALETTE_DARK: &[&str] = &[
+    "#E47A6F", "#E59A5A", "#D3AE57", "#8AAC63", "#66A78F", "#7595B2", "#BB82A0",
 ];
 
 pub fn now_ms() -> i64 {
@@ -178,18 +182,47 @@ fn migrate(conn: &Connection) -> Result<(), String> {
             )
             .map_err(|e| e.to_string())?;
         }
-        for theme in ["light", "dark"] {
-            for (slot, hex) in PALETTE_SEED.iter().enumerate() {
-                conn.execute(
-                    "INSERT OR IGNORE INTO palette (theme, slot, hex) VALUES (?1, ?2, ?3)",
-                    rusqlite::params![theme, slot as i64, hex],
-                )
-                .map_err(|e| e.to_string())?;
-            }
-        }
+        seed_palette(conn, PALETTE_LIGHT, "light")?;
+        seed_palette(conn, PALETTE_DARK, "dark")?;
         conn.execute(
             "INSERT INTO schema_migrations (version, applied_at) VALUES (1, ?1)",
             rusqlite::params![now_ms()],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    // v2：palette 定稿色（M1 视觉定稿）+ processes.notes（详情栏个人记录）
+    if applied < 2 {
+        seed_palette(conn, PALETTE_LIGHT, "light")?;
+        seed_palette(conn, PALETTE_DARK, "dark")?;
+        let has_notes = {
+            let mut stmt = conn.prepare("PRAGMA table_info(processes)").map_err(|e| e.to_string())?;
+            let names = stmt
+                .query_map([], |r| r.get::<_, String>(1))
+                .map_err(|e| e.to_string())?
+                .filter_map(|r| r.ok())
+                .collect::<Vec<_>>();
+            names.iter().any(|n| n == "notes")
+        };
+        if !has_notes {
+            conn.execute_batch("ALTER TABLE processes ADD COLUMN notes TEXT;")
+                .map_err(|e| format!("迁移 v2 失败: {e}"))?;
+        }
+        conn.execute(
+            "INSERT INTO schema_migrations (version, applied_at) VALUES (2, ?1)",
+            rusqlite::params![now_ms()],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+fn seed_palette(conn: &Connection, hexes: &[&str], theme: &str) -> Result<(), String> {
+    for (slot, hex) in hexes.iter().enumerate() {
+        conn.execute(
+            "INSERT INTO palette (theme, slot, hex) VALUES (?1, ?2, ?3)
+             ON CONFLICT(theme, slot) DO UPDATE SET hex = excluded.hex",
+            rusqlite::params![theme, slot as i64, hex],
         )
         .map_err(|e| e.to_string())?;
     }
@@ -211,6 +244,7 @@ pub struct Process {
     pub completed_at: Option<i64>,
     pub queue_position: Option<i64>,
     pub board_date: String,
+    pub notes: Option<String>,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -275,6 +309,7 @@ pub fn row_to_process(r: &rusqlite::Row) -> rusqlite::Result<Process> {
         completed_at: r.get("completed_at")?,
         queue_position: r.get("queue_position")?,
         board_date: r.get("board_date")?,
+        notes: r.get("notes").ok(),
     })
 }
 

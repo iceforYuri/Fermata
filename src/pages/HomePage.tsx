@@ -20,7 +20,8 @@ export default function HomePage() {
       <h1>gika</h1>
       <p className="sub">PoC · 三原语验证骨架（进程页尚未排期）</p>
       <nav>
-        <a href="#/rest">#/rest —— 休息页玻璃小样（原语B）</a>
+        <a href="#/">#/ —— 进程页（M1）</a>
+        <a href="#/?fixture=rest">#/?fixture=rest —— 休息页小样</a>
         <a href="#/overlay/poc-popup-trigger">
           #/overlay/poc-popup-trigger —— 不抢焦点弹窗实证（原语A）
         </a>
