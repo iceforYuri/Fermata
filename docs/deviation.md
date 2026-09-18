@@ -1,0 +1,41 @@
+# deviation.md —— 文档未覆盖处的保守实现决策（留痕）
+
+> 规则：docs/ 没有答案的设计决策，取最保守方案并记在此。每条含日期、决策、理由。
+
+## 2026-09-19 · M0 数据内核
+
+### D1 · 休息态与 segments 的关系
+**决策**：`rest_start` 闭合当前 focus segment（休息期间不计专注），`rest_end` 时若进程仍为 running 且计时因休息而停则重开。
+**理由**：04-系统层定「弹窗出现即暂停计时」「时间的默认值是不计」；segments 是专注时长的物化视图，休息不属于专注。
+
+### D2 · 等AI 的切入语义
+**决策**：`waiting_ai` 用 `prev_state` 列记原状态；对一个 waiting_ai 进程执行 `process_switch` 视为"取回"，直接进 running 并清 prev_state（等AI 标记随切入消解）。
+**理由**：CONTEXT 只定义等AI 是挂起子状态、不参与老化；切入意味着用户已接手，等待前提消失。未定义"切入但仍等AI"的形态。
+
+### D3 · q_continuous_work_ms（当天连续无休息工作时长）口径
+**决策**：当天最后一个 `rest_end` 或 `idle_start`（取较晚者，日界兜底）之后的 focus segments 总和（开口段算到 now）；休息或空闲进行中返回 0。idle_end 不重置断点——空闲既然打断过， streak 从空闲开始处已断。
+**理由**：ADR-0002 的"连续工作 90 分钟"是触发口径；查询取最保守解释：休息或空闲都算作连续性的中断。
+
+### D4 · q_suspended_ms（挂起时长/老化口径）不含等AI
+**决策**：挂起时长从事件流重建，只累计 `suspended` 且非 `waiting_ai` 的区间；waiting_ai 区间整段剔除。
+**理由**：CONTEXT 明确「等AI 不参与老化褪色」。
+
+### D5 · slice_complete / slice_aborted 不由命令层推断
+**决策**：`process_switch` 不自动写 `slice_aborted`；时间环是 M2 系统层职责，由系统层在切走前显式写。命令层只暴露写入入口。
+**理由**：环的"进行中/剩余"状态在系统层，数据内核无法可靠推断"提前"；越权推断会污染事件日志。
+
+### D6 · dark 主题 palette 暂用 light 同值
+**决策**：palette 表 light/dark 各 7 槽，dark 暂以 light 的 PoC 暂定值种子。
+**理由**：M1 才定稿色值，M4 才做双主题；占位保证 schema 与查询路径可用。
+
+### D7 · resume 仅撤销显式 pause
+**决策**：`process_resume` 只在计时因 `pause` 停止时合法；由 idle/rest 停的表须走 `idle_end`/`rest_end` 恢复。计时开合状态从事件流重建（无冗余列）。
+**理由**：恢复路径三条皆显式（04-系统层）；事件流重建保证单一事实源。
+
+### D8 · queue_position 语义
+**决策**：进入挂起（创建/切出/reopen）时取当天版面 `MAX(queue_position)+1`；完成时置 NULL；`queue_reorder` 按给定顺序重排 1..n。
+**理由**：docs 只定义"挂起队列序"，未定义编号细节；尾部追加是最保守的 FIFO。
+
+### D9 · 种子当天时间线按固定钟点写入
+**决策**：`pnpm seed` 当天数据固定写在 08:55–17:45；深夜运行会出现相对"未来"的时间戳，属预期（M1 截图备料）。
+**理由**：种子是开发料，不与真实时钟绑定；深夜种子导致的老化/开口段显示差异随时间自然消化。

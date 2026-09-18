@@ -162,7 +162,43 @@ fn main() {
                 })
                 .build(),
         )
-        .invoke_handler(tauri::generate_handler![poc_spawn_popup])
+        .invoke_handler(tauri::generate_handler![
+            poc_spawn_popup,
+            gika_lib::commands::process_create,
+            gika_lib::commands::process_switch,
+            gika_lib::commands::process_complete,
+            gika_lib::commands::process_reopen,
+            gika_lib::commands::process_pause,
+            gika_lib::commands::process_resume,
+            gika_lib::commands::breakpoint_set,
+            gika_lib::commands::color_set,
+            gika_lib::commands::waiting_ai_set,
+            gika_lib::commands::step_add,
+            gika_lib::commands::step_check,
+            gika_lib::commands::steps_reorder,
+            gika_lib::commands::queue_reorder,
+            gika_lib::commands::plan_create,
+            gika_lib::commands::plan_update,
+            gika_lib::commands::plan_done,
+            gika_lib::commands::plan_delete,
+            gika_lib::commands::idle_start,
+            gika_lib::commands::idle_end,
+            gika_lib::commands::rest_trigger,
+            gika_lib::commands::rest_choice,
+            gika_lib::commands::rest_start,
+            gika_lib::commands::rest_end,
+            gika_lib::commands::slice_complete,
+            gika_lib::commands::slice_aborted,
+            gika_lib::commands::q_board,
+            gika_lib::commands::q_process_day_total,
+            gika_lib::commands::q_suspended_ms,
+            gika_lib::commands::q_slice_stats,
+            gika_lib::commands::q_continuous_work_ms,
+            gika_lib::commands::q_events,
+            gika_lib::commands::q_settings,
+            gika_lib::commands::q_palette,
+            gika_lib::commands::q_plans,
+        ])
         .setup(|app| {
             let _ = fs::create_dir_all(LOG_DIR);
             log_line("[poc] gika dev 启动");
@@ -174,6 +210,24 @@ fn main() {
                 Err(e) => log_line(&format!("[poc] hotkey alt+q register FAILED: {e}")),
             }
             spawn_idle_watchdog();
+
+            let db_path = std::env::var("GIKA_DB_PATH")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|_| {
+                    app.path()
+                        .app_data_dir()
+                        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                        .join("gika.db")
+                });
+            match gika_lib::db::open(&db_path) {
+                Ok(conn) => {
+                    log_line(&format!("[m0] db ready: {}", db_path.display()));
+                    app.manage(gika_lib::db::DbState(std::sync::Mutex::new(conn)));
+                }
+                Err(e) => {
+                    log_line(&format!("[m0] db open FAILED: {e}"));
+                }
+            }
             Ok(())
         })
         .run(tauri::generate_context!())
