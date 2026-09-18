@@ -357,3 +357,35 @@ pub async fn q_rest_state(state: State<'_, DbState>) -> Result<RestState, String
     let c = lock(&state)?;
     queries::q_rest_state(&c)
 }
+
+// ---------- M3 统计查询 ----------
+
+#[tauri::command]
+pub async fn q_day_stats(state: State<'_, DbState>, day: String) -> Result<queries::DayStats, String> {
+    let c = lock(&state)?;
+    queries::q_day_stats(&c, &day)
+}
+
+#[tauri::command]
+pub async fn q_month_calendar(state: State<'_, DbState>, year: i64, month: i64) -> Result<Vec<queries::DayShares>, String> {
+    let c = lock(&state)?;
+    queries::q_month_calendar(&c, year, month)
+}
+
+#[tauri::command]
+pub async fn q_year_overview(state: State<'_, DbState>, year: i64) -> Result<queries::YearOverview, String> {
+    let c = lock(&state)?;
+    queries::q_year_overview(&c, year)
+}
+
+#[tauri::command]
+pub async fn q_day_view(state: State<'_, DbState>, day: String) -> Result<queries::DayView, String> {
+    let c = lock(&state)?;
+    queries::q_day_view(&c, &day)
+}
+
+#[tauri::command]
+pub async fn q_day_grid(state: State<'_, DbState>, day: String) -> Result<Vec<queries::GridCell>, String> {
+    let c = lock(&state)?;
+    queries::q_day_grid(&c, &day)
+}

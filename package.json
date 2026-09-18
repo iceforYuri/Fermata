@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "seed": "cd src-tauri && cargo run --bin seed",
+    "seed:deep": "cd src-tauri && cargo run --bin seed -- --deep",
     "verify:m0": "cd src-tauri && cargo run --bin verify_m0"
   },
   "dependencies": {

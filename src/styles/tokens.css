@@ -57,6 +57,9 @@
 
   /* 面板 */
   --panel-w-left: 300px;
+
+  /* 统计环：无色标进程的中性灰切片（灰占比本身是信号） */
+  --ring-neutral: #c9c2b8;
 }
 
 [data-theme="dark"] {
@@ -77,6 +80,7 @@
   --mark-6: #bb82a0;
 
   --glass-bg: rgba(38, 34, 30, 0.55);
+  --ring-neutral: #4a443c;
 }
 
 * {

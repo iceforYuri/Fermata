@@ -6,7 +6,8 @@ import PocPopupPage from "./pages/PocPopupPage";
 import { SwitcherPage } from "./pages/SwitcherPage";
 import { RestpopPage } from "./pages/RestpopPage";
 import { BoardPage } from "./pages/BoardPage";
-import { SettingsPage, StatsPage } from "./pages/Placeholders";
+import { SettingsPage } from "./pages/Placeholders";
+import { StatsPage } from "./pages/stats/StatsPage";
 import { TitleBar } from "./components/TitleBar";
 import { LibraryPanel } from "./components/LibraryPanel";
 import { DetailPanel } from "./components/DetailPanel";
@@ -50,8 +51,6 @@ function Shell() {
             className="tab-page"
             style={{
               flex: 1,
-              display: "flex",
-              justifyContent: "center",
               overflowY: "auto",
               position: "relative",
             }}

@@ -54,6 +54,11 @@ const tauriData: DataApi = {
   settingSet: (key, value) => invoke("setting_set", { key, value }),
   idleConfirm: (pid, yes) => invoke("idle_confirm", { pid, yes }),
   qRestState: () => invoke("q_rest_state"),
+  qDayStats: (day) => invoke("q_day_stats", { day }),
+  qMonthCalendar: (year, month) => invoke("q_month_calendar", { year, month }),
+  qYearOverview: (year) => invoke("q_year_overview", { year }),
+  qDayView: (day) => invoke("q_day_view", { day }),
+  qDayGrid: (day) => invoke("q_day_grid", { day }),
 };
 
 export const data: DataApi = isTauri ? tauriData : mockData;

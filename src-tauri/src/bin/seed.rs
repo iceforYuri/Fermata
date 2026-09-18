@@ -67,7 +67,50 @@ fn work_day(
     }
 }
 
+// 简单确定性伪随机（LCG），保证 --deep 数据可复现
+struct Lcg(u64);
+impl Lcg {
+    fn next(&mut self) -> u64 {
+        self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.0 >> 33
+    }
+    fn below(&mut self, n: u64) -> u64 {
+        self.next() % n
+    }
+}
+
+/// --deep：过去 ~120 天稀疏数据（每周 3–5 天有记录、每天 1–3 进程）
+fn seed_deep(conn: &Connection) {
+    const TITLES: &[&str] = &[
+        "写方案章节", "改 bug 单", "读论文", "回邮件", "代码评审", "整理纪要",
+        "学文档", "画架构草图", "等 AI 批处理", "写周报", "过测试报告", "调接口联调",
+    ];
+    let mut rng = Lcg(20260919);
+    for off in (-126..=-8).rev() {
+        if rng.below(7) > 4 {
+            continue; // 每周约 5/7 概率有记录
+        }
+        let day = day_str(off);
+        let n = 1 + rng.below(3); // 1–3 个进程
+        for k in 0..n {
+            let title = TITLES[rng.below(TITLES.len() as u64) as usize];
+            let color = if rng.below(10) < 3 { None } else { Some(rng.below(7) as i64) };
+            let start_h = 9 + (rng.below(8) as u32);
+            let created = at(off, start_h, (rng.below(60) as u32));
+            let pid = ops::process_create(conn, created, title, color, Some(&day)).unwrap();
+            let work_min = 25 + rng.below(120) as i64;
+            ops::process_switch(conn, created + 60_000, pid, None).unwrap();
+            if rng.below(10) < 4 {
+                ops::slice_complete(conn, created + 60_000 + 25 * 60_000, pid).unwrap();
+            }
+            ops::process_complete(conn, created + 60_000 + work_min * 60_000, pid).unwrap();
+            let _ = k;
+        }
+    }
+}
+
 fn main() {
+    let deep = std::env::args().any(|a| a == "--deep");
     let path = std::env::var("GIKA_DB_PATH").unwrap_or_else(|_| "./gika-seed.db".to_string());
     if std::path::Path::new(&path).exists() {
         std::fs::remove_file(&path).expect("删除旧种子库失败（可能被 tauri dev 占用）");
@@ -220,6 +263,10 @@ fn main() {
     ops::plan_create(&conn, at(0, 17, 1), "读完 RAG 综述第 3 节", Some(40), Some(&tm)).unwrap();
     ops::plan_create(&conn, at(0, 17, 2), "整理季度 OKR 草稿", Some(45), Some(&dat)).unwrap();
 
+    if deep {
+        seed_deep(&conn);
+        println!("--deep: 过去 120 天稀疏数据已铺");
+    }
     // 汇总输出
     let p: i64 = conn.query_row("SELECT COUNT(*) FROM processes", [], |r| r.get(0)).unwrap();
     let pl: i64 = conn.query_row("SELECT COUNT(*) FROM plans", [], |r| r.get(0)).unwrap();

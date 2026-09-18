@@ -94,6 +94,29 @@ export interface Segment {
   note: string | null;
 }
 
+/** M3 统计类型 */
+export interface DaySlice { process_id: number; title: string; color_tag: number | null; ms: number; }
+export interface DayStats {
+  day: string; slices: DaySlice[]; total_ms: number; switch_count: number; longest_segment_ms: number;
+}
+export interface ShareByColor { color_tag: number | null; ms: number; }
+export interface DayShares { day: string; shares: ShareByColor[]; }
+export interface MonthShares { month: number; shares: ShareByColor[]; }
+export interface YearOverview { year: number; months: MonthShares[]; available_years: number[]; }
+export interface DayViewProcess {
+  process_id: number; title: string; color_tag: number | null; ms: number;
+  steps_done: number; steps_total: number; breakpoint: string | null;
+}
+export interface SuspendedCost { process_id: number; title: string; waited_ms: number; retrieved: boolean; }
+export interface DayView {
+  day: string; done: DayViewProcess[]; ongoing: DayViewProcess[];
+  plans: Plan[]; not_done: Plan[]; suspended_costs: SuspendedCost[];
+}
+export interface GridCell {
+  cell: number; owner_process_id: number | null; color_tag: number | null;
+  title: string | null; seg_start: number | null; seg_end: number | null; breakpoint: string | null;
+}
+
 /** 数据内核接口：Tauri 与 mock 双实现 */
 export interface DataApi {
   processCreate(title: string, colorTag?: number, boardDate?: string): Promise<number>;
@@ -140,4 +163,9 @@ export interface DataApi {
   settingSet(key: string, value: string): Promise<void>;
   idleConfirm(pid: number, yes: boolean): Promise<void>;
   qRestState(): Promise<RestState>;
+  qDayStats(day: string): Promise<DayStats>;
+  qMonthCalendar(year: number, month: number): Promise<DayShares[]>;
+  qYearOverview(year: number): Promise<YearOverview>;
+  qDayView(day: string): Promise<DayView>;
+  qDayGrid(day: string): Promise<GridCell[]>;
 }

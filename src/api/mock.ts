@@ -40,6 +40,18 @@ interface MockState {
   settings: Record<string, string>;
 }
 
+function dayOfTs(ts: number): string {
+  const d = new Date(ts);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function dayRangeMs(day: string): [number, number] {
+  const [y, m, d] = day.split("-").map(Number);
+  const s = new Date(y, m - 1, d, 0, 0, 0, 0).getTime();
+  return [s, s + 86_400_000];
+}
+
 const fixture =
   new URLSearchParams(location.search).get("fixture") ??
   (location.hash.includes("rest") ? "rest" : "rich");
@@ -214,6 +226,35 @@ function buildRich(): MockState {
   plan("约一对一谈晋升节奏", 30, tmStr);
   plan("读完 RAG 综述第 3 节", 40, tmStr);
   plan("整理季度 OKR 草稿", 45, daStr);
+
+  // —— 历史演示数据（统计页用）：过去 ~90 天确定性稀疏铺陈 ——
+  const HIST: [string, number | null][] = [
+    ["写方案章节", 0], ["读论文", 4], ["回邮件", null], ["改 bug 单", 3],
+    ["代码评审", 2], ["整理纪要", 1], ["学文档", 5], ["画架构草图", 6],
+  ];
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648), seed);
+  for (let off = 1; off <= 90; off++) {
+    if (rnd() % 10 < 4) continue; // ~60% 有记录
+    const d = new Date(now - off * DAY_MS);
+    const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const n = 1 + (rnd() % 2);
+    for (let k = 0; k < n; k++) {
+      const [title, color] = HIST[rnd() % HIST.length];
+      const p: Process = {
+        id: s.nextId++, title, state: "completed", prev_state: null,
+        color_tag: color, breakpoint: null, notes: null,
+        created_at: 0, activated_count: 1,
+        completed_at: 0, queue_position: null, board_date: ds,
+      };
+      const startH = 9 + (rnd() % 8);
+      const start = new Date(d); start.setHours(startH, rnd() % 60, 0, 0);
+      const len = (25 + (rnd() % 120)) * 60_000;
+      s.processes.push(p);
+      s.segs.push({ pid: p.id, start: start.getTime(), end: start.getTime() + len });
+      s.events.push({ id: s.events.length + 1, ts: start.getTime(), kind: "switch_in", process_id: p.id, payload: "{}" });
+    }
+  }
   return s;
 }
 
@@ -666,6 +707,138 @@ export const mockData: DataApi = {
       }
     }
     ev("idle_confirm", pid, { yes });
+  },
+
+  async qDayStats(day) {
+    const pids = new Set(state.segs.filter((g) => dayOfTs(g.start) === day).map((g) => g.pid));
+    const slices = [...pids].map((pid) => {
+      const p = proc(pid);
+      const ms = state.segs
+        .filter((g) => g.pid === pid && dayOfTs(g.start) === day)
+        .reduce((a, g) => a + (g.end ?? Date.now()) - g.start, 0);
+      return { process_id: pid, title: p.title, color_tag: p.color_tag, ms };
+    }).sort((a, b) => b.ms - a.ms);
+    const total = slices.reduce((a, x) => a + x.ms, 0);
+    const longest = Math.max(
+      0,
+      ...state.segs.filter((g) => dayOfTs(g.start) === day).map((g) => (g.end ?? Date.now()) - g.start),
+    );
+    const [ds, de] = dayRangeMs(day);
+    const switchCount = state.events.filter(
+      (e) => e.kind === "switch_in" && e.ts >= ds && e.ts < de,
+    ).length;
+    return { day, slices, total_ms: total, switch_count: switchCount, longest_segment_ms: longest };
+  },
+
+  async qMonthCalendar(year, month) {
+    const byDay = new Map<string, Map<number | null, number>>();
+    for (const g of state.segs) {
+      const d = dayOfTs(g.start);
+      const [y, m] = d.split("-").map(Number);
+      if (y !== year || m !== month) continue;
+      const p = proc(g.pid);
+      const ms = (g.end ?? Date.now()) - g.start;
+      if (!byDay.has(d)) byDay.set(d, new Map());
+      const row = byDay.get(d)!;
+      row.set(p.color_tag, (row.get(p.color_tag) ?? 0) + ms);
+    }
+    return [...byDay.entries()].sort().map(([day, m]) => ({
+      day,
+      shares: [...m.entries()].map(([color_tag, ms]) => ({ color_tag, ms })),
+    }));
+  },
+
+  async qYearOverview(year) {
+    const byMonth = new Map<number, Map<number | null, number>>();
+    const years = new Set<number>();
+    for (const g of state.segs) {
+      const d = dayOfTs(g.start);
+      const [y, m] = d.split("-").map(Number);
+      years.add(y);
+      if (y !== year) continue;
+      const p = proc(g.pid);
+      const ms = (g.end ?? Date.now()) - g.start;
+      if (!byMonth.has(m)) byMonth.set(m, new Map());
+      const row = byMonth.get(m)!;
+      row.set(p.color_tag, (row.get(p.color_tag) ?? 0) + ms);
+    }
+    return {
+      year,
+      months: [...byMonth.entries()].sort((a, b) => a[0] - b[0]).map(([month, m]) => ({
+        month,
+        shares: [...m.entries()].map(([color_tag, ms]) => ({ color_tag, ms })),
+      })),
+      available_years: [...years].sort(),
+    };
+  },
+
+  async qDayView(day) {
+    const rows = state.processes.filter((p) => p.board_date === day);
+    const toDvp = (p: Process) => ({
+      process_id: p.id,
+      title: p.title,
+      color_tag: p.color_tag,
+      ms: state.segs
+        .filter((g) => g.pid === p.id && dayOfTs(g.start) === day)
+        .reduce((a, g) => a + (g.end ?? Date.now()) - g.start, 0),
+      steps_done: state.steps.filter((x) => x.process_id === p.id && x.done).length,
+      steps_total: state.steps.filter((x) => x.process_id === p.id).length,
+      breakpoint: p.breakpoint,
+    });
+    const plans = state.plans.filter((p) => p.scheduled_date === day);
+    return {
+      day,
+      done: rows.filter((p) => p.state === "completed").map(toDvp),
+      ongoing: rows.filter((p) => p.state !== "completed").map(toDvp),
+      plans: plans.map((p) => ({ ...p })),
+      not_done: plans.filter((p) => p.state === "pool").map((p) => ({ ...p })),
+      suspended_costs: rows
+        .filter((p) => p.state === "suspended" || p.state === "waiting_ai")
+        .map((p) => ({
+          process_id: p.id,
+          title: p.title,
+          waited_ms: aging(p) ?? 0,
+          retrieved: false,
+        })),
+    };
+  },
+
+  async qDayGrid(day) {
+    const [ds] = dayRangeMs(day);
+    const CELL = 900_000;
+    const cells: {
+      owner_process_id: number | null; color_tag: number | null; title: string | null;
+      seg_start: number | null; seg_end: number | null; breakpoint: string | null;
+    }[] = Array.from({ length: 96 }, () => ({
+      owner_process_id: null, color_tag: null, title: null,
+      seg_start: null, seg_end: null, breakpoint: null,
+    }));
+    const cellMs: Map<number, Map<number, number>> = new Map();
+    for (const g of state.segs) {
+      if (dayOfTs(g.start) !== day) continue;
+      const e = g.end ?? Date.now();
+      const c0 = Math.max(0, Math.floor((g.start - ds) / CELL));
+      const c1 = Math.min(95, Math.floor((Math.max(e, g.start + 1) - 1 - ds) / CELL));
+      for (let c = c0; c <= c1; c++) {
+        const cs = ds + c * CELL;
+        const ov = Math.max(0, Math.min(e, cs + CELL) - Math.max(g.start, cs));
+        if (ov <= 0) continue;
+        if (!cellMs.has(c)) cellMs.set(c, new Map());
+        const m = cellMs.get(c)!;
+        m.set(g.pid, (m.get(g.pid) ?? 0) + ov);
+      }
+    }
+    for (const [c, m] of cellMs) {
+      const top = [...m.entries()].sort((a, b) => b[1] - a[1])[0];
+      if (!top) continue;
+      const p = proc(top[0]);
+      const g = state.segs.find((x) => x.pid === top[0] && dayOfTs(x.start) === day);
+      cells[c] = {
+        owner_process_id: p.id, color_tag: p.color_tag, title: p.title,
+        seg_start: g?.start ?? null, seg_end: g?.end ?? null, breakpoint: p.breakpoint,
+      };
+    }
+    return cells.map((c, i) => ({ cell: i, ...c }));
   },
 
   async qRestState() {

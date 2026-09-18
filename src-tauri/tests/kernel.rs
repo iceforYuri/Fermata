@@ -154,3 +154,54 @@ fn switch_closes_segment_matching_event_delta() {
     // q_process_day_total 的开口段以真实 now 计，这里只验甲的闭合段
     assert_eq!(queries::q_process_day_total(&conn, a, &day).unwrap(), 25 * 60_000);
 }
+
+// ================= M3 统计内核测试 =================
+
+#[test]
+fn grid_cell_majority_ownership_and_untimed_completion() {
+    let conn = db::open_in_memory().unwrap();
+    // 锚定一个确定的日子（本地时区 10:00 起，第 40 格 = 10:00–10:15）
+    let base = {
+        let today = db::today_local();
+        let (s, _) = db::day_range(&today).unwrap();
+        s
+    };
+    let t = |mins: i64| base + mins * 60_000;
+    let day = db::day_of(base);
+
+    let a = ops::process_create(&conn, t(0), "甲占多数", Some(1), Some(&day)).unwrap();
+    let b = ops::process_create(&conn, t(0), "乙占少数", Some(2), Some(&day)).unwrap();
+
+    // 甲在 10:00–10:10 运行（格 40 占 10 分钟），乙 10:05–10:07（格 40 占 2 分钟）
+    ops::process_switch(&conn, t(600), a, None).unwrap(); // 10:00
+    ops::process_switch(&conn, t(607), b, None).unwrap(); // 10:07 切走甲
+    ops::process_switch(&conn, t(610), a, None).unwrap(); // 10:10 切回甲
+    ops::process_switch(&conn, t(615), b, None).unwrap(); // 10:15
+
+    let grid = queries::q_day_grid(&conn, &day).unwrap();
+    let cell40 = &grid[40];
+    assert_eq!(cell40.owner_process_id, Some(a), "格 40 归多数派甲");
+    assert_eq!(cell40.color_tag, Some(1));
+
+    // 未计时完成（零 segment）不画圈
+    let c = ops::process_create(&conn, t(700), "丙零时长", None, Some(&day)).unwrap();
+    ops::process_complete(&conn, t(701), c).unwrap();
+    let grid2 = queries::q_day_grid(&conn, &day).unwrap();
+    assert!(grid2.iter().all(|cell| cell.owner_process_id != Some(c)), "未计时完成不画圈");
+
+    // q_day_stats 自洽：total == 各切片之和 == segments 闭合和
+    let stats = queries::q_day_stats(&conn, &day).unwrap();
+    let sum: i64 = stats.slices.iter().map(|s| s.ms).sum();
+    assert_eq!(stats.total_ms, sum);
+    let seg_sum: i64 = {
+        let mut stmt = conn.prepare("SELECT started_at, ended_at FROM segments WHERE day = ?1").unwrap();
+        stmt.query_map(rusqlite::params![day], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, Option<i64>>(1)?)))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .map(|(s, e)| (e.unwrap_or_else(db::now_ms) - s).max(0))
+            .sum()
+    };
+    assert_eq!(stats.total_ms, seg_sum, "大环总专注 == segments 闭合和");
+    // 切换次数 = switch_in 计数 = 4
+    assert_eq!(stats.switch_count, 4);
+}

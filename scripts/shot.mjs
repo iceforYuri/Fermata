@@ -6,6 +6,8 @@ import { mkdirSync } from "node:fs";
 const BASE = "http://127.0.0.1:14200";
 const OUT = "docs/screenshots/m1";
 const OUT2 = "docs/screenshots/m2";
+const OUT3 = "docs/screenshots/m3";
+mkdirSync(OUT3, { recursive: true });
 mkdirSync(OUT2, { recursive: true });
 mkdirSync(OUT, { recursive: true });
 
@@ -22,6 +24,11 @@ async function shot(name) {
 async function shot2(name) {
   await page.waitForTimeout(350);
   await page.screenshot({ path: `${OUT2}/${name}.png` });
+  console.log("[shot]", name);
+}
+async function shot3(name) {
+  await page.waitForTimeout(350);
+  await page.screenshot({ path: `${OUT3}/${name}.png` });
   console.log("[shot]", name);
 }
 
@@ -104,5 +111,50 @@ await page.waitForTimeout(400);
 await shot2("overlay-restpop-resting");
 
 // 空闲回归确认卡（mock 下手动触发：直接渲染组件需事件——用键盘不可行，跳过；主窗内卡片由空闲事件驱动，见 verify-m2）
+// M3 统计页矩阵
+await page.goto(`${BASE}/`);
+await page.waitForSelector("[data-testid=board-page]");
+await page.click("[data-testid=tab-stats]");
+await page.waitForSelector("[data-testid=month-cal]");
+await page.waitForTimeout(500);
+await shot3("stats-month");
+
+// 大环+图例+核心数字（今天）
+await shot3("stats-bigring-today");
+
+// 当天视图四组（滚到底）
+await page.evaluate(() => {
+  document.querySelector("[data-testid=dayview]")?.scrollIntoView({ block: "start" });
+});
+await shot3("stats-dayview");
+
+// 日网格（今天，本地日期）
+const _d = new Date();
+const _today = `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, "0")}-${String(_d.getDate()).padStart(2, "0")}`;
+await page.dblclick(`[data-testid=cal-cell][data-day="${_today}"]`);
+await page.waitForSelector("[data-testid=daygrid]");
+await shot3("stats-daygrid-today");
+
+// 悬停浮窗
+const dot = await page.$("[data-testid=dg-dot]");
+if (dot) { await dot.hover(); await shot3("stats-daygrid-hover"); }
+
+// 空天（昨天往前找无数据天）——用一个确定无记录的过去日：直接换天到上月1日大概率空
+await page.click("[data-testid=daygrid-date]");
+await page.waitForSelector("[data-testid=month-cal]");
+await shot3("stats-month-after-drill");
+
+// 年视图
+await page.click("[data-testid=capsule-year]");
+await page.waitForSelector("[data-testid=yearview]");
+await shot3("stats-year");
+
+// 暗主题一轮
+await page.goto(`${BASE}/?theme=dark`);
+await page.waitForSelector("[data-testid=board-page]");
+await page.click("[data-testid=tab-stats]");
+await page.waitForSelector("[data-testid=month-cal]");
+await shot3("stats-month-dark");
+
 await browser.close();
 console.log("[shot] done");

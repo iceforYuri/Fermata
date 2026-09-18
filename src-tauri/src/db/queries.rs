@@ -1,6 +1,6 @@
 //! 查询：M0 验收四问 + 版面/事件/设置/色标。
 
-use super::{day_range, now_ms, row_to_process, row_to_step, Event, PaletteEntry, Plan, Process, Step};
+use super::{day_of, day_range, now_ms, row_to_process, row_to_step, get_process, Event, PaletteEntry, Plan, Process, Step};
 use rusqlite::Connection;
 use serde::Serialize;
 
@@ -515,4 +515,422 @@ pub fn q_rest_state(conn: &Connection) -> Result<RestState, String> {
         reading_ms: last_trigger.and_then(|t| t.1),
         choice,
     })
+}
+
+// ================= M3 · 统计页查询 =================
+
+#[derive(Serialize)]
+pub struct DaySlice {
+    pub process_id: i64,
+    pub title: String,
+    pub color_tag: Option<i64>,
+    pub ms: i64,
+}
+
+#[derive(Serialize)]
+pub struct DayStats {
+    pub day: String,
+    pub slices: Vec<DaySlice>,
+    pub total_ms: i64,
+    pub switch_count: i64,
+    pub longest_segment_ms: i64,
+}
+
+/// 当天每进程切片 + 总专注 + 切换次数 + 最长单段
+pub fn q_day_stats(conn: &Connection, day: &str) -> Result<DayStats, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT p.id, p.title, p.color_tag,
+                    SUM(MAX(COALESCE(s.ended_at, ?2) - s.started_at, 0)) AS ms,
+                    MAX(MAX(COALESCE(s.ended_at, ?2) - s.started_at, 0)) AS longest
+             FROM segments s JOIN processes p ON p.id = s.process_id
+             WHERE s.day = ?1 AND s.kind = 'focus'
+             GROUP BY p.id ORDER BY ms DESC",
+        )
+        .map_err(|e| e.to_string())?;
+    let now = now_ms();
+    let mut slices = vec![];
+    let mut longest = 0i64;
+    let mut total = 0i64;
+    let rows = stmt
+        .query_map(rusqlite::params![day, now], |r| {
+            Ok((
+                r.get::<_, i64>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, Option<i64>>(2)?,
+                r.get::<_, i64>(3)?,
+                r.get::<_, i64>(4)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?;
+    for r in rows.flatten() {
+        total += r.3;
+        longest = longest.max(r.4);
+        slices.push(DaySlice {
+            process_id: r.0,
+            title: r.1,
+            color_tag: r.2,
+            ms: r.3,
+        });
+    }
+    let (start, end) = day_range(day)?;
+    let switch_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM events WHERE kind = 'switch_in' AND ts >= ?1 AND ts < ?2",
+            rusqlite::params![start, end],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(DayStats {
+        day: day.to_string(),
+        slices,
+        total_ms: total,
+        switch_count,
+        longest_segment_ms: longest,
+    })
+}
+
+#[derive(Serialize)]
+pub struct ShareByColor {
+    pub color_tag: Option<i64>,
+    pub ms: i64,
+}
+
+#[derive(Serialize)]
+pub struct DayShares {
+    pub day: String, // YYYY-MM-DD
+    pub shares: Vec<ShareByColor>,
+}
+
+/// 月历：逐日色标聚合（只回有记录的日子）
+pub fn q_month_calendar(conn: &Connection, year: i64, month: i64) -> Result<Vec<DayShares>, String> {
+    let prefix = format!("{year:04}-{month:02}-");
+    let mut stmt = conn
+        .prepare(
+            "SELECT s.day, p.color_tag, SUM(COALESCE(s.ended_at, ?2) - s.started_at)
+             FROM segments s JOIN processes p ON p.id = s.process_id
+             WHERE s.kind = 'focus' AND s.day LIKE ?1 || '%'
+             GROUP BY s.day, p.color_tag ORDER BY s.day",
+        )
+        .map_err(|e| e.to_string())?;
+    let now = now_ms();
+    let rows = stmt
+        .query_map(rusqlite::params![prefix, now], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, Option<i64>>(1)?,
+                r.get::<_, i64>(2)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?;
+    let mut by_day: Vec<(String, Vec<ShareByColor>)> = vec![];
+    for r in rows.flatten() {
+        if let Some(last) = by_day.last_mut() {
+            if last.0 == r.0 {
+                last.1.push(ShareByColor { color_tag: r.1, ms: r.2 });
+                continue;
+            }
+        }
+        by_day.push((r.0, vec![ShareByColor { color_tag: r.1, ms: r.2 }]));
+    }
+    Ok(by_day
+        .into_iter()
+        .map(|(day, shares)| DayShares { day, shares })
+        .collect())
+}
+
+#[derive(Serialize)]
+pub struct MonthShares {
+    pub month: i64,
+    pub shares: Vec<ShareByColor>,
+}
+
+#[derive(Serialize)]
+pub struct YearOverview {
+    pub year: i64,
+    pub months: Vec<MonthShares>,
+    pub available_years: Vec<i64>,
+}
+
+/// 年视图：逐月色标聚合 + 有记录的年份范围
+pub fn q_year_overview(conn: &Connection, year: i64) -> Result<YearOverview, String> {
+    let prefix = format!("{year:04}-");
+    let mut stmt = conn
+        .prepare(
+            "SELECT substr(s.day, 6, 2) AS m, p.color_tag, SUM(COALESCE(s.ended_at, ?2) - s.started_at)
+             FROM segments s JOIN processes p ON p.id = s.process_id
+             WHERE s.kind = 'focus' AND s.day LIKE ?1 || '%'
+             GROUP BY m, p.color_tag ORDER BY m",
+        )
+        .map_err(|e| e.to_string())?;
+    let now = now_ms();
+    let rows = stmt
+        .query_map(rusqlite::params![prefix, now], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, Option<i64>>(1)?,
+                r.get::<_, i64>(2)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?;
+    let mut months: Vec<MonthShares> = vec![];
+    for r in rows.flatten() {
+        let m: i64 = r.0.parse().unwrap_or(0);
+        if let Some(last) = months.last_mut() {
+            if last.month == m {
+                last.shares.push(ShareByColor { color_tag: r.1, ms: r.2 });
+                continue;
+            }
+        }
+        months.push(MonthShares {
+            month: m,
+            shares: vec![ShareByColor { color_tag: r.1, ms: r.2 }],
+        });
+    }
+    let mut stmt = conn
+        .prepare("SELECT DISTINCT substr(day, 1, 4) FROM segments ORDER BY 1")
+        .map_err(|e| e.to_string())?;
+    let years = stmt
+        .query_map([], |r| r.get::<_, String>(0))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .filter_map(|y| y.parse::<i64>().ok())
+        .collect();
+    Ok(YearOverview {
+        year,
+        months,
+        available_years: years,
+    })
+}
+
+#[derive(Serialize)]
+pub struct DayViewProcess {
+    pub process_id: i64,
+    pub title: String,
+    pub color_tag: Option<i64>,
+    pub ms: i64,
+    pub steps_done: i64,
+    pub steps_total: i64,
+    pub breakpoint: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct SuspendedCost {
+    pub process_id: i64,
+    pub title: String,
+    pub waited_ms: i64,
+    pub retrieved: bool, // false = 仍未捞回
+}
+
+#[derive(Serialize)]
+pub struct DayView {
+    pub day: String,
+    pub done: Vec<DayViewProcess>,
+    pub ongoing: Vec<DayViewProcess>,
+    pub plans: Vec<Plan>,
+    pub not_done: Vec<Plan>,
+    pub suspended_costs: Vec<SuspendedCost>,
+}
+
+/// 当天视图：已做 / 进行中 / 未做 / 计划全量 / 挂起成本
+pub fn q_day_view(conn: &Connection, day: &str) -> Result<DayView, String> {
+    let mut stmt = conn
+        .prepare("SELECT * FROM processes WHERE board_date = ?1")
+        .map_err(|e| e.to_string())?;
+    let procs: Vec<Process> = stmt
+        .query_map(rusqlite::params![day], row_to_process)
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let mut done = vec![];
+    let mut ongoing = vec![];
+    for p in &procs {
+        let ms = q_process_day_total(conn, p.id, day)?;
+        let (done_n, total_n): (i64, i64) = conn
+            .query_row(
+                "SELECT COALESCE(SUM(done),0), COUNT(*) FROM steps WHERE process_id = ?1",
+                rusqlite::params![p.id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .map_err(|e| e.to_string())?;
+        let dvp = DayViewProcess {
+            process_id: p.id,
+            title: p.title.clone(),
+            color_tag: p.color_tag,
+            ms,
+            steps_done: done_n,
+            steps_total: total_n,
+            breakpoint: p.breakpoint.clone(),
+        };
+        if p.state == "completed" {
+            done.push(dvp);
+        } else {
+            ongoing.push(dvp);
+        }
+    }
+
+    let mut stmt = conn
+        .prepare("SELECT * FROM plans WHERE scheduled_date = ?1 ORDER BY position, id")
+        .map_err(|e| e.to_string())?;
+    let plans: Vec<Plan> = stmt
+        .query_map(rusqlite::params![day], |r| {
+            Ok(Plan {
+                id: r.get("id")?,
+                title: r.get("title")?,
+                est_minutes: r.get("est_minutes")?,
+                scheduled_date: r.get("scheduled_date")?,
+                state: r.get("state")?,
+                created_at: r.get("created_at")?,
+                completed_at: r.get("completed_at")?,
+                position: r.get("position")?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+    let not_done = plans.iter().filter(|p| p.state == "pool").cloned().collect();
+
+    // 挂起成本：每件进程首次进入挂起 → 首次 switch_in；未捞回 = 到日末/现在
+    let (_, day_end) = day_range(day)?;
+    let now = now_ms();
+    let clip_end = if day == day_of(now) { now } else { day_end };
+    let mut costs = vec![];
+    for p in &procs {
+        let mut stmt = conn
+            .prepare(
+                "SELECT ts, kind FROM events WHERE process_id = ?1
+                 AND kind IN ('process_create','switch_in','switch_out') ORDER BY id",
+            )
+            .map_err(|e| e.to_string())?;
+        let evs: Vec<(i64, String)> = stmt
+            .query_map(rusqlite::params![p.id], |r| Ok((r.get(0)?, r.get(1)?)))
+            .map_err(|e| e.to_string())?
+            .filter_map(|r| r.ok())
+            .collect();
+        let mut suspend_at: Option<i64> = None;
+        let mut waited: Option<i64> = None;
+        for (ts, kind) in &evs {
+            match kind.as_str() {
+                "process_create" | "switch_out" => {
+                    if suspend_at.is_none() {
+                        suspend_at = Some(*ts);
+                    }
+                }
+                "switch_in" => {
+                    if let Some(s) = suspend_at.take() {
+                        waited = Some(*ts - s);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        if let Some(s) = suspend_at {
+            costs.push(SuspendedCost {
+                process_id: p.id,
+                title: p.title.clone(),
+                waited_ms: clip_end - s,
+                retrieved: false,
+            });
+        } else if let Some(w) = waited {
+            costs.push(SuspendedCost {
+                process_id: p.id,
+                title: p.title.clone(),
+                waited_ms: w,
+                retrieved: true,
+            });
+        }
+    }
+
+    Ok(DayView {
+        day: day.to_string(),
+        done,
+        ongoing,
+        plans,
+        not_done,
+        suspended_costs: costs,
+    })
+}
+
+#[derive(Serialize)]
+pub struct GridCell {
+    pub cell: i64, // 0..95，列主序（i = col*8 + row，每格 15 分钟）
+    pub owner_process_id: Option<i64>,
+    pub color_tag: Option<i64>,
+    pub title: Option<String>,
+    pub seg_start: Option<i64>,
+    pub seg_end: Option<i64>,
+    pub breakpoint: Option<String>,
+}
+
+/// 96 格日网格：一段进程从起点格沿阅读方向连续填充；一格多进程归占时最多者
+pub fn q_day_grid(conn: &Connection, day: &str) -> Result<Vec<GridCell>, String> {
+    let (start, _) = day_range(day)?;
+    let now = now_ms();
+    let mut cells_ms: Vec<Vec<(i64, i64, i64, i64)>> = vec![vec![]; 96]; // cell -> (pid, ms, seg_start, seg_end)
+    let mut stmt = conn
+        .prepare(
+            "SELECT s.process_id, s.started_at, COALESCE(s.ended_at, ?2)
+             FROM segments s WHERE s.day = ?1 AND s.kind = 'focus' ORDER BY s.started_at",
+        )
+        .map_err(|e| e.to_string())?;
+    let segs = stmt
+        .query_map(rusqlite::params![day, now], |r| {
+            Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?))
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect::<Vec<_>>();
+
+    for (pid, seg_s, seg_e) in &segs {
+        let a = (*seg_s - start).max(0);
+        let b = (*seg_e - start).max(0);
+        let c0 = (a / 900_000).min(95) as usize;
+        let c1 = ((b.max(a + 1) - 1) / 900_000).min(95) as usize;
+        for c in c0..=c1 {
+            let cell_s = start + c as i64 * 900_000;
+            let overlap = (std::cmp::min(*seg_e, cell_s + 900_000) - std::cmp::max(*seg_s, cell_s)).max(0);
+            if overlap > 0 {
+                cells_ms[c].push((*pid, overlap, *seg_s, *seg_e));
+            }
+        }
+    }
+
+    let mut out = vec![];
+    for (i, owners) in cells_ms.iter().enumerate() {
+        let mut agg: std::collections::HashMap<i64, (i64, i64, i64)> = std::collections::HashMap::new();
+        for &(pid, ms, ss, se) in owners {
+            let e = agg.entry(pid).or_insert((0, ss, se));
+            e.0 += ms;
+            e.1 = e.1.min(ss);
+            e.2 = e.2.max(se);
+        }
+        let top = agg.into_iter().max_by_key(|(_, v)| v.0);
+        let cell = match top {
+            Some((pid, (_, ss, se))) => {
+                let p = get_process(conn, pid)?;
+                GridCell {
+                    cell: i as i64,
+                    owner_process_id: Some(pid),
+                    color_tag: p.color_tag,
+                    title: Some(p.title),
+                    seg_start: Some(ss),
+                    seg_end: Some(se),
+                    breakpoint: p.breakpoint,
+                }
+            }
+            None => GridCell {
+                cell: i as i64,
+                owner_process_id: None,
+                color_tag: None,
+                title: None,
+                seg_start: None,
+                seg_end: None,
+                breakpoint: None,
+            },
+        };
+        out.push(cell);
+    }
+    Ok(out)
 }
