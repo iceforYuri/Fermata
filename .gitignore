@@ -6,3 +6,4 @@ src-tauri/target/
 playwright-report/
 test-results/
 src-tauri/gika-seed.db
+src-tauri/gika-*.db

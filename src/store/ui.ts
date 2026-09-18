@@ -1,4 +1,4 @@
-/** UI 状态 store：面板开合、当前 tab、撤销 toast、休息态、主题 */
+/** UI 状态 store：面板开合、当前 tab、撤销 toast、主题 */
 
 import { useSyncExternalStore } from "react";
 
@@ -11,12 +11,8 @@ interface UiState {
   rightPid: number | null;
   archiveOpen: boolean;
   toast: { pid: number; title: string; wasRunning: boolean; deadline: number } | null;
-  resting: boolean;
-  restSince: number | null;
-  restSource: string | null;
 }
 
-const isRestFixture = new URLSearchParams(location.search).get("fixture") === "rest";
 const themeParam = new URLSearchParams(location.search).get("theme");
 
 let state: UiState = {
@@ -26,9 +22,6 @@ let state: UiState = {
   rightPid: null,
   archiveOpen: false,
   toast: null,
-  resting: isRestFixture,
-  restSince: isRestFixture ? Date.now() - 12 * 60_000 : null,
-  restSource: isRestFixture ? "时间片走满 · 第 47 分钟" : null,
 };
 
 const listeners = new Set<() => void>();
@@ -73,12 +66,4 @@ export function closeDetail() {
 
 export function showToast(t: UiState["toast"]) {
   setUi({ toast: t });
-}
-
-export function enterRest(source: string) {
-  setUi({ resting: true, restSince: Date.now(), restSource: source });
-}
-
-export function exitRest() {
-  setUi({ resting: false, restSince: null, restSource: null });
 }

@@ -58,8 +58,10 @@ const queuePids = await page.$$eval("[data-testid=suspended-row]", (rows) =>
 );
 ok("档案重开回队尾", queuePids[queuePids.length - 1] === reopenPid, `queue=[${queuePids}]`);
 
-// 回补：点队列首行切换出一个运行中进程，供后续用例使用
+// 回补：点队列首行 → 断点小卡 → Enter 确认切换
 await page.click("[data-testid=suspended-row] .row-main");
+await page.waitForSelector("[data-testid=bp-card-input]");
+await page.press("[data-testid=bp-card-input]", "Enter");
 await page.waitForSelector("[data-testid=active-row]");
 
 // 5. 推拉面板开合

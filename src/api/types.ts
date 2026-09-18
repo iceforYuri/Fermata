@@ -52,6 +52,15 @@ export interface BoardProcess {
   aging_ms: number | null;
   active_segment_started_at: number | null;
   timer_open: boolean;
+  ring_elapsed_ms: number;
+}
+
+export interface RestState {
+  resting: boolean;
+  since: number | null;
+  source: "ring_full" | "continuous" | null;
+  reading_ms: number | null;
+  choice: RestChoice | null; // 本次休息期内的选择（null=未抉择，三选态）
 }
 
 export interface BoardDay {
@@ -128,4 +137,7 @@ export interface DataApi {
   segmentNote(segmentId: number, note: string): Promise<void>;
   processRename(pid: number, title: string): Promise<void>;
   notesSet(pid: number, notes: string): Promise<void>;
+  settingSet(key: string, value: string): Promise<void>;
+  idleConfirm(pid: number, yes: boolean): Promise<void>;
+  qRestState(): Promise<RestState>;
 }

@@ -10,8 +10,9 @@ pub struct BoardProcess {
     pub steps: Vec<Step>,
     pub day_total_ms: i64,                    // 当天累计用时（开口段算到 now）
     pub aging_ms: Option<i64>,                // 挂起中：老化时长（不含等AI 区间）
-    pub active_segment_started_at: Option<i64>, // 运行中：当前开口段起点（时间环锚点）
+    pub active_segment_started_at: Option<i64>, // 运行中：当前开口段起点
     pub timer_open: bool,                     // 计时器是否开口（暂停=闭）
+    pub ring_elapsed_ms: i64,                 // 本次时间片已计时长（扣暂停/空闲/休息）
 }
 
 #[derive(Serialize)]
@@ -46,6 +47,36 @@ fn open_segment_started_at(conn: &Connection, pid: i64) -> Result<Option<i64>, S
     Ok(stmt.query_row(rusqlite::params![pid], |r| r.get(0)).ok())
 }
 
+/// 时间环已计时长：锚点 = 本会话最后一个 switch_in / slice_complete；
+/// 之后 focus segments 的覆盖时长（segments 闭合天然扣除暂停/空闲/休息）。
+fn ring_elapsed_ms(conn: &Connection, pid: i64, now: i64) -> Result<i64, String> {
+    let anchor: Option<i64> = conn
+        .query_row(
+            "SELECT ts FROM events WHERE process_id = ?1 AND kind IN ('switch_in','slice_complete') ORDER BY id DESC LIMIT 1",
+            rusqlite::params![pid],
+            |r| r.get(0),
+        )
+        .ok();
+    let anchor = match anchor {
+        Some(a) => a,
+        None => return Ok(0),
+    };
+    let mut stmt = conn
+        .prepare("SELECT started_at, ended_at FROM segments WHERE process_id = ?1 AND kind = 'focus' AND COALESCE(ended_at, ?2) > ?3")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(rusqlite::params![pid, now, anchor], |r| {
+            Ok((r.get::<_, i64>(0)?, r.get::<_, Option<i64>>(1)?))
+        })
+        .map_err(|e| e.to_string())?;
+    let mut total = 0i64;
+    for r in rows.flatten() {
+        let (s, e) = (r.0, r.1.unwrap_or(now));
+        total += (e.min(now) - s.max(anchor)).max(0);
+    }
+    Ok(total)
+}
+
 fn board_process(conn: &Connection, day: &str, p: Process) -> Result<BoardProcess, String> {
     let steps = steps_of(conn, p.id)?;
     let day_total_ms = q_process_day_total(conn, p.id, day)?;
@@ -55,9 +86,11 @@ fn board_process(conn: &Connection, day: &str, p: Process) -> Result<BoardProces
         None
     };
     let active_segment_started_at = open_segment_started_at(conn, p.id)?;
+    let ring_elapsed = ring_elapsed_ms(conn, p.id, now_ms())?;
     Ok(BoardProcess {
         timer_open: p.state == "running" && active_segment_started_at.is_some(),
         active_segment_started_at,
+        ring_elapsed_ms: ring_elapsed,
         process: p,
         steps,
         day_total_ms,
@@ -419,4 +452,67 @@ pub fn q_segments(conn: &Connection, pid: i64, day: &str) -> Result<Vec<super::S
         })
         .map_err(|e| e.to_string())?;
     Ok(rows.filter_map(|r| r.ok()).collect())
+}
+
+#[derive(Serialize)]
+pub struct RestState {
+    pub resting: bool,
+    pub since: Option<i64>,
+    pub source: Option<String>,   // ring_full / continuous
+    pub reading_ms: Option<i64>,
+    pub choice: Option<String>,   // 本次休息期内的最后一个 rest_choice（defer/rest/next/close）
+}
+
+/// 休息态：最后一个 rest_start 无对应 rest_end 即在休息中（双渲染的唯一事实源）
+pub fn q_rest_state(conn: &Connection) -> Result<RestState, String> {
+    let mut stmt = conn
+        .prepare("SELECT ts, kind, payload FROM events WHERE kind IN ('rest_start','rest_end','rest_trigger','rest_choice') ORDER BY id")
+        .map_err(|e| e.to_string())?;
+    let rows: Vec<(i64, String, Option<String>)> = stmt
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let mut resting_since: Option<i64> = None;
+    let mut last_trigger: Option<(String, Option<i64>)> = None;
+    let mut choice: Option<String> = None;
+    for (ts, kind, payload) in &rows {
+        match kind.as_str() {
+            "rest_start" => {
+                resting_since = Some(*ts);
+                choice = None;
+            }
+            "rest_end" => {
+                resting_since = None;
+                last_trigger = None;
+                choice = None;
+            }
+            "rest_trigger" => {
+                last_trigger = payload.as_deref().and_then(|p| {
+                    serde_json::from_str::<serde_json::Value>(p).ok()
+                }).map(|v| {
+                    (
+                        v.get("source").and_then(|s| s.as_str()).unwrap_or("").to_string(),
+                        v.get("reading_ms").and_then(|n| n.as_i64()),
+                    )
+                });
+            }
+            "rest_choice" => {
+                if resting_since.is_some() {
+                    choice = payload.as_deref().and_then(|p| {
+                        serde_json::from_str::<serde_json::Value>(p).ok()
+                    }).and_then(|v| v.get("choice").and_then(|s| s.as_str()).map(String::from));
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(RestState {
+        resting: resting_since.is_some(),
+        since: resting_since,
+        source: last_trigger.as_ref().map(|t| t.0.clone()),
+        reading_ms: last_trigger.and_then(|t| t.1),
+        choice,
+    })
 }

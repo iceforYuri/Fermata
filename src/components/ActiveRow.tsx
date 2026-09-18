@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { data, type BoardProcess } from "../api/data";
 import { act, markHex, sliceMs, useBoard } from "../store/board";
 import { completeWithUndo, togglePause } from "../store/actions";
@@ -13,42 +13,24 @@ import { TimeRing } from "./TimeRing";
 export function ActiveRow({ bp }: { bp: BoardProcess }) {
   const board = useBoard();
   const color = markHex(board, bp.process.color_tag);
-  const [ringAnchor, setRingAnchor] = useState<number | null>(null);
-  const lastSliceFired = useRef<string>("");
 
-  // 时间环锚点：开口段起点；切换进程或环走满后重置满环
-  const pid = bp.process.id;
-  useEffect(() => {
-    setRingAnchor(bp.active_segment_started_at ?? Date.now());
-    lastSliceFired.current = "";
-  }, [pid, bp.active_segment_started_at]);
-
-  const total = sliceMs(board);
-  const anchor = ringAnchor ?? bp.active_segment_started_at ?? Date.now();
-  const now = Date.now();
+  // 环精确化（了结 D13）：ring_elapsed_ms 后端锚定 switch_in/slice_complete，
+  // segments 闭合天然扣除暂停/空闲/休息；前端 1Hz 推算 + 10s 重同步
+  const scale = board.timeScale;
+  const total = sliceMs(board) / scale;
   const paused = !bp.timer_open;
-  const remaining = Math.max(0, Math.min(total, total - (now - anchor))); // 暂停/未来锚点夹紧
-  const pausedRemaining = useRef(remaining);
-  if (!paused) pausedRemaining.current = remaining;
-
-  // 环走满 → slice_complete 事件（休止符弹窗归 M2）
-  useEffect(() => {
-    if (!paused && remaining <= 0 && anchor) {
-      const key = `${pid}@${anchor}`;
-      if (lastSliceFired.current !== key) {
-        lastSliceFired.current = key;
-        void act(async () => {
-          await data.sliceComplete(pid);
-          await data.restTrigger(pid, "ring_full", total);
-        });
-        setRingAnchor(Date.now());
-      }
-    }
-  }, [remaining, paused, anchor, pid, total]);
+  const elapsed = bp.ring_elapsed_ms + (paused ? 0 : Date.now() - board.fetchedAt);
+  const remaining = total - elapsed;
+  // 超时态：软模式排队中（pendingRest 指向本进程）或剩余为负 → 满环 + "+Nm"
+  const pending = board.pendingRest?.pid === bp.process.id;
+  const overtime = pending || remaining < 0;
+  const ringFrozen = useRef(remaining);
+  if (!paused) ringFrozen.current = remaining;
 
   const steps = bp.steps;
   const currentStep = steps.find((s) => !s.done) ?? null;
 
+  const pid = bp.process.id;
   const checkStep = (stepId: number) => {
     void act(() => data.stepCheck(stepId, true));
   };
@@ -58,7 +40,7 @@ export function ActiveRow({ bp }: { bp: BoardProcess }) {
       className={`row active${color ? "" : " no-mark"}`}
       style={{ "--mc": color ?? undefined } as React.CSSProperties}
       data-testid="active-row"
-      data-pid={pid}
+      data-pid={bp.process.id}
     >
       <div
         className="spine"
@@ -116,10 +98,15 @@ export function ActiveRow({ bp }: { bp: BoardProcess }) {
               </svg>
             )}
           </button>
-          <span className="active-total num">{fmtDur(bp.day_total_ms + (paused ? 0 : 0))}</span>
+          <span className="active-total num">{fmtDur(bp.day_total_ms)}</span>
+          {overtime && (
+            <span className="active-total num" data-testid="ring-overtime" style={{ color: "var(--ink)" }}>
+              +{Math.max(1, Math.round((pending ? elapsed : -remaining) / 60_000))}m
+            </span>
+          )}
         </div>
         <TimeRing
-          remainingMs={paused ? pausedRemaining.current : remaining}
+          remainingMs={overtime && !paused ? total : paused ? Math.max(0, ringFrozen.current) : Math.max(0, Math.min(total, remaining))}
           totalMs={total}
           color={color}
           dimmed={paused}

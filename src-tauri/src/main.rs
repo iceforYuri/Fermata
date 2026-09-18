@@ -5,10 +5,8 @@ use std::io::Write;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde_json::json;
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
-use tauri_plugin_global_shortcut::{
-    Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState,
-};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_global_shortcut::ShortcutState;
 use windows_sys::Win32::Foundation::HWND;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow, GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW, GWL_EXSTYLE,
@@ -120,50 +118,22 @@ async fn poc_spawn_popup(app: AppHandle) -> Result<serde_json::Value, String> {
     }))
 }
 
-/// 原语C · 空闲：user-idle 每秒轮询，阈值由 GIKA_IDLE_SECS 控制（默认读 settings: idle_threshold_minutes）。
-fn spawn_idle_watchdog(app: AppHandle) {
-    let threshold: u64 = std::env::var("GIKA_IDLE_SECS")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(300);
-    std::thread::spawn(move || {
-        let mut resting = false;
-        loop {
-            if let Ok(secs) = user_idle::UserIdle::get_time().map(|u| u.as_seconds()) {
-                if !resting && secs >= threshold {
-                    resting = true;
-                    log_line(&format!("[poc] idle begin (>={threshold}s)"));
-                    let _ = app.emit("gika-idle", true);
-                } else if resting && secs < threshold {
-                    resting = false;
-                    log_line("[poc] idle end");
-                    let _ = app.emit("gika-idle", false);
-                }
-            }
-            std::thread::sleep(Duration::from_secs(1));
-        }
-    });
-}
-
 fn main() {
     tauri::Builder::default()
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, shortcut, event| {
-                    log_line(&format!(
-                        "[poc] hotkey event: shortcut={shortcut:?} state={:?}",
-                        event.state
-                    ));
+                .with_handler(|app, _shortcut, event| {
                     if event.state == ShortcutState::Pressed {
-                        let dbg = format!("{shortcut:?}");
-                        if dbg.contains("ALT") && dbg.contains("KeyQ") {
-                            log_line("[poc] hotkey alt+q fired");
-                            let _ = app.emit("poc-hotkey", "alt+q");
-                        }
+                        log_line("[m2] hotkey fired");
+                        gika_lib::sys::toggle_switcher(app);
                     }
                 })
                 .build(),
         )
+        .manage(gika_lib::sys::SysState {
+            time_scale: std::sync::Mutex::new(1.0),
+            idling: std::sync::Mutex::new(false),
+        })
         .invoke_handler(tauri::generate_handler![
             poc_spawn_popup,
             gika_lib::commands::process_create,
@@ -204,18 +174,28 @@ fn main() {
             gika_lib::commands::segment_note,
             gika_lib::commands::process_rename,
             gika_lib::commands::notes_set,
+            gika_lib::commands::setting_set,
+            gika_lib::commands::idle_confirm,
+            gika_lib::commands::q_rest_state,
+            gika_lib::sys::summon,
+            gika_lib::sys::conceal,
+            gika_lib::sys::pin,
+            gika_lib::sys::focus_main,
+            gika_lib::sys::show_switcher,
+            gika_lib::sys::hide_switcher,
+            gika_lib::sys::show_restpop,
+            gika_lib::sys::hide_restpop,
+            gika_lib::sys::hotkey_apply,
+            gika_lib::sys::debug_trigger_hotkey,
+            gika_lib::sys::debug_set_time_scale,
+            gika_lib::sys::debug_get_time_scale,
+            gika_lib::sys::idle_current,
+            gika_lib::sys::debug_window_visible,
+            debug_focus_check,
         ])
         .setup(|app| {
             let _ = fs::create_dir_all(LOG_DIR);
-            log_line("[poc] gika dev 启动");
-            match app
-                .global_shortcut()
-                .register(Shortcut::new(Some(Modifiers::ALT), Code::KeyQ))
-            {
-                Ok(()) => log_line("[poc] hotkey alt+q registered"),
-                Err(e) => log_line(&format!("[poc] hotkey alt+q register FAILED: {e}")),
-            }
-            spawn_idle_watchdog(app.handle().clone());
+            log_line("[m2] gika dev 启动");
 
             let db_path = std::env::var("GIKA_DB_PATH")
                 .map(std::path::PathBuf::from)
@@ -227,15 +207,62 @@ fn main() {
                 });
             match gika_lib::db::open(&db_path) {
                 Ok(conn) => {
-                    log_line(&format!("[m0] db ready: {}", db_path.display()));
+                    log_line(&format!("[m2] db ready: {}", db_path.display()));
                     app.manage(gika_lib::db::DbState(std::sync::Mutex::new(conn)));
                 }
                 Err(e) => {
-                    log_line(&format!("[m0] db open FAILED: {e}"));
+                    log_line(&format!("[m2] db open FAILED: {e}"));
+                    return Err(e.into());
+                }
+            }
+
+            gika_lib::sys::precreate_overlays(&app.handle())?;
+
+            gika_lib::sys::spawn_idle_watchdog(app.handle().clone());
+
+            // 热键与置顶从 settings 读
+            let (combo, top) = {
+                let st = app.state::<gika_lib::db::DbState>();
+                let c = st.0.lock().map_err(|e| e.to_string())?;
+                (
+                    gika_lib::db::ops::setting_get(&c, "hotkey").unwrap_or_else(|| "Alt+Q".into()),
+                    gika_lib::db::ops::setting_get(&c, "always_on_top").unwrap_or_else(|| "0".into()),
+                )
+            };
+            log_line(&format!("[m2] hotkey from settings: {combo}"));
+            match gika_lib::sys::apply_hotkey(&app.handle(), &combo) {
+                Ok(()) => log_line("[m2] hotkey registered"),
+                Err(e) => log_line(&format!("[m2] hotkey register FAILED: {e}")),
+            }
+            if top == "1" {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.set_always_on_top(true);
                 }
             }
             Ok(())
         })
         .run(tauri::generate_context!())
         .expect("error while running gika");
+}
+
+/// 验收用：任意预建窗口的不抢焦点断言（PoC 原语A 的通用化）
+#[tauri::command]
+async fn debug_focus_check(label: String, app: AppHandle) -> Result<serde_json::Value, String> {
+    let before = unsafe { GetForegroundWindow() };
+    let w = app
+        .get_webview_window(&label)
+        .ok_or_else(|| format!("窗口 {label} 不存在"))?;
+    w.show().map_err(|e| e.to_string())?;
+    std::thread::sleep(Duration::from_millis(400));
+    let after = unsafe { GetForegroundWindow() };
+    let hwnd: isize = w.hwnd().map_err(|e| e.to_string())?.0 as isize;
+    let ex_style = unsafe { GetWindowLongPtrW(hwnd as HWND, GWL_EXSTYLE) };
+    let has_no_activate = (ex_style as u32 & WS_EX_NOACTIVATE) != 0;
+    let unchanged = before == after;
+    Ok(json!({
+        "label": label,
+        "foregroundUnchanged": unchanged,
+        "hasNoActivate": has_no_activate,
+        "pass": unchanged && has_no_activate,
+    }))
 }

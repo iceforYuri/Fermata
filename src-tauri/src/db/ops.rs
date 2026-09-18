@@ -613,3 +613,50 @@ pub fn notes_set(conn: &Connection, ts: i64, pid: i64, notes: &str) -> Result<()
     append_event(conn, ts, "notes_set", Some(pid), serde_json::json!({})).ok();
     Ok(())
 }
+
+/// 设置项写入（M2 置顶/热键/空闲阈值；M4 设置页同源）
+pub fn setting_set(conn: &Connection, ts: i64, key: &str, value: &str) -> Result<(), String> {
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        rusqlite::params![key, value],
+    )
+    .map_err(|e| e.to_string())?;
+    append_event(conn, ts, "setting_set", None, serde_json::json!({ "key": key, "value": value }))?;
+    Ok(())
+}
+
+pub fn setting_get(conn: &Connection, key: &str) -> Option<String> {
+    conn.query_row("SELECT value FROM settings WHERE key = ?1", rusqlite::params![key], |r| r.get(0)).ok()
+}
+
+/// 空闲回归确认：yes = 把空闲段回补进该进程 focus（合并回原 segment）
+pub fn idle_confirm(conn: &Connection, ts: i64, pid: i64, yes: bool) -> Result<(), String> {
+    if yes {
+        // 合并：删掉空闲后新开的段，把空闲前闭合的段重新打开（开口起点回吞空闲区间）
+        let open_id: Option<i64> = conn
+            .query_row(
+                "SELECT id FROM segments WHERE process_id = ?1 AND ended_at IS NULL ORDER BY id DESC LIMIT 1",
+                rusqlite::params![pid],
+                |r| r.get(0),
+            )
+            .ok();
+        let last_closed: Option<i64> = conn
+            .query_row(
+                "SELECT id FROM segments WHERE process_id = ?1 AND ended_at IS NOT NULL ORDER BY id DESC LIMIT 1",
+                rusqlite::params![pid],
+                |r| r.get(0),
+            )
+            .ok();
+        if let (Some(open_id), Some(closed_id)) = (open_id, last_closed) {
+            conn.execute("DELETE FROM segments WHERE id = ?1", rusqlite::params![open_id])
+                .map_err(|e| e.to_string())?;
+            conn.execute(
+                "UPDATE segments SET ended_at = NULL WHERE id = ?1",
+                rusqlite::params![closed_id],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+    }
+    append_event(conn, ts, "idle_confirm", Some(pid), serde_json::json!({ "yes": yes }))?;
+    Ok(())
+}

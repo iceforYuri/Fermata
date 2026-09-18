@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { data, type BoardProcess } from "../api/data";
 import { act, markHex, useBoard } from "../store/board";
-import { completeWithUndo, switchTo } from "../store/actions";
+import { completeWithUndo } from "../store/actions";
 import { agingOpacity, fmtDur } from "../util";
 
 /**
@@ -58,8 +58,16 @@ export function SuspendedRow({
   );
 }
 
-/** 挂起队列：点击切换、拖动排序（4px 阈值）、稿库拖入落点 */
-export function SuspendedQueue({ rows, day }: { rows: BoardProcess[]; day: string }) {
+/** 挂起队列：点击=断点小卡后切换、拖动排序（4px 阈值）、稿库拖入落点 */
+export function SuspendedQueue({
+  rows,
+  day,
+  onRequestSwitch,
+}: {
+  rows: BoardProcess[];
+  day: string;
+  onRequestSwitch: (pid: number, rect: DOMRect) => void;
+}) {
   const [order, setOrder] = useState<number[] | null>(null); // 拖动中的乐观顺序
   const [dropHint, setDropHint] = useState(false);
   const drag = useRef<{ pid: number; startY: number; active: boolean } | null>(null);
@@ -104,8 +112,11 @@ export function SuspendedQueue({ rows, day }: { rows: BoardProcess[]; day: strin
           if (cur) void act(() => data.queueReorder(day, cur));
           return null;
         });
-      } else if ((ev.target as HTMLElement).closest("[data-pid-main]")) {
-        void switchTo(pid); // 点击 = 切换
+      } else {
+        const main = (ev.target as HTMLElement).closest("[data-pid-main]");
+        if (main) {
+          onRequestSwitch(pid, main.getBoundingClientRect()); // 点击 = 断点小卡 → 切换
+        }
       }
     };
     window.addEventListener("pointermove", move);

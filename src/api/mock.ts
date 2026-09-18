@@ -36,6 +36,8 @@ interface MockState {
   resting: boolean;
   restSince: number | null;
   restSource: string | null;
+  restChoice: string | null;
+  settings: Record<string, string>;
 }
 
 const fixture =
@@ -62,6 +64,16 @@ function baseState(): MockState {
     resting: false,
     restSince: null,
     restSource: null,
+    restChoice: null,
+    settings: {
+      always_on_top: "0",
+      continuous_limit_minutes: "90",
+      hotkey: "Alt+Q",
+      idle_threshold_minutes: "5",
+      rest_mode: "soft",
+      slice_minutes: "45",
+      theme: "light",
+    },
   };
 }
 
@@ -312,9 +324,27 @@ function aging(p: Process): number | null {
   return base + (since ? Date.now() - since : 0);
 }
 
+function ringElapsed(pid: number): number {
+  // 锚点 = 本会话最后一个 switch_in / slice_complete
+  const anchors = state.events.filter(
+    (e) => e.process_id === pid && (e.kind === "switch_in" || e.kind === "slice_complete"),
+  );
+  if (!anchors.length) return 0;
+  const anchor = anchors[anchors.length - 1].ts;
+  const now = Date.now();
+  return state.segs
+    .filter((g) => g.pid === pid)
+    .reduce((acc, g) => {
+      const e = g.end ?? now;
+      if (e <= anchor) return acc;
+      return acc + Math.max(0, Math.min(e, now) - Math.max(g.start, anchor));
+    }, 0);
+}
+
 function toBoardProcess(p: Process): BoardProcess {
   const open = state.segs.find((g) => g.pid === p.id && g.end === null);
   return {
+    ring_elapsed_ms: ringElapsed(p.id),
     process: { ...p },
     steps: state.steps
       .filter((x) => x.process_id === p.id)
@@ -527,6 +557,7 @@ export const mockData: DataApi = {
     ev("rest_trigger", pid, { source, reading_ms: readingMs });
   },
   async restChoice(pid, choice) {
+    state.restChoice = choice;
     ev("rest_choice", pid, { choice });
   },
   async restStart(pid) {
@@ -534,6 +565,7 @@ export const mockData: DataApi = {
     state.resting = true;
     state.restSince = Date.now();
     state.restSource = "时间片走满";
+    state.restChoice = null;
     ev("rest_start", pid ?? null);
   },
   async restEnd(pid) {
@@ -585,15 +617,7 @@ export const mockData: DataApi = {
     return [...state.events];
   },
   async qSettings() {
-    return [
-      ["always_on_top", "0"],
-      ["continuous_limit_minutes", "90"],
-      ["hotkey", "Alt+Q"],
-      ["idle_threshold_minutes", "5"],
-      ["rest_mode", "soft"],
-      ["slice_minutes", "45"],
-      ["theme", "light"],
-    ];
+    return Object.entries(state.settings).map(([k, v]) => [k, v] as [string, string]);
   },
   async qPalette() {
     const entries: PaletteEntry[] = [];
@@ -623,6 +647,36 @@ export const mockData: DataApi = {
   },
 
   async segmentNote() {},
+
+  async settingSet(key, value) {
+    state.settings[key] = value;
+    ev("setting_set", null, { key, value });
+  },
+
+  async idleConfirm(pid, yes) {
+    if (yes) {
+      // 合并：删空闲后新开的段，重开空闲前闭合的段
+      const segs = state.segs.filter((g: Seg) => g.pid === pid);
+      const openIdx = segs.map((g: Seg) => g.end === null).lastIndexOf(true);
+      const closedIdx = openIdx > 0 ? openIdx - 1 : -1;
+      if (openIdx >= 0 && closedIdx >= 0 && segs[closedIdx].end !== null) {
+        const openSeg = segs[openIdx];
+        state.segs.splice(state.segs.indexOf(openSeg), 1);
+        segs[closedIdx].end = null;
+      }
+    }
+    ev("idle_confirm", pid, { yes });
+  },
+
+  async qRestState() {
+    return {
+      resting: state.resting,
+      since: state.restSince,
+      source: state.resting ? "ring_full" : null,
+      reading_ms: state.resting ? 47 * 60_000 : null,
+      choice: (state.restChoice as import("./types").RestChoice) ?? null,
+    };
+  },
 
   async processRename(pid, title) {
     proc(pid).title = title;

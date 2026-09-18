@@ -922,3 +922,188 @@
 .focus-result table { border-collapse: collapse; width: 100%; }
 .focus-result td { border-top: 1px solid var(--hairline); padding: 6px 8px 6px 0; vertical-align: top; }
 .focus-result td:first-child { color: var(--ink-soft); white-space: nowrap; width: 180px; }
+
+/* ================= M2 · 浮层实心暖卡（opaque，非玻璃） ================= */
+body:has(.overlay-card) {
+  background: var(--paper-deep);
+}
+.overlay-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper-deep);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  padding: 14px;
+  overflow: hidden;
+}
+.switcher-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-body);
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--hairline);
+}
+.switcher-current {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 4px;
+  font-size: var(--fs-small);
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--hairline);
+}
+.switcher-current .sw-title {
+  color: var(--ink);
+  font-weight: 500;
+}
+.sw-run {
+  font-size: var(--fs-micro);
+  color: var(--ink-faint);
+}
+.sw-ring {
+  margin-left: auto;
+  font-size: var(--fs-micro);
+  color: var(--ink-soft);
+}
+.switcher-list {
+  flex: 1;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+.sw-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: var(--fs-body);
+}
+.sw-row.selected {
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+.sw-spine {
+  flex: none;
+  width: 4px;
+  height: 18px;
+  border-radius: 2px;
+}
+.sw-title {
+  flex: none;
+  max-width: 45%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sw-bp {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-micro);
+  color: var(--ink-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sw-key {
+  flex: none;
+  font-size: var(--fs-micro);
+  color: var(--ink-ghost);
+}
+
+/* 休止符弹窗 */
+.restpop {
+  padding: 18px;
+  gap: 12px;
+}
+.restpop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.restpop-source {
+  font-size: var(--fs-small);
+  color: var(--ink-soft);
+}
+.restpop-close {
+  color: var(--ink-faint);
+  padding: 4px;
+}
+.restpop-close:hover {
+  color: var(--ink);
+}
+.restpop-title {
+  font-size: var(--fs-display);
+  font-weight: 600;
+}
+.restpop-btns {
+  display: flex;
+  gap: 16px;
+  margin-top: 6px;
+}
+.restpop-btns button {
+  font-size: var(--fs-body);
+  color: var(--ink);
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 1px;
+}
+.restpop-btns button:hover {
+  color: var(--ink-soft);
+}
+.restpop-next {
+  margin-top: 8px;
+  border-top: 1px solid var(--hairline);
+  padding-top: 8px;
+}
+.restpop-resting {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+.restpop-back {
+  font-size: var(--fs-body);
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 1px;
+}
+
+/* 微弹窗族（主窗内小卡） */
+.micro-card {
+  z-index: 50;
+  background: var(--paper-deep);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(38, 34, 30, 0.14);
+  padding: 10px 12px;
+  width: 320px;
+  animation: toast-in var(--dur) var(--ease-out);
+}
+.idle-card {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+}
+.idle-q {
+  font-size: var(--fs-body);
+  margin-bottom: 8px;
+}
+.idle-btns {
+  display: flex;
+  gap: 14px;
+  align-items: baseline;
+}
+.idle-btns button {
+  font-size: var(--fs-body);
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 1px;
+}

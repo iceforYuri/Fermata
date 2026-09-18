@@ -51,6 +51,9 @@ const tauriData: DataApi = {
   segmentNote: (segmentId, note) => invoke("segment_note", { segmentId, note }),
   processRename: (pid, title) => invoke("process_rename", { pid, title }),
   notesSet: (pid, notes) => invoke("notes_set", { pid, notes }),
+  settingSet: (key, value) => invoke("setting_set", { key, value }),
+  idleConfirm: (pid, yes) => invoke("idle_confirm", { pid, yes }),
+  qRestState: () => invoke("q_rest_state"),
 };
 
 export const data: DataApi = isTauri ? tauriData : mockData;

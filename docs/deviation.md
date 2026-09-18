@@ -66,3 +66,25 @@
 
 ### D15 · 标题栏左侧加"稿库"文字钮
 **理由**：01 文档未给稿库的显式入口控件（空态入口仅覆盖空态）；取最保守的文字 tab 式入口，不引入图标。
+
+## 2026-09-19 · M2 系统层
+
+### D16 · debug 替身与验收环境
+- `debug_trigger_hotkey` 与物理热键共用 `toggle_switcher`（同一处理函数）；本机合成输入不触发 RegisterHotKey（PoC 探针已证：SendKeys/keybd_event/SendInput/WinRT 注入均被吞），物理终验留人工。
+- `debug_set_time_scale(f)` 语义 = 环长与连轴阈值除以 f（不改时间数学）；验收用 60x。
+- 本机合成输入对 GetLastInputInfo 的影响今夜抖动（idle-probe.ps1 实测）；验收注入循环带"直到翻转才继续"的自愈。
+
+### D17 · rest_state 增加 choice 字段
+弹窗出现即 rest_start（停表），但"三选态"与"休息态"需区分：`choice` = 本次休息期内最后一个 rest_choice（null=未抉择；rest/close=休息态渲染）。
+
+### D18 · 空闲回补 = segment 合并
+答"是"：删空闲后新开的开口段、把空闲前闭合段重开（起点回吞空闲区间），写 idle_confirm{yes}。30s 超时默认"是"为 04 文档明文照做。segments 表的 UPDATE/DELETE 允许（append-only 约束只针对 events）。
+
+### D19 · 断点微弹窗位置
+行旁小卡（fixed 定位在点击行下方），Enter 确认 / Esc 取消整个切换 / 失焦取消——与浮层内嵌流程语义一致。
+
+### D20 · 软模式"切回主窗"间隙的判定
+主窗获焦 = `overlay-visibility{label:main, visible:true}`（summon/conceal 命令发出）+ window focus 事件双保险；浮层打开同理。
+
+### D21 · 前端调度器只在主窗挂载
+休止符双触发评估（1Hz tick）由主窗 Shell 承担；浮层窗口只做展示与转发命令，不评估触发——防多窗重复触发。

@@ -69,3 +69,51 @@
 [1789759106883] [poc] hotkey alt+q registered
 [1789759106884] [poc] idle begin (>=300s)
 [1789759107047] [m0] db ready: F:\Code\20260917_gika\src-tauri\gika-seed.db
+[1789761149313] [m2] gika dev 启动
+[1789761149314] [m2] db ready: F:\Code\20260917_gika\src-tauri\gika-seed.db
+[1789761149502] [m2] hotkey from settings: Alt+Q
+[1789761149502] [m2] hotkey registered
+[1789761252914] [m2] gika dev 启动
+[1789761252917] [m2] db ready: F:\Code\20260917_gika\src-tauri\gika-seed.db
+[1789761253144] [m2] hotkey from settings: Alt+Q
+[1789761253144] [m2] hotkey registered
+[1789761474048] [m2] gika dev 启动
+[1789761474399] [m2] db ready: F:\Code\20260917_gika\src-tauri\gika-m2.db
+[1789761474600] [m2] hotkey from settings: Alt+Q
+[1789761474601] [m2] hotkey registered
+[1789761600675] [m2] gika dev 启动
+[1789761601160] [m2] db ready: F:\Code\20260917_gika\src-tauri\gika-m2.db
+[1789761601368] [m2] hotkey from settings: Alt+Q
+[1789761601369] [m2] hotkey registered
+[1789761980164] [m2] gika dev 启动
+[1789761980808] [m2] db ready: F:\Code\20260917_gika\src-tauri\gika-m2.db
+[1789761981023] [m2] hotkey from settings: Alt+Q
+[1789761981023] [m2] hotkey registered
+[1789762161402] [m2] gika dev 启动
+[1789762161845] [m2] db ready: F:\Code\20260917_gika\src-tauri\gika-m2.db
+[1789762162042] [m2] hotkey from settings: Alt+Q
+[1789762162042] [m2] hotkey registered
+[1789762383958] [m2] gika dev 启动
+[1789762384370] [m2] db ready: F:\Code\20260917_gika\src-tauri\gika-m2-idle.db
+[1789762384590] [m2] hotkey from settings: Alt+Q
+[1789762384591] [m2] hotkey registered
+[1789762486743] [m2] gika dev 启动
+[1789762486746] [m2] db ready: F:\Code\20260917_gika\src-tauri\gika-m2-idle.db
+[1789762486955] [m2] hotkey from settings: Alt+Q
+[1789762486955] [m2] hotkey registered
+[1789762557089] [m2] gika dev 启动
+[1789762557273] [m2] db ready: F:\Code\20260917_gika\src-tauri\gika-m2-idle.db
+[1789762557454] [m2] hotkey from settings: Alt+Q
+[1789762557454] [m2] hotkey registered
+[1789762700700] [m2] gika dev 启动
+[1789762701185] [m2] db ready: F:\Code\20260917_gika\src-tauri\gika-m2-idle.db
+[1789762701392] [m2] hotkey from settings: Alt+Q
+[1789762701392] [m2] hotkey registered
+[1789763490478] [m2] gika dev 启动
+[1789763490480] [m2] db ready: F:\Code\20260917_gika\src-tauri\gika-m2-idle.db
+[1789763490696] [m2] hotkey from settings: Alt+Q
+[1789763490696] [m2] hotkey registered
+[1789763885924] [m2] gika dev 启动
+[1789763885927] [m2] db ready: F:\Code\20260917_gika\src-tauri\gika-m2-idle.db
+[1789763886149] [m2] hotkey from settings: Alt+Q
+[1789763886149] [m2] hotkey registered

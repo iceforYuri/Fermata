@@ -1,5 +1,6 @@
 import { system } from "../api/system";
 import { setUi, toggleLeft, useUi, type Tab } from "../store/ui";
+import { useBoard } from "../store/board";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "board", label: "进程" },
@@ -24,7 +25,9 @@ function RestMark() {
 
 /** 自绘标题栏：三 tab（固定空间位置）+ 拖拽区 + 窗口控制 */
 export function TitleBar() {
-  const { tab, resting } = useUi();
+  const { tab } = useUi();
+  const { rest } = useBoard();
+  const resting = rest.resting;
   return (
     <div className="titlebar">
       <div className="drag" data-tauri-drag-region />
