@@ -170,3 +170,6 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 
 ### D41 · 日视角改版与悬停浮窗核查
 悬停浮窗经 mock 与真实 exe 双向复核**未断**（字段 title/seg_start/seg_end 均随格返回），补 verify-m3 内容断言锁死。日期标移单元右下（"23 mon"），吸顶 12px 小签仅在大标滚出顶沿时出现（IO 判定 boundingClientRect.top < 容器顶）。钻取零漂移：进场动画播放前先同步 scrollTo 锚日（useLayoutEffect），动画期间锚日 y 恒定（实测 t60ms=t280ms=113）。
+
+### D42 · 轨道 transform 内禁用 fixed 定位
+主三页搬进横向滑动轨道（D40）后，`.track` 的 `transform`/`will-change` 使其成为 fixed 后代的包含块：统计页停在 translateX(-33.3%) 时，页内 `position:fixed` 的日网格悬停浮窗被搬到视口外——"浮窗消失"。规则：**页面内所有 fixed 弹层一律 createPortal 到 document.body**（dg-tip 已改）。验收：scripts/check-dgtip-real.mjs 在真实 exe（CDP）里几何断言浮窗在视口内且贴近圆圈。mock 浏览器环境在钻取+懒加载装载期间几何测量不稳，验收以真实 exe 为准。

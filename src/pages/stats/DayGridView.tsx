@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { data, type GridCell } from "../../api/data";
 import { markHex, useBoard } from "../../store/board";
 import { fmtClock, fmtDur } from "../../util";
@@ -134,23 +135,27 @@ export function DayGridView({
           onHover={setHover}
         />
       ))}
-      {hover && hover.cell.title && (
-        <div
-          className="dg-tip"
-          data-testid="dg-tip"
-          style={{ left: Math.min(hover.x, window.innerWidth - 260), top: hover.y - 8 }}
-        >
-          <div className="dg-tip-title">{hover.cell.title}</div>
-          <div className="num dg-tip-time">
-            {hover.cell.seg_start && fmtClock(hover.cell.seg_start)}–
-            {hover.cell.seg_end && fmtClock(hover.cell.seg_end)}
-            {" · "}
-            {hover.cell.seg_start && hover.cell.seg_end &&
-              fmtDur(hover.cell.seg_end - hover.cell.seg_start)}
-          </div>
-          {hover.cell.breakpoint && <div className="dg-tip-bp">断点：{hover.cell.breakpoint}</div>}
-        </div>
-      )}
+      {hover &&
+        hover.cell.title &&
+        // 门户到 body：轨道 transform/will-change 会把 fixed 变成相对祖先定位
+        createPortal(
+          <div
+            className="dg-tip"
+            data-testid="dg-tip"
+            style={{ left: Math.min(hover.x, window.innerWidth - 260), top: hover.y - 8 }}
+          >
+            <div className="dg-tip-title">{hover.cell.title}</div>
+            <div className="num dg-tip-time">
+              {hover.cell.seg_start && fmtClock(hover.cell.seg_start)}–
+              {hover.cell.seg_end && fmtClock(hover.cell.seg_end)}
+              {" · "}
+              {hover.cell.seg_start && hover.cell.seg_end &&
+                fmtDur(hover.cell.seg_end - hover.cell.seg_start)}
+            </div>
+            {hover.cell.breakpoint && <div className="dg-tip-bp">断点：{hover.cell.breakpoint}</div>}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
