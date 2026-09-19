@@ -8,6 +8,7 @@
   display: flex;
   align-items: center;
   padding: 8px 0 0 14px; /* 顶部 8px 让出无边框窗 resize 死带（tao HTTOP） */
+  position: relative; /* 胶囊几何居中的定位上下文 */
   border-bottom: 1px solid var(--hairline);
   flex: none;
   position: relative;
@@ -1392,6 +1393,10 @@ body:has(.overlay-card) {
 
 /* ================= v1.1 · 胶囊导航 ================= */
 .capsule-nav {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%); /* 相对窗口几何中心，不再受窗控挤压 */
+  z-index: 2; /* 压过两侧拖拽留白；自身可点 */
   display: flex;
   align-items: center;
   gap: 0; /* 缝隙死区清零：间距由导航项自身 padding 撑开 */
@@ -1455,10 +1460,12 @@ body:has(.overlay-card) {
   place-items: center;
   color: var(--ink-ghost);
   cursor: pointer;
+  background: color-mix(in srgb, var(--ink) 2.5%, transparent); /* 收起态常驻存在感 */
+  border-right: 1px solid color-mix(in srgb, var(--ink) 9%, transparent); /* 发丝线 */
   transition: background var(--dur-fast), color var(--dur-fast);
 }
 .lib-rail:hover {
-  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
   color: var(--ink-soft);
 }
 .lib-rail svg { width: 10px; height: 14px; }

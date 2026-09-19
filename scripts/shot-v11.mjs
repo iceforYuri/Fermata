@@ -20,6 +20,7 @@ const shot = async (name) => {
 await page.goto(`${BASE}/`);
 await page.waitForSelector("[data-testid=board-page]");
 await shot("board-capsule");
+await shot("rail-closed");
 
 // 胶囊 hover 态
 await page.hover("[data-testid=tab-stats]");
