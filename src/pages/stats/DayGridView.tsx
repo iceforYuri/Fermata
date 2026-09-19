@@ -238,11 +238,6 @@ function DayUnit({
         <div className="daygrid-empty">这一天留白</div>
       ) : (
         <>
-          <div className="daygrid-ticks" data-testid="daygrid-ticks-top">
-            {[["6", 3], ["12", 6], ["18", 9], ["24", 12]].map(([t, line]) => (
-              <span key={t} className="num dg-tick" style={{ left: (line as number) * 36 }}>{t}</span>
-            ))}
-          </div>
           <div className="daygrid-grid" data-testid="daygrid">
             {cells.map((c) => (
               <div key={c.cell} className="dg-cell" data-cell={c.cell}>

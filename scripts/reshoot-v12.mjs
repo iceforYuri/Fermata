@@ -56,8 +56,8 @@ await page.screenshot({ path: `${OUT}/daygrid-half-circles.png` });
     return true;
   };
   ok(
-    "日网格时间段刻度上下两行",
-    groupsOk(ticksTop) && groupsOk(ticksBottom) && ticksTop.length === ticksBottom.length,
+    "日网格单点刻度仅下行",
+    ticksTop.length === 0 && groupsOk(ticksBottom),
     `top ${ticksTop.length} / bottom ${ticksBottom.length}`,
   );
 }
