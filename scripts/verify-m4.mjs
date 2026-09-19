@@ -38,9 +38,14 @@ await sleep(300);
 // 该点在 full-run 下 playwright 点击偶发不触发 React onClick（环境抖动），改用 DOM 级 click
 await page.evaluate(() => document.querySelector("[data-testid=set-slice-value]").click());
 await page.waitForSelector("[data-testid=set-slice-input]");
-await sleep(500);
-await page.evaluate(() => document.querySelector("[data-testid=set-slice-minus]").click());
-await page.evaluate(() => document.querySelector("[data-testid=set-slice-minus]").click());
+await sleep(300);
+// 真实鼠标点 ±（回归 D35-4：mousedown preventDefault 前 ± 永不派发）
+for (let i = 0; i < 2; i++) {
+  const minus = await page.$("[data-testid=set-slice-minus]");
+  const box = await minus.boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await sleep(120);
+}
 await page.press("[data-testid=set-slice-input]", "Enter");
 await sleep(300);
 ok("stepper 步进（50→40）", (await page.textContent("[data-testid=set-slice-value]")).includes("40 分钟"));

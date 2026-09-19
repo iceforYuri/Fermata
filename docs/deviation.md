@@ -135,3 +135,11 @@ settings 表只种 M0 任务列明的 7 键；M4 新增键（idle_confirm=1、fo
 
 ### D34 · 日视角滚动吸附的底部垫高
 scroll-snap 的 start 对齐对最末单元不可达（内容尾部无法上顶），容器垫高 = 容器高 − 单元高，让今天也能吸附到顶。
+
+### D35 · 顶栏不灵敏四真根因与修法（首诊误判更正）
+B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.js 沿 composedPath 遇 BUTTON 即返回 false，按钮点击永不进拖拽。真根因四条：
+1. **resize 死带（主因）**：无边框窗 tao 对顶边 SM_CYFRAME 像素返 HTTOP，点击不进 WebView2；修法=titlebar 加 padding-top 8px（总高 44px），实证 CDP 量得胶囊命中区上缘距顶 10.6 CSS px（DPR 1.25），移出 4–8px 死带。
+2. **缝隙死区**：胶囊项间 gap 是容器空白；修法=gap 归 0、间距由项自身 padding 撑开（实证项间缝隙 0px）。
+3. **无按压反馈**：补 :active（转实 + 下沉 1px + 染底）。
+4. **stepper 卸载 bug**：NumRow 输入框 blur 即 commit → ± 钮 mousedown 阶段被卸载、click 永不派发；修法=± 钮 onMouseDown preventDefault（阻焦点转移），回归断言改真实鼠标点 ±。
+拖拽区两侧留白方案保留且实证可用（两侧各 421px data-tauri-drag-region）；TitleBar memo 保留。

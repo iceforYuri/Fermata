@@ -4,10 +4,10 @@
 
 /* ================= 顶栏（自绘标题栏） ================= */
 .titlebar {
-  height: 38px;
+  height: 44px;
   display: flex;
   align-items: center;
-  padding: 0 0 0 14px;
+  padding: 8px 0 0 14px; /* 顶部 8px 让出无边框窗 resize 死带（tao HTTOP） */
   border-bottom: 1px solid var(--hairline);
   flex: none;
   position: relative;
@@ -766,7 +766,7 @@
 /* ================= 完成档案浮层（页内玻璃，合规：只盖自家内容） ================= */
 .archive-backdrop {
   position: fixed;
-  inset: 38px 0 0;
+  inset: 44px 0 0;
   z-index: 40;
   -webkit-backdrop-filter: blur(22px) saturate(1.25);
   backdrop-filter: blur(22px) saturate(1.25);
@@ -1394,7 +1394,7 @@ body:has(.overlay-card) {
 .capsule-nav {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 0; /* 缝隙死区清零：间距由导航项自身 padding 撑开 */
   border: 1px solid var(--hairline);
   border-radius: 7px;
   padding: 2px;
@@ -1405,13 +1405,18 @@ body:has(.overlay-card) {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 30px; /* 命中区连同胶囊 padding ≥36px */
-  padding: 0 12px;
+  height: 30px;
+  padding: 0 12px; /* 项间无 gap，命中区连续 */
   border-radius: 5px;
   font-size: var(--fs-micro);
   color: var(--ink-soft);
   opacity: 0.6;
-  transition: opacity var(--dur-fast) var(--ease-out), background var(--dur-fast);
+  transition: opacity var(--dur-fast) var(--ease-out), background var(--dur-fast), transform 80ms var(--ease-out);
+}
+.capsule-tab:active {
+  opacity: 1;
+  transform: translateY(1px); /* 按压反馈：转实 + 轻微下沉 */
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
 }
 .capsule-tab:hover { opacity: 1; }
 .capsule-icon {

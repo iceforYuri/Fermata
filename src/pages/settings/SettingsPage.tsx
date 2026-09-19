@@ -73,7 +73,12 @@ function NumRow({
       }}
       testid={testid}
     >
-      <button className="stepper-btn" data-testid={`${testid}-minus`} onClick={() => setDraft((d) => Math.max(min, d - step))}>−</button>
+      <button
+        className="stepper-btn"
+        data-testid={`${testid}-minus`}
+        onMouseDown={(e) => e.preventDefault()} /* 阻焦点转移：blur 不触发，按钮不被卸载 */
+        onClick={() => setDraft((d) => Math.max(min, d - step))}
+      >−</button>
       <input
         className="inline-edit set-num num"
         data-testid={`${testid}-input`}
@@ -86,7 +91,12 @@ function NumRow({
           if (e.key === "Escape") setEditing(false);
         }}
       />
-      <button className="stepper-btn" data-testid={`${testid}-plus`} onClick={() => setDraft((d) => Math.min(max, d + step))}>+</button>
+      <button
+        className="stepper-btn"
+        data-testid={`${testid}-plus`}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => setDraft((d) => Math.min(max, d + step))}
+      >+</button>
       <span className="set-unit">{unit}</span>
     </RowShell>
   );
