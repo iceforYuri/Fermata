@@ -275,46 +275,48 @@ function DayUnit({
         {Number(day.slice(8))} {wk}
         {day === today ? " · 今天" : ""}
       </button>
-      {isFuture ? (
-        <div className="daygrid-empty">尚无记录</div>
-      ) : cells === null ? (
-        <div className="daygrid-empty" style={{ color: "var(--ink-ghost)" }}>…</div>
-      ) : !hasData ? (
-        <div className="daygrid-empty">这一天留白</div>
-      ) : (
-        <>
-          <div className="daygrid-grid" data-testid="daygrid">
-            {cells.map((c) => (
-              <div key={c.cell} className="dg-cell" data-cell={c.cell}>
-                {c.owner_process_id !== null ? (
-                  <CellMark
-                    cell={c}
-                    color={markHex(board, c.color_tag) ?? "var(--ring-neutral)"}
-                    onHover={onHover}
-                  />
-                ) : (
-                  <span className="dg-empty-dot" />
-                )}
-              </div>
-            ))}
-          </div>
-          <div className="daygrid-ticks" data-testid="daygrid-ticks-bottom">
-            {[["6", 3], ["12", 6], ["18", 9], ["24", 12]].map(([t, line]) => (
-              <span key={t} className="num dg-tick" style={{ left: (line as number) * 36 }}>{t}</span>
-            ))}
-          </div>
-        </>
-      )}
-      <button
-        className="day-big-label"
-        data-testid="day-big-label"
-        ref={bigRef}
-        onClick={onBackToMonth}
-        title="回到月视角"
-      >
-        <span className="num day-big-num">{Number(day.slice(8))}</span>
-        <span className="day-big-wk">{wk}</span>
-      </button>
+      <div className="daygrid-body">
+        {isFuture ? (
+          <div className="daygrid-empty">尚无记录</div>
+        ) : cells === null ? (
+          <div className="daygrid-empty" style={{ color: "var(--ink-ghost)" }}>…</div>
+        ) : !hasData ? (
+          <div className="daygrid-empty">这一天留白</div>
+        ) : (
+          <>
+            <div className="daygrid-grid" data-testid="daygrid">
+              {cells.map((c) => (
+                <div key={c.cell} className="dg-cell" data-cell={c.cell}>
+                  {c.owner_process_id !== null ? (
+                    <CellMark
+                      cell={c}
+                      color={markHex(board, c.color_tag) ?? "var(--ring-neutral)"}
+                      onHover={onHover}
+                    />
+                  ) : (
+                    <span className="dg-empty-dot" />
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="daygrid-ticks" data-testid="daygrid-ticks-bottom">
+              {[["6", 3], ["12", 6], ["18", 9], ["24", 12]].map(([t, line]) => (
+                <span key={t} className="num dg-tick" style={{ left: (line as number) * 36 }}>{t}</span>
+              ))}
+            </div>
+          </>
+        )}
+        <button
+          className="day-big-label"
+          data-testid="day-big-label"
+          ref={bigRef}
+          onClick={onBackToMonth}
+          title="回到月视角"
+        >
+          <span className="num day-big-num">{Number(day.slice(8))}</span>
+          <span className="day-big-wk">{wk}</span>
+        </button>
+      </div>
     </div>
   );
 }
