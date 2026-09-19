@@ -71,3 +71,5 @@
 - `board-dark-v2` 与 `board-dark` 字节同源（mock 下两图同链路）："设置切主题 → 版面换肤"的真实环境证据由 verify-m4-real.mjs 跨窗断言承担（主窗+浮层 data-theme 同步翻转），不靠这张图
 - 休止符弹窗暗色展开态见 `restpop-next-dark.png`（色脊入镜）
 > v1.1 修订后证据：docs/screenshots/v11/（胶囊导航/rail/步骤栈空圈/日滚动/淡暖底/MiSans 与 A/B 三值）；回归：verify-m1 18/18、verify-m3 v1.1 12/12、verify-m4 11/11。
+
+> v1.2 修订后证据：docs/screenshots/v12/（morph 导航/统一栈断点条/拖拽虚影帧/日网格半圆+时间段刻度/设置左竖导航/休息页 Esc 提示/rail 常驻提示）；回归：verify-m1 20/20、verify-m3 12/12、verify-m4 11/11、cargo test 6/6。
