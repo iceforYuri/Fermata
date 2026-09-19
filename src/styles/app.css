@@ -8,12 +8,11 @@
   display: flex;
   align-items: center;
   padding: 8px 0 0 14px; /* 顶部 8px 让出无边框窗 resize 死带（tao HTTOP） */
-  position: relative; /* 胶囊几何居中的定位上下文 */
-  border-bottom: 1px solid var(--hairline);
   flex: none;
-  position: relative;
+  position: relative; /* 胶囊几何居中的定位上下文 */
   z-index: 30;
   background: var(--paper);
+  /* v1.2：无边界，永不分隔线 */
 }
 /* v1.1：拖拽区只剩两侧留白，导航不被覆盖（点击稳定性根治） */
 .titlebar .drag-side {
@@ -848,9 +847,12 @@
   cursor: pointer;
   transition: transform var(--dur) var(--ease-out);
 }
-.rest-continue svg {
+.rest-continue svg.rest-ring-svg {
   position: absolute;
   inset: 0;
+}
+.rest-continue .play {
+  position: relative;
 }
 .rest-continue .play {
   width: 22px;
@@ -1287,9 +1289,8 @@ body:has(.overlay-card) {
 }
 .daygrid-ticks {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 36px;
-  margin-top: -6px;
+  grid-template-columns: repeat(12, 36px);
+  margin: 2px 0;
 }
 .dg-tick { font-size: var(--fs-micro); color: var(--ink-faint); text-align: center; }
 .dg-tip {
@@ -1627,9 +1628,9 @@ body:has(.overlay-card) {
 
 /* v1.2 拖拽落点虚影 */
 .drop-ghost {
-  border: 1px dashed var(--ink-faint);
+  border: 1.5px dashed color-mix(in srgb, var(--ink) 42%, transparent);
   border-radius: var(--card-radius);
-  background: color-mix(in srgb, var(--ink) 3%, transparent);
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
   pointer-events: none;
   z-index: 4;
 }

@@ -44,7 +44,7 @@ export function RestPage() {
         aria-label="继续"
         onClick={resume}
       >
-        <svg width="96" height="96" viewBox="0 0 96 96">
+        <svg className="rest-ring-svg" width="96" height="96" viewBox="0 0 96 96">
           <circle cx="48" cy="48" r="45" fill="none" stroke="var(--ink-faint)" strokeWidth="2.5" />
         </svg>
         <svg className="play" viewBox="0 0 24 24" fill="currentColor">

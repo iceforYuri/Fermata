@@ -217,21 +217,33 @@ function DayUnit({
       ) : !hasData ? (
         <div className="daygrid-empty">这一天留白</div>
       ) : (
-        <div className="daygrid-grid" data-testid="daygrid">
-          {cells.map((c) => (
-            <div key={c.cell} className="dg-cell" data-cell={c.cell}>
-              {c.owner_process_id !== null ? (
-                <CellMark
-                  cell={c}
-                  color={markHex(board, c.color_tag) ?? "var(--ring-neutral)"}
-                  onHover={onHover}
-                />
-              ) : (
-                <span className="dg-empty-dot" />
-              )}
-            </div>
-          ))}
-        </div>
+        <>
+          <div className="daygrid-ticks" data-testid="daygrid-ticks-top">
+            {["0–2", "6–8", "12–14", "18–20"].map((t, i) => (
+              <span key={t} className="num dg-tick" style={{ gridColumnStart: i * 3 + 1 }}>{t}</span>
+            ))}
+          </div>
+          <div className="daygrid-grid" data-testid="daygrid">
+            {cells.map((c) => (
+              <div key={c.cell} className="dg-cell" data-cell={c.cell}>
+                {c.owner_process_id !== null ? (
+                  <CellMark
+                    cell={c}
+                    color={markHex(board, c.color_tag) ?? "var(--ring-neutral)"}
+                    onHover={onHover}
+                  />
+                ) : (
+                  <span className="dg-empty-dot" />
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="daygrid-ticks" data-testid="daygrid-ticks-bottom">
+            {["0–2", "6–8", "12–14", "18–20"].map((t, i) => (
+              <span key={t} className="num dg-tick" style={{ gridColumnStart: i * 3 + 1 }}>{t}</span>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
