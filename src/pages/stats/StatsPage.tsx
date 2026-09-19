@@ -59,7 +59,13 @@ export function StatsPage() {
     if (v === "day") {
       return (
         <div className="view-stretch" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-          <DayGridView day={anchor} onAnchor={setAnchor} onBackToMonth={() => drillTo("month")} />
+          <DayGridView
+            day={anchor}
+            onAnchor={setAnchor}
+            onBackToMonth={() => drillTo("month")}
+            enter={outgoing !== null}
+            enterDir={outgoing?.dir ?? 1}
+          />
         </div>
       );
     }
@@ -104,7 +110,7 @@ export function StatsPage() {
           </div>
         )}
         <div
-          className={`drill-layer current ${outgoing ? (outgoing.dir === 1 ? "drill-in-below" : "drill-in-above") : ""}`}
+          className={`drill-layer current ${outgoing && view !== "day" ? (outgoing.dir === 1 ? "drill-in-below" : "drill-in-above") : ""}`}
           data-testid="drill-current"
         >
           {renderView(view)}

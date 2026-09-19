@@ -167,3 +167,6 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 
 ### D40 · v1.3 换页动效要点
 主三页横向轨道：.track 300% 宽 flex，translateX(-i×33.33%)，240ms ease-page；三页常驻挂载（滚动位置/内部状态保留）；离屏页 pointer-events:none + visibility:hidden 延迟至滑动结束（transition-delay）。统计页视角切换=纵向钻取成对进出（下钻新页升/旧页让，反向同），旧页短寿命双渲染 240ms 后卸载（不常驻）。淡化只剩浮层/提示；page-in 退役。tokens 收敛 --dur-page/--ease-page。
+
+### D41 · 日视角改版与悬停浮窗核查
+悬停浮窗经 mock 与真实 exe 双向复核**未断**（字段 title/seg_start/seg_end 均随格返回），补 verify-m3 内容断言锁死。日期标移单元右下（"23 mon"），吸顶 12px 小签仅在大标滚出顶沿时出现（IO 判定 boundingClientRect.top < 容器顶）。钻取零漂移：进场动画播放前先同步 scrollTo 锚日（useLayoutEffect），动画期间锚日 y 恒定（实测 t60ms=t280ms=113）。

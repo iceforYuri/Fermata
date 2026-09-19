@@ -59,7 +59,7 @@ const units = await page.$$eval(".day-unit", (els) => els.map((e) => e.dataset.d
 ok("日滚动：上界有记录日、下界今天", units[units.length - 1] === todayStr() && !units.some((d) => d > todayStr()));
 
 // 4. 吸顶日期头点击回月视角，且锚点=今天（滚动联动生效）
-await page.click(`.day-unit[data-day="${todayStr()}"] .day-unit-head`);
+await page.click(`.day-unit[data-day="${todayStr()}"] .day-big-label`);
 await page.waitForSelector("[data-testid=month-cal]");
 ok(
   "点吸顶日期回月 + 滚动锚点联动（今天）",
@@ -99,8 +99,51 @@ const tip = await page.textContent("[data-testid=dg-tip]");
 ok("悬停浮窗（进程名+起止+时长）", tip.includes("·") && tip.includes("–"), tip.trim().slice(0, 60));
 await page.mouse.move(24, 100);
 
+// 7b. 浮窗内容完整（进程名+起止+时长）+ 大圆 26px + 单元间距 72px + 钻取零漂移
+{
+  const dot0 = page.locator("[data-testid=dg-dot]").first();
+  await dot0.hover();
+  await sleep(300);
+  const tipText = await page.textContent("[data-testid=dg-tip]");
+  const dotBox = await dot0.boundingBox();
+  ok(
+    "浮窗含进程名+起止+时长",
+    /\d{2}:\d{2}–\d{2}:\d{2} · /.test(tipText) && tipText.trim().length > 10,
+    tipText.trim().slice(0, 50),
+  );
+  ok("圆加大 26px", Math.abs(dotBox.width - 26) < 1, `w=${dotBox.width}`);
+
+  const gapInfo = await page.evaluate(() => {
+    const units = [...document.querySelectorAll(".day-unit")].slice(0, 3);
+    if (units.length < 2) return null;
+    const a = units[0].getBoundingClientRect();
+    const b = units[1].getBoundingClientRect();
+    return Math.round(b.top - a.bottom);
+  });
+  ok("日单元间距 72px", gapInfo !== null && Math.abs(gapInfo - 72) <= 2, `gap=${gapInfo}`);
+}
+
+// 7c. 钻取零漂移：双击进日视角，动画期间锚日 y 不漂
+{
+  await page.click(`.day-unit[data-day="${todayStr()}"] .day-big-label`);
+  await page.waitForSelector("[data-testid=month-cal]");
+  await page.waitForTimeout(400);
+  const dayPos = () => page.evaluate((d) => {
+    const sc = document.querySelector("[data-testid=daygrid-scroll]");
+    const el = sc?.querySelector(`.day-unit[data-day="${d}"]`);
+    if (!sc || !el) return null;
+    return Math.round(el.getBoundingClientRect().top - sc.getBoundingClientRect().top);
+  }, todayStr());
+  await page.dblclick(`[data-testid=cal-cell][data-day="${todayStr()}"]`);
+  await sleep(60); // 动画早期
+  const y1 = await dayPos();
+  await sleep(220); // 动画后
+  const y2 = await dayPos();
+  ok("钻取零漂移（锚日 y 恒定）", y1 !== null && y1 === y2, `t60ms=${y1} t280ms=${y2}`);
+}
+
 // 8. 未计时完成不画圈：今天加计划并直接完成 → 圆圈数不变
-await page.click(`.day-unit[data-day="${todayStr()}"] .day-unit-head`);
+await page.click(`.day-unit[data-day="${todayStr()}"] .day-big-label`);
 await page.waitForSelector("[data-testid=month-cal]");
 await page.click(`[data-testid=cal-cell][data-day="${todayStr()}"]`);
 await page.waitForSelector("[data-testid=dayview]");
@@ -118,7 +161,7 @@ const dotsAfter = (await page.$$("[data-testid=dg-dot]")).length;
 ok("未计时完成标记出现且不画圈", doneTag.includes("未计时完成") && dotsAfter === dotsToday, `${dotsToday}→${dotsAfter}`);
 
 // 9. 日视角锚点=月历选中日（非强制今天）
-await page.click(`.day-unit[data-day="${todayStr()}"] .day-unit-head`).catch(async () => {
+await page.click(`.day-unit[data-day="${todayStr()}"] .day-big-label`).catch(async () => {
   await page.click("[data-testid=daygrid-date]").catch(() => {});
 });
 await page.waitForSelector("[data-testid=month-cal]");

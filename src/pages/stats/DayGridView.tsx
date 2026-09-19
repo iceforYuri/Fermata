@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { data, type GridCell } from "../../api/data";
 import { markHex, useBoard } from "../../store/board";
 import { fmtClock, fmtDur } from "../../util";
@@ -18,16 +18,23 @@ export function DayGridView({
   day,
   onAnchor,
   onBackToMonth,
+  enter = false,
+  enterDir = 1,
 }: {
   day: string;
   onAnchor: (day: string) => void;
   onBackToMonth: () => void;
+  enter?: boolean;      // 钻取进场（先隐藏态定位锚日，再播升起动画）
+  enterDir?: 1 | -1;
 }) {
   const today = dayStr(new Date());
   const [firstDay, setFirstDay] = useState<string | null>(null);
   const [hover, setHover] = useState<{ cell: GridCell; x: number; y: number } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastHeight = useRef(0);
+  const lastStart = useRef<number | null>(null);
+  const [ready, setReady] = useState(!enter); // enter 时先隐藏定位，再播动画
 
   useEffect(() => {
     void data.qFirstDay().then((d) => setFirstDay(d ?? today));
@@ -55,25 +62,36 @@ export function DayGridView({
   }, [allDays, anchorIdx, startIdx]);
   const days = startIdx === null ? [] : allDays.slice(startIdx);
 
-  // 进场滚到锚点日（仅一次）
-  useEffect(() => {
+  // 进场滚到锚点日（仅一次）：进场动画开始之前同步完成定位，杜绝中途二次定位
+  useLayoutEffect(() => {
     if (!days.length || startIdx === null) return;
-    const el = scrollRef.current?.querySelector(`[data-day="${day}"]`);
-    el?.scrollIntoView({ block: "start" });
+    const root = scrollRef.current;
+    const el = root?.querySelector(`[data-day="${day}"]`);
+    if (root && el) {
+      root.scrollTop = (el as HTMLElement).offsetTop - root.offsetTop;
+    }
+    if (enter && !ready) requestAnimationFrame(() => setReady(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startIdx !== null]);
 
-  const onScroll = () => {
-    // 滚近顶部 → prepend 更早的天，scrollTop 补偿锚定（杜绝跳动）
+  // prepend 后同步补偿 scrollTop（useLayoutEffect：绘制前完成，零跳动）
+  useLayoutEffect(() => {
     const root = scrollRef.current;
-    if (root && root.scrollTop < 200 && startIdx !== null && startIdx > 0) {
-      const before = root.scrollHeight;
-      const newStart = Math.max(0, startIdx - 10);
-      setStartIdx(newStart);
-      requestAnimationFrame(() => {
-        const delta = root.scrollHeight - before;
-        if (delta > 0) root.scrollTop += delta;
-      });
+    if (!root || startIdx === null) return;
+    if (lastStart.current !== null && startIdx < lastStart.current) {
+      const delta = root.scrollHeight - lastHeight.current;
+      if (delta > 0) root.scrollTop += delta;
+    }
+    lastStart.current = startIdx;
+  }, [startIdx]);
+
+  const onScroll = () => {
+    const root = scrollRef.current;
+    if (!root) return;
+    lastHeight.current = root.scrollHeight;
+    // 滚近顶部 → prepend 更早的天
+    if (root.scrollTop < 200 && startIdx !== null && startIdx > 0) {
+      setStartIdx(Math.max(0, startIdx - 10));
     }
     if (idleTimer.current) clearTimeout(idleTimer.current);
     idleTimer.current = setTimeout(() => {
@@ -99,7 +117,13 @@ export function DayGridView({
   if (!firstDay) return null;
 
   return (
-    <div className="daygrid-scroll" data-testid="daygrid-scroll" ref={scrollRef} onScroll={onScroll}>
+    <div
+      className={`daygrid-scroll${enter && ready ? (enterDir === 1 ? " drill-in-below" : " drill-in-above") : ""}`}
+      style={enter && !ready ? { opacity: 0 } : undefined}
+      data-testid="daygrid-scroll"
+      ref={scrollRef}
+      onScroll={onScroll}
+    >
       {days.map((d) => (
         <DayUnit
           key={d}
@@ -159,22 +183,23 @@ function CellMark({
       />
     );
   }
-  // 45° 斜半圆：右上-左下对角线切半；段起/中段=色在右下，段止=色在左上
+  // 45° 斜半圆 26px：对角线切半；段起/中段=色在右下，段止=色在左上
+  const tri = cell.is_end ? "0 26 L26 0 L0 0" : "0 26 L26 0 L26 26";
   return (
     <svg
       className="dg-half"
       data-testid="dg-dot"
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
+      width="26"
+      height="26"
+      viewBox="0 0 26 26"
       onMouseEnter={enter}
       onMouseLeave={() => onHover(null)}
     >
-      <circle cx="8" cy="8" r="7.2" fill="none" stroke={color} strokeWidth="1" opacity="0.45" />
-      <circle cx="8" cy="8" r="7.2" fill={color} clipPath={`url(#halfclip-${cell.cell})`} />
+      <circle cx="13" cy="13" r="11.6" fill="none" stroke={color} strokeWidth="1" opacity="0.45" />
+      <circle cx="13" cy="13" r="11.6" fill={color} clipPath={`url(#halfclip-${cell.cell})`} />
       <defs>
         <clipPath id={`halfclip-${cell.cell}`}>
-          <path d={`M ${cell.is_end ? "0 16 L16 0 L0 0" : "0 16 L16 0 L16 16"} Z`} />
+          <path d={`M ${tri} Z`} />
         </clipPath>
       </defs>
     </svg>
@@ -217,18 +242,38 @@ function DayUnit({
 
   const isFuture = day > today;
   const hasData = cells?.some((c) => c.owner_process_id !== null) ?? false;
-  const label = `${Number(day.slice(5, 7))} 月 ${Number(day.slice(8))} 日`;
+  const dObj = new Date(`${day}T00:00:00`);
+  const wk = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][dObj.getDay()];
+  const [miniVisible, setMiniVisible] = useState(false);
+  const bigRef = useRef<HTMLButtonElement>(null);
+
+  // 极简吸顶小日期签：大日期标滚出视口时出现
+  useEffect(() => {
+    const el = bigRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        // 仅当大日期标从视口顶沿滚出（向下滚过）时出吸顶小签；单元在下方不算
+        const e = entries[0];
+        const rootTop = scrollRoot.current?.getBoundingClientRect().top ?? 0;
+        setMiniVisible(!e.isIntersecting && e.boundingClientRect.top < rootTop);
+      },
+      { root: scrollRoot.current },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [scrollRoot]);
 
   return (
     <div className="day-unit" data-day={day} ref={ref} data-testid="day-unit">
       <button
-        className="day-unit-head num"
+        className={`day-mini-head num${miniVisible ? " on" : ""}`}
         data-testid="day-unit-head"
         onClick={onBackToMonth}
         title="回到月视角"
       >
-        {label}
-        {day === today && <span className="day-today-tag">今天</span>}
+        {Number(day.slice(8))} {wk}
+        {day === today ? " · 今天" : ""}
       </button>
       {isFuture ? (
         <div className="daygrid-empty">尚无记录</div>
@@ -260,6 +305,16 @@ function DayUnit({
           </div>
         </>
       )}
+      <button
+        className="day-big-label"
+        data-testid="day-big-label"
+        ref={bigRef}
+        onClick={onBackToMonth}
+        title="回到月视角"
+      >
+        <span className="num day-big-num">{Number(day.slice(8))}</span>
+        <span className="day-big-wk">{wk}</span>
+      </button>
     </div>
   );
 }
