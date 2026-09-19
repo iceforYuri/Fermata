@@ -147,10 +147,9 @@ export function DayGridView({
             <div className="dg-tip-title">{hover.cell.title}</div>
             <div className="num dg-tip-time">
               {hover.cell.seg_start && fmtClock(hover.cell.seg_start)}–
-              {hover.cell.seg_end && fmtClock(hover.cell.seg_end)}
-              {" · "}
+              {hover.cell.seg_end ? fmtClock(hover.cell.seg_end) : "进行中"}
               {hover.cell.seg_start && hover.cell.seg_end &&
-                fmtDur(hover.cell.seg_end - hover.cell.seg_start)}
+                ` · ${fmtDur(hover.cell.seg_end - hover.cell.seg_start)}`}
             </div>
             {hover.cell.breakpoint && <div className="dg-tip-bp">断点：{hover.cell.breakpoint}</div>}
           </div>,

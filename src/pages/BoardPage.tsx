@@ -9,7 +9,6 @@ import { EmptyState } from "../components/EmptyState";
 import { BreakpointCard, IdleConfirmCard } from "../components/MicroCards";
 import { NewProcessRow } from "../components/NewProcessRow";
 import { SuspendedQueue } from "../components/SuspendedRow";
-import { useUi } from "../store/ui";
 
 /**
  * 进程页（Tab 1）：报头 → 已完栏 → 折线 → 活跃行 → 挂起队列 → + 号。
@@ -17,7 +16,6 @@ import { useUi } from "../store/ui";
  */
 export function BoardPage() {
   const { board } = useBoard();
-  const { leftOpen } = useUi();
   const [pendingSwitch, setPendingSwitch] = useState<{ pid: number; rect: DOMRect } | null>(null);
   const [dragOverActive, setDragOverActive] = useState(false);
   const [idlePrompt, setIdlePrompt] = useState<{ pid: number; title: string } | null>(null);
@@ -68,19 +66,6 @@ export function BoardPage() {
     };
   }, []);
 
-  // 稿库提示：版面左侧空白区常驻；rail 展开/hover 或碰撞（间隙 <140px）时隐
-  const [hintHit, setHintHit] = useState(false);
-  useEffect(() => {
-    const check = () => {
-      const contentW = Math.min(Math.max(480, window.innerWidth * 0.45), 720);
-      const gap = (window.innerWidth - contentW) / 2 - 28; // 内容左缘距 rail
-      setHintHit(gap < 140);
-    };
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
-
   if (!board) return null;
   const day = board.day;
   const empty =
@@ -89,14 +74,6 @@ export function BoardPage() {
 
   return (
     <div className="center-inner" data-testid="board-page">
-      {!leftOpen && !hintHit && (
-        <div className="lib-hint" data-testid="lib-hint">
-          <svg width="14" height="12" viewBox="0 0 14 12" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M13 6H3M6.5 1.5 2 6l4.5 4.5" />
-          </svg>
-          <span>稿库在左——今日剩余与明日草稿</span>
-        </div>
-      )}
       <BoardHeader />
       <DoneBar />
       <hr className="foldline" />
@@ -132,7 +109,14 @@ export function BoardPage() {
           <SuspendedQueue
             rows={board.suspended}
             day={day}
-            onRequestSwitch={(pid, rect) => setPendingSwitch({ pid, rect })}
+            onRequestSwitch={(pid, rect) => {
+              // 无活跃进程时不弹断点卡直接切换（没有旧进程可留断点）
+              if (!board.running) {
+                void switchTo(pid);
+                return;
+              }
+              setPendingSwitch({ pid, rect });
+            }}
             onDragOverActive={setDragOverActive}
           />
         </>

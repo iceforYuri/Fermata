@@ -173,3 +173,9 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 
 ### D42 · 轨道 transform 内禁用 fixed 定位
 主三页搬进横向滑动轨道（D40）后，`.track` 的 `transform`/`will-change` 使其成为 fixed 后代的包含块：统计页停在 translateX(-33.3%) 时，页内 `position:fixed` 的日网格悬停浮窗被搬到视口外——"浮窗消失"。规则：**页面内所有 fixed 弹层一律 createPortal 到 document.body**（dg-tip 已改）。验收：scripts/check-dgtip-real.mjs 在真实 exe（CDP）里几何断言浮窗在视口内且贴近圆圈。mock 浏览器环境在钻取+懒加载装载期间几何测量不稳，验收以真实 exe 为准。
+
+### D42 · dev 分支定点修复口径（F1–F5）
+- F2 平台坑坐实：Tauri 默认 dragDropEnabled:true 会接管 WebView2 的 OLE 拖放句柄，页内 HTML5 DnD 全死；主窗加 false 后恢复（本项目无 OS 文件拖入监听，安全）。真实 exe CDP 实测：稿库条目拖入版面落库成功（事件流 process_create/plan_delete）。
+- F3 口径：断点卡的断点留给被切走的旧进程（04 明文）；无活跃进程时没有旧进程可留 → 直切不弹卡。
+- F4 MRU：被切走落挂起队首（其余后移），新建仍落队尾，档案重开仍落队尾（01 明文"回挂起队列尾部"）。
+- 测试残留的进程行已按进程本体从库中移除（事件日志不动，append-only 不破）。

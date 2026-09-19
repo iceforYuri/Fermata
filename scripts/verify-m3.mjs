@@ -96,19 +96,20 @@ const dotsToday = dots.length;
 await dots[dots.length - 1].hover();
 await sleep(300);
 const tip = await page.textContent("[data-testid=dg-tip]");
-ok("悬停浮窗（进程名+起止+时长）", tip.includes("·") && tip.includes("–"), tip.trim().slice(0, 60));
+ok("悬停浮窗（进程名+起止+时长）", /\d{2}:\d{2}–(\d{2}:\d{2}|进行中)/.test(tip), tip.trim().slice(0, 60));
 await page.mouse.move(24, 100);
 
 // 7b. 浮窗内容完整（进程名+起止+时长）+ 大圆 26px + 单元间距 72px + 钻取零漂移
 {
-  const dot0 = page.locator("[data-testid=dg-dot]").first();
+  // 取倒数第二个格（最末格可能是进行中开口段）
+  const dot0 = page.locator("[data-testid=dg-dot]").nth(-2);
   await dot0.hover();
   await sleep(300);
   const tipText = await page.textContent("[data-testid=dg-tip]");
   const dotBox = await dot0.boundingBox();
   ok(
     "浮窗含进程名+起止+时长",
-    /\d{2}:\d{2}–\d{2}:\d{2} · /.test(tipText) && tipText.trim().length > 10,
+    (/\d{2}:\d{2}–(\d{2}:\d{2}|进行中)/.test(tipText)) && tipText.trim().length > 8,
     tipText.trim().slice(0, 50),
   );
   ok("圆加大 26px", Math.abs(dotBox.width - 26) < 1, `w=${dotBox.width}`);

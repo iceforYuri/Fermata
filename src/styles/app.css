@@ -1715,19 +1715,26 @@ body:has(.overlay-card) {
   user-select: none;
 }
 
-/* v1.2.2 稿库提示：版面左侧空白区常驻装饰层 */
+/* 稿库提示：rail 与中列之间的空白带垂直居中（视口左区，不随内容偏移） */
 .lib-hint {
-  position: absolute;
-  left: -178px;
-  top: 40%;
+  position: fixed;
+  z-index: 8;
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: var(--fs-micro);
+  gap: 10px;
   color: var(--ink-faint);
   opacity: 0.35;
   pointer-events: none; /* 装饰层不挡点击 */
-  white-space: nowrap;
+  text-align: left;
 }
-body:has(.lib-rail:hover) .lib-hint { display: none; } /* hover rail 即隐 */
+.lib-hint-text { font-size: var(--fs-micro); line-height: 1.5; }
+.lib-hint-text > div:first-child { font-size: var(--fs-small); color: var(--ink-soft); }
+.lib-hint-sub { color: var(--ink-faint); }
+/* 呼吸式左指：~2.4s 循环位移 4px，进页播 3 轮后静止 */
+.lib-hint-arrow { animation: hint-breathe 2.4s ease-in-out 3; }
+body:has(.lib-rail:hover) .lib-hint-arrow { animation: hint-breathe 2.4s ease-in-out infinite; } /* hover rail 再微动 */
+@keyframes hint-breathe {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(-4px); }
+}
 .center-inner { position: relative; }

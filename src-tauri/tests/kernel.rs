@@ -292,3 +292,27 @@ fn idle_end_only_reopens_idle_closed_timer() {
     ops::idle_end(&conn, t0 + 80, Some(p)).unwrap();
     assert_eq!(open_segs(&conn), 1, "空闲停的计时 idle_end 正常重开");
 }
+
+// ================= dev 定点：MRU 队首 =================
+
+#[test]
+fn switched_out_lands_queue_head() {
+    let conn = db::open_in_memory().unwrap();
+    let t0 = 1_800_000_000_000i64;
+    let day = db::day_of(t0);
+    let a = ops::process_create(&conn, t0, "甲", None, Some(&day)).unwrap();
+    let b = ops::process_create(&conn, t0 + 1, "乙", None, Some(&day)).unwrap();
+    let c = ops::process_create(&conn, t0 + 2, "丙", None, Some(&day)).unwrap();
+    // 队列：甲1 乙2 丙3；切甲运行
+    ops::process_switch(&conn, t0 + 10, a, None).unwrap();
+    // 切乙：甲应落队首（position 1），其余后移
+    ops::process_switch(&conn, t0 + 20, b, None).unwrap();
+    let pa = db::get_process(&conn, a).unwrap();
+    assert_eq!(pa.queue_position, Some(1), "被切走的甲落挂起队首（MRU）");
+    // 新建仍落队尾（MRU 移位后位置可有空隙，新建取最大+1）
+    let d = ops::process_create(&conn, t0 + 30, "丁", None, Some(&day)).unwrap();
+    let pd = db::get_process(&conn, d).unwrap();
+    let pc = db::get_process(&conn, c).unwrap();
+    assert!(pd.queue_position.unwrap() > pc.queue_position.unwrap(), "新建仍落队尾");
+    assert!(pc.queue_position.unwrap() > pa.queue_position.unwrap());
+}

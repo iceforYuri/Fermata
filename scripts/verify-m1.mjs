@@ -59,11 +59,10 @@ const queuePids = await page.$$eval("[data-testid=suspended-row]", (rows) =>
 );
 ok("档案重开回队尾", queuePids[queuePids.length - 1] === reopenPid, `queue=[${queuePids}]`);
 
-// 回补：点队列首行 → 断点小卡 → Enter 确认切换
+// 回补：此时无活跃进程（上一步已完成入档）→ F3 守卫：不弹断点卡直接切换
 await page.click("[data-testid=suspended-row] .row-main");
-await page.waitForSelector("[data-testid=bp-card-input]");
-await page.press("[data-testid=bp-card-input]", "Enter");
 await page.waitForSelector("[data-testid=active-row]");
+ok("F3 无活跃进程不弹断点卡直切", (await page.$("[data-testid=bp-card]")) === null);
 
 // 5. 推拉面板开合（v1.1：左缘 rail）
 const railVisible = !!(await page.$("[data-testid=lib-rail]"));
@@ -259,6 +258,42 @@ ok(
   await sleep(300);
   const kept = await page.evaluate(() => document.querySelector("[data-testid=track-page-stats] .stats-scroll").scrollTop);
   ok("切 tab 不重挂载（滚动位置保留）", kept === 240, `scrollTop=${kept}`);
+}
+
+// 附5：F1 无面板时切 tab 无延迟（<20ms 起滑，给 CDP 余量 60ms）
+{
+  await page.click("[data-testid=tab-board]");
+  await page.waitForSelector(".track-page.current [data-testid=board-page]");
+  await sleep(300);
+  const t0 = await page.evaluate(() => performance.now());
+  await page.click("[data-testid=tab-stats]");
+  let elapsed = -1;
+  for (let i = 0; i < 30; i++) {
+    const tr = await page.evaluate(() => document.querySelector("[data-testid=track]").style.transform);
+    if (tr !== "translateX(0%)") {
+      elapsed = await page.evaluate((s) => performance.now() - s, t0);
+      break;
+    }
+    await sleep(2);
+  }
+  ok("F1 无面板切页零延迟起滑", elapsed >= 0 && elapsed < 60, `${elapsed.toFixed(0)}ms`);
+  await page.click("[data-testid=tab-board]");
+  await page.waitForSelector(".track-page.current [data-testid=board-page]");
+}
+
+// 附6：F4 MRU——被切走落挂起队首
+{
+  const rows0 = await page.$$eval("[data-testid=suspended-row]", (els) => els.map((e) => e.dataset.pid));
+  const first = rows0[0];
+  // 点队首 → 断点卡 → 确认切换（它成为运行），原运行落队首
+  await page.click(`[data-testid=suspended-row][data-pid="${first}"] .row-main`);
+  await page.waitForSelector("[data-testid=bp-card-input]");
+  await page.press("[data-testid=bp-card-input]", "Enter");
+  await sleep(500);
+  const queue1 = await page.$$eval("[data-testid=suspended-row]", (els) => els.map((e) => e.dataset.pid));
+  const activeId = await page.getAttribute("[data-testid=active-row]", "data-pid");
+  const prevActive = queue1[0]; // 之前的活跃应落队首
+  ok("F4 被切走落挂起队首（MRU）", activeId === first, `active=${activeId}, 队首=${prevActive}`);
 }
 
 // 附：空态可见

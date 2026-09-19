@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef } from "react";
 import { system } from "../api/system";
-import { setUi, useUi, type Tab } from "../store/ui";
+import { getUi, setUi, useUi, type Tab } from "../store/ui";
 import { useResting } from "../store/board";
 
 /* 弹簧参数：参照 docs/reference/navigation.md（response 0.42s, zeta 0.86） */
@@ -75,8 +75,14 @@ export const TitleBar = memo(function TitleBar() {
 
   const switchTab = (next: Tab) => {
     if (next === tab) return;
-    setUi({ leftOpen: false, rightPid: null, archiveOpen: false });
-    setTimeout(() => setUi({ tab: next }), 140);
+    const { leftOpen, rightPid, archiveOpen } = getUi();
+    if (leftOpen || rightPid !== null || archiveOpen) {
+      // 面板开着：先收（140ms）再滑
+      setUi({ leftOpen: false, rightPid: null, archiveOpen: false });
+      setTimeout(() => setUi({ tab: next }), 140);
+    } else {
+      setUi({ tab: next }); // 无面板：立即切
+    }
   };
 
   // 弹簧渲染循环

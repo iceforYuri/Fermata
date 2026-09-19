@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import HomePage from "./pages/HomePage";
 import { RestPage } from "./pages/RestPage";
 import PopupTriggerPage from "./pages/PopupTriggerPage";
@@ -34,8 +34,33 @@ function Shell() {
   const { tab, leftOpen } = useUi();
   const { rest } = useBoard();
   useScheduler();
+  const centerRef = useRef<HTMLDivElement>(null);
+  const [hintStyle, setHintStyle] = useState<React.CSSProperties | null>(null);
 
-  const idx = tab === "stats" ? 1 : tab === "settings" ? 2 : 0;
+  // 稿库提示：rail 与中列左缘之间的空白带垂直居中；空白带 <140px 时隐藏
+  useEffect(() => {
+    const place = () => {
+      const el = centerRef.current;
+      if (!el) return;
+      const inner = el.querySelector<HTMLElement>(".center-inner");
+      if (!inner) return;
+      const band = inner.getBoundingClientRect().left - 28; // rail 宽 28
+      if (band < 140) {
+        setHintStyle(null);
+        return;
+      }
+      setHintStyle({ left: 28 + band / 2, top: "50%", transform: "translate(-50%, -50%)" });
+    };
+    place();
+    window.addEventListener("resize", place);
+    const t = setInterval(place, 800); // 面板推拉期间跟随
+    return () => {
+      window.removeEventListener("resize", place);
+      clearInterval(t);
+    };
+  }, []);
+
+  const idx = tab === "board" ? 0 : tab === "stats" ? 1 : 2;
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
@@ -54,8 +79,20 @@ function Shell() {
             </svg>
           </button>
         )}
+        {tab === "board" && !leftOpen && hintStyle && (
+          <div className="lib-hint" data-testid="lib-hint" style={hintStyle}>
+            <svg className="lib-hint-arrow" width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M15 7H3.5M7.5 1.5 2 7l5.5 5.5" />
+            </svg>
+            <div className="lib-hint-text">
+              <div>稿库</div>
+              <div className="lib-hint-sub">今日剩余与明日草稿</div>
+            </div>
+          </div>
+        )}
         <LibraryPanel />
         <div
+          ref={centerRef}
           className="center-col"
           onClickCapture={() => {
             if (leftOpen && tab === "board") setUi({ leftOpen: false }); // 点中列任意处收起

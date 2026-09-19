@@ -340,6 +340,14 @@ function queueTail(pid: number) {
   proc(pid).queue_position = max + 1;
 }
 
+/** MRU：切出落队首（其余后移） */
+function queueHead(pid: number) {
+  for (const p of state.processes) {
+    if (p.queue_position !== null) p.queue_position += 1;
+  }
+  proc(pid).queue_position = 1;
+}
+
 function suspend(pid: number, breakpoint?: string) {
   const p = proc(pid);
   closeSeg(pid);
@@ -349,7 +357,7 @@ function suspend(pid: number, breakpoint?: string) {
   }
   p.state = "suspended";
   p.prev_state = null;
-  queueTail(pid);
+  queueHead(pid);
   ev("switch_out", pid, { breakpoint, to: null });
   state.suspendedSince[pid] = Date.now();
 }
