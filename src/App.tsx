@@ -28,14 +28,14 @@ function useHashRoute(): string {
   return path === "" ? "/" : path;
 }
 
-/** 主应用壳：标题栏 + 三栏 + 浮层 + 调度 tick。休息态霸占 tab 1（版面在玻璃后面等着）。 */
+/** 主应用壳：标题栏 + 三栏 + 浮层 + 调度 tick。休息态霸占 tab 1（版面在玻璃后面等着）。
+ *  v1.3：主三页常驻挂载的横向轨道（transform 滑动）；离屏页 inert（pointer-events/visibility）。 */
 function Shell() {
   const { tab, leftOpen } = useUi();
   const { rest } = useBoard();
   useScheduler();
 
-  const page =
-    tab === "stats" ? <StatsPage /> : tab === "settings" ? <SettingsPage /> : <BoardPage />;
+  const idx = tab === "stats" ? 1 : tab === "settings" ? 2 : 0;
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
@@ -62,16 +62,20 @@ function Shell() {
           }}
         >
           <div
-            key={tab}
-            className="tab-page"
-            style={{
-              flex: 1,
-              overflowY: "auto",
-              position: "relative",
-            }}
+            className="track"
+            data-testid="track"
+            style={{ transform: `translateX(-${idx * (100 / 3)}%)` }}
           >
-            {page}
-            {rest.resting && tab === "board" && <RestPage />}
+            <div className={`track-page${idx === 0 ? " current" : ""}`} data-testid="track-page-board">
+              <BoardPage />
+              {rest.resting && <RestPage />}
+            </div>
+            <div className={`track-page${idx === 1 ? " current" : ""}`} data-testid="track-page-stats">
+              <StatsPage />
+            </div>
+            <div className={`track-page${idx === 2 ? " current" : ""}`} data-testid="track-page-settings">
+              <SettingsPage />
+            </div>
           </div>
         </div>
         <DetailPanel />

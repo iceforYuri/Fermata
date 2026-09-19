@@ -195,12 +195,12 @@ ok(
     const tabStats = await page.$("[data-testid=tab-stats]");
     const tb = await tabStats.boundingBox();
     await page.mouse.click(tb.x + tb.width / 2, tb.y + tb.height / 2);
-    await page.waitForSelector("[data-testid=stats-page]", { timeout: 2000 });
+    await page.waitForSelector(".track-page.current [data-testid=stats-page]", { timeout: 2000 });
     await sleep(250); // 先收面板再横滑的 140ms + 页面进场
     const tabBoard = await page.$("[data-testid=tab-board]");
     const bb = await tabBoard.boundingBox();
     await page.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2);
-    await page.waitForSelector("[data-testid=board-page]", { timeout: 2000 });
+    await page.waitForSelector(".track-page.current [data-testid=board-page]", { timeout: 2000 });
     await sleep(250);
     hits++;
   }
@@ -227,6 +227,38 @@ ok(
   const m = activePillBg.match(/([\d.]+)%?\s*\/?\s*([\d.]+)%?\)?$/);
   ok("顶栏 hover 染底生效（未选中）", hoverHasTint, hoverBg);
   ok("选中 pill 封顶 ~10%", /0\.1\)|10%|0\.1,/.test(activePillBg) || activePillBg.includes("10%"), activePillBg);
+}
+
+// 附4：轨道模型（v1.3）——方向/常驻挂载/滚动位置保留
+{
+  await page.click("[data-testid=tab-stats]");
+  await page.waitForSelector(".track-page.current [data-testid=stats-page]");
+  const t1 = await page.evaluate(() => document.querySelector("[data-testid=track]").style.transform);
+  await page.click("[data-testid=tab-settings]");
+  await page.waitForSelector(".track-page.current [data-testid=settings-page]");
+  const t2 = await page.evaluate(() => document.querySelector("[data-testid=track]").style.transform);
+  await page.click("[data-testid=tab-board]");
+  await page.waitForSelector(".track-page.current [data-testid=board-page]");
+  const t0 = await page.evaluate(() => document.querySelector("[data-testid=track]").style.transform);
+  ok(
+    "轨道 transform 方向正确",
+    Math.abs(parseFloat(t0.match(/-[\d.]+%|[\d.]+%/)[0])) < 0.1 && Math.abs(parseFloat(t1.match(/-[\d.]+%/)[0]) + 33.33) < 0.1 && Math.abs(parseFloat(t2.match(/-[\d.]+%/)[0]) + 66.67) < 0.1,
+    `${t0} / ${t1} / ${t2}`,
+  );
+
+  // 统计页滚动位置切走再切回保留（常驻挂载证据）
+  await page.click("[data-testid=tab-stats]");
+  await page.waitForSelector(".track-page.current [data-testid=stats-page]");
+  await page.evaluate(() => {
+    document.querySelector("[data-testid=track-page-stats] .stats-scroll").scrollTop = 240;
+  });
+  await page.click("[data-testid=tab-board]");
+  await page.waitForSelector(".track-page.current [data-testid=board-page]");
+  await page.click("[data-testid=tab-stats]");
+  await page.waitForSelector(".track-page.current [data-testid=stats-page]");
+  await sleep(300);
+  const kept = await page.evaluate(() => document.querySelector("[data-testid=track-page-stats] .stats-scroll").scrollTop);
+  ok("切 tab 不重挂载（滚动位置保留）", kept === 240, `scrollTop=${kept}`);
 }
 
 // 附：空态可见

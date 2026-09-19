@@ -164,3 +164,6 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 
 ### D39 · 日网格刻度单点化（用户改主意，废止 D36 时间段方案）
 时间段 "0–2/6–8/12–14/18–20" 废止，改单点时刻 6/12/18/24 对齐列分界（数字中心 translateX(-50%) 对格线）。稿库提示从 rail 文字改为版面左侧空白区装饰层（~35% 淡、pointer-events:none、间隙 <140px 或 hover/展开 rail 时隐）。
+
+### D40 · v1.3 换页动效要点
+主三页横向轨道：.track 300% 宽 flex，translateX(-i×33.33%)，240ms ease-page；三页常驻挂载（滚动位置/内部状态保留）；离屏页 pointer-events:none + visibility:hidden 延迟至滑动结束（transition-delay）。统计页视角切换=纵向钻取成对进出（下钻新页升/旧页让，反向同），旧页短寿命双渲染 240ms 后卸载（不常驻）。淡化只剩浮层/提示；page-in 退役。tokens 收敛 --dur-page/--ease-page。

@@ -886,23 +886,45 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ================= tab 页切换（左右滑动） ================= */
-.tab-page {
-  height: 100%;
+/* ================= v1.3 主三页横向轨道 ================= */
+.center-col { overflow: hidden; }
+.track {
   display: flex;
-  flex-direction: column;
-  animation: page-in var(--dur) var(--ease-out);
+  width: 300%;
+  height: 100%;
+  transition: transform var(--dur-page) var(--ease-page);
+  will-change: transform;
 }
-@keyframes page-in {
-  from {
-    opacity: 0;
-    transform: translateX(14px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+.track-page {
+  width: calc(100% / 3);
+  height: 100%;
+  overflow-y: auto;
+  position: relative;
 }
+/* 离屏页：惰性 + 不可见（visibility 延迟到滑动结束再切） */
+.track-page:not(.current) {
+  pointer-events: none;
+  visibility: hidden;
+  transition: visibility 0s var(--dur-page);
+}
+.track-page.current {
+  visibility: visible;
+  transition: visibility 0s 0s;
+}
+
+/* v1.3 统计页纵向钻取（成对进出 240ms） */
+.drill-stage { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; }
+.drill-layer { display: flex; flex-direction: column; min-height: 0; }
+.drill-layer:not(.current) { position: absolute; inset: 0; }
+.drill-layer.current { position: relative; flex: 1; }
+.drill-in-below { animation: drill-in-below var(--dur-page) var(--ease-page); }
+.drill-in-above { animation: drill-in-above var(--dur-page) var(--ease-page); }
+.drill-out-up { animation: drill-out-up var(--dur-page) var(--ease-page) forwards; pointer-events: none; }
+.drill-out-down { animation: drill-out-down var(--dur-page) var(--ease-page) forwards; pointer-events: none; }
+@keyframes drill-in-below { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+@keyframes drill-in-above { from { opacity: 0; transform: translateY(-24px); } to { opacity: 1; transform: none; } }
+@keyframes drill-out-up { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-24px); } }
+@keyframes drill-out-down { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(24px); } }
 .placeholder-page {
   flex: 1;
   display: grid;
@@ -1530,13 +1552,7 @@ body:has(.overlay-card) {
 .lib-rail svg { width: 10px; height: 14px; }
 
 /* ================= v1.1 · 统计页滚动模型 ================= */
-.view-fade {
-  animation: view-fade-in 160ms var(--ease-out);
-}
-@keyframes view-fade-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: none; }
-}
+
 .daygrid-scroll {
   flex: 1;
   min-height: 0;

@@ -69,7 +69,9 @@
   /* —— 动效 —— */
   --dur-fast: 140ms;
   --dur: 220ms;
+  --dur-page: 240ms;   /* 换页=滑动 */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-page: cubic-bezier(0.22, 1, 0.36, 1);
 
   /* —— 玻璃 —— */
   --glass-bg: rgba(252, 251, 247, 0.55);
