@@ -1291,11 +1291,17 @@ body:has(.overlay-card) {
   background: var(--ink-ghost); opacity: 0.55; display: block;
 }
 .daygrid-ticks {
-  display: grid;
-  grid-template-columns: repeat(12, 36px);
+  position: relative;
+  height: 15px;
+  width: 432px;
   margin: 2px 0;
 }
-.dg-tick { font-size: var(--fs-micro); color: var(--ink-faint); text-align: center; }
+.dg-tick {
+  position: absolute;
+  transform: translateX(-50%); /* 数字中心对时刻分界点 */
+  font-size: var(--fs-micro);
+  color: var(--ink-faint);
+}
 .dg-tip {
   position: fixed;
   transform: translateY(-100%);
@@ -1673,3 +1679,20 @@ body:has(.overlay-card) {
   pointer-events: none;
   user-select: none;
 }
+
+/* v1.2.2 稿库提示：版面左侧空白区常驻装饰层 */
+.lib-hint {
+  position: absolute;
+  left: -178px;
+  top: 40%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-micro);
+  color: var(--ink-faint);
+  opacity: 0.35;
+  pointer-events: none; /* 装饰层不挡点击 */
+  white-space: nowrap;
+}
+body:has(.lib-rail:hover) .lib-hint { display: none; } /* hover rail 即隐 */
+.center-inner { position: relative; }

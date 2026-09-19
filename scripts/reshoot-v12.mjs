@@ -51,7 +51,7 @@ await page.screenshot({ path: `${OUT}/daygrid-half-circles.png` });
     const g = norm(arr);
     if (g.length === 0 || g.length % 4 !== 0) return false;
     for (let i = 0; i < g.length; i += 4) {
-      if (g.slice(i, i + 4).join() !== "0–2,6–8,12–14,18–20") return false;
+      if (g.slice(i, i + 4).join() !== "6,12,18,24") return false;
     }
     return true;
   };

@@ -239,8 +239,8 @@ function DayUnit({
       ) : (
         <>
           <div className="daygrid-ticks" data-testid="daygrid-ticks-top">
-            {["0–2", "6–8", "12–14", "18–20"].map((t, i) => (
-              <span key={t} className="num dg-tick" style={{ gridColumnStart: i * 3 + 1 }}>{t}</span>
+            {[["6", 3], ["12", 6], ["18", 9], ["24", 12]].map(([t, line]) => (
+              <span key={t} className="num dg-tick" style={{ left: (line as number) * 36 }}>{t}</span>
             ))}
           </div>
           <div className="daygrid-grid" data-testid="daygrid">
@@ -259,8 +259,8 @@ function DayUnit({
             ))}
           </div>
           <div className="daygrid-ticks" data-testid="daygrid-ticks-bottom">
-            {["0–2", "6–8", "12–14", "18–20"].map((t, i) => (
-              <span key={t} className="num dg-tick" style={{ gridColumnStart: i * 3 + 1 }}>{t}</span>
+            {[["6", 3], ["12", 6], ["18", 9], ["24", 12]].map(([t, line]) => (
+              <span key={t} className="num dg-tick" style={{ left: (line as number) * 36 }}>{t}</span>
             ))}
           </div>
         </>
