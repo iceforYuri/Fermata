@@ -251,3 +251,41 @@ fn step_stack_and_breakpoint_layers() {
     let evts = queries::q_events(&conn, None).unwrap();
     assert!(evts.iter().any(|e| e.kind == "breakpoint_clear" && e.process_id == Some(p)));
 }
+
+// ================= v1.2 · 缺陷 B1：idle_end 守卫 =================
+
+#[test]
+fn idle_end_only_reopens_idle_closed_timer() {
+    let conn = db::open_in_memory().unwrap();
+    let t0 = 1_800_000_000_000i64;
+    let day = db::day_of(t0);
+    let p = ops::process_create(&conn, t0, "守卫测试", None, Some(&day)).unwrap();
+    ops::process_switch(&conn, t0 + 1, p, None).unwrap();
+
+    let open_segs = |conn: &rusqlite::Connection| -> i64 {
+        conn.query_row(
+            "SELECT COUNT(*) FROM segments WHERE process_id = ?1 AND ended_at IS NULL",
+            rusqlite::params![p], |r| r.get(0),
+        ).unwrap()
+    };
+
+    // 手动暂停后 idle_end：不得重开
+    ops::process_pause(&conn, t0 + 10, p).unwrap();
+    assert_eq!(open_segs(&conn), 0);
+    ops::idle_end(&conn, t0 + 20, Some(p)).unwrap();
+    assert_eq!(open_segs(&conn), 0, "手动暂停后 idle_end 不得重开计时");
+
+    // 恢复 → 休息 → idle_end：不得重开
+    ops::process_resume(&conn, t0 + 30, p).unwrap();
+    ops::rest_start(&conn, t0 + 40, Some(p)).unwrap();
+    ops::idle_end(&conn, t0 + 50, Some(p)).unwrap();
+    assert_eq!(open_segs(&conn), 0, "休息中 idle_end 不得重开计时");
+    ops::rest_end(&conn, t0 + 60, Some(p)).unwrap();
+    assert_eq!(open_segs(&conn), 1);
+
+    // 空闲停 → idle_end：正常重开
+    ops::idle_start(&conn, t0 + 70, Some(p)).unwrap();
+    assert_eq!(open_segs(&conn), 0);
+    ops::idle_end(&conn, t0 + 80, Some(p)).unwrap();
+    assert_eq!(open_segs(&conn), 1, "空闲停的计时 idle_end 正常重开");
+}

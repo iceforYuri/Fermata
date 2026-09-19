@@ -17,7 +17,7 @@ export function BreakpointCard({
   useEffect(() => ref.current?.focus(), []);
   return (
     <div
-      className="micro-card"
+      className="micro-card bp-card"
       data-testid="bp-card"
       style={{
         position: "fixed",

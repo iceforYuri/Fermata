@@ -227,20 +227,26 @@ export function SettingsPage() {
   const setNum = (k: string) => (v: number) => void act(() => data.settingSet(k, String(v)));
   const setStr = (k: string) => (v: string) => void act(() => data.settingSet(k, v));
 
-  // scroll-spy：IntersectionObserver 高亮当前组
+  // scroll-spy：滚动监听取"最靠顶可见组"（IO 批次写死末组的缺陷修法）
   useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting) setActiveSec(e.target.getAttribute("data-sec")!);
-        }
-      },
-      { root: root.closest(".tab-page"), threshold: 0.2 },
-    );
-    root.querySelectorAll("[data-sec]").forEach((el) => obs.observe(el));
-    return () => obs.disconnect();
+    const container = rootRef.current?.closest(".tab-page");
+    if (!container) return;
+    const onScroll = () => {
+      const rootTop = container.getBoundingClientRect().top;
+      let current = SECTIONS[0][0];
+      rootRef.current?.querySelectorAll("[data-sec]").forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.top - rootTop <= 120) current = el.getAttribute("data-sec")!;
+      });
+      // 触底时最后一组够不到顶：底部即末组
+      if (container.scrollTop + container.clientHeight >= container.scrollHeight - 8) {
+        current = SECTIONS[SECTIONS.length - 1][0];
+      }
+      setActiveSec(current);
+    };
+    onScroll();
+    container.addEventListener("scroll", onScroll, { passive: true });
+    return () => container.removeEventListener("scroll", onScroll);
   }, []);
 
   const scrollTo = (id: string) => {

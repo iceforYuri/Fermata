@@ -64,9 +64,10 @@ export function DayGridView({
       let found = false;
       root.querySelectorAll<HTMLElement>(".day-unit").forEach((el) => {
         if (found) return;
-        // 取覆盖滚动顶沿的第一个单元（底部单元可能整体高于视口）
+        // 取覆盖视口中心线的单元（自由滚动下顶沿语义不可靠）
+        const mid = root.scrollTop + root.clientHeight / 2;
         const elTop = el.getBoundingClientRect().top - rootTop + root.scrollTop;
-        if (elTop + el.offsetHeight > root.scrollTop + 8) {
+        if (elTop <= mid && elTop + el.offsetHeight > mid) {
           current = el.dataset.day!;
           found = true;
         }

@@ -1,7 +1,7 @@
 //! 变更操作：状态机 + 事件 + segments 维护。
 //! 所有函数显式接收 ts（epoch ms），保证种子与测试的确定性。
 
-use super::{append_event, close_open_segment, day_of, get_process, open_segment, timer_open};
+use super::{append_event, close_open_segment, day_of, get_process, last_timer_closer, open_segment, timer_open};
 use rusqlite::Connection;
 use serde_json::json;
 
@@ -182,18 +182,6 @@ pub fn process_resume(conn: &Connection, ts: i64, pid: i64) -> Result<(), String
     append_event(conn, ts, "resume", Some(pid), json!({}))?;
     open_segment(conn, pid, ts)?;
     Ok(())
-}
-
-fn last_timer_closer(conn: &Connection, pid: i64) -> Result<Option<String>, String> {
-    let mut stmt = conn
-        .prepare(
-            "SELECT kind FROM events
-             WHERE process_id = ?1
-               AND kind IN ('pause','idle_start','rest_start','resume','idle_end','rest_end','switch_in')
-             ORDER BY id DESC LIMIT 1",
-        )
-        .map_err(|e| e.to_string())?;
-    Ok(stmt.query_row(rusqlite::params![pid], |r| r.get(0)).ok())
 }
 
 pub fn breakpoint_set(conn: &Connection, ts: i64, pid: i64, text: &str) -> Result<(), String> {
@@ -508,13 +496,20 @@ pub fn idle_start(conn: &Connection, ts: i64, running_pid: Option<i64>) -> Resul
 }
 
 pub fn idle_end(conn: &Connection, ts: i64, running_pid: Option<i64>) -> Result<(), String> {
-    let reopen = match running_pid {
+    let (reopen, real_return) = match running_pid {
         Some(pid) => {
             let p = get_process(conn, pid)?;
-            p.state == "running" && !timer_open(conn, pid)?
+            let closer = last_timer_closer(conn, pid)?;
+            // 只有计时是被 idle_start 停下的才由 idle_end 重开（pause/rest_start 停的不动）；
+            // 事件同理：非"从空闲回来"的 idle_end 整条跳过（防守卫污染 resume 判定）
+            let was_idle = closer.as_deref() == Some("idle_start");
+            (p.state == "running" && !timer_open(conn, pid)? && was_idle, was_idle)
         }
-        None => false,
+        None => (false, true), // 无进程的全局标记照记
     };
+    if !real_return {
+        return Ok(());
+    }
     append_event(conn, ts, "idle_end", running_pid, json!({}))?;
     if reopen {
         open_segment(conn, running_pid.unwrap(), ts)?;
@@ -560,7 +555,10 @@ pub fn rest_end(conn: &Connection, ts: i64, pid: Option<i64>) -> Result<(), Stri
     let reopen = match pid {
         Some(p) => {
             let proc = get_process(conn, p)?;
-            proc.state == "running" && !timer_open(conn, p)?
+            // 仅计时被 rest_start 停下的才由 rest_end 重开（手动 pause 停的不动）
+            proc.state == "running"
+                && !timer_open(conn, p)?
+                && last_timer_closer(conn, p)?.as_deref() == Some("rest_start")
         }
         None => false,
     };

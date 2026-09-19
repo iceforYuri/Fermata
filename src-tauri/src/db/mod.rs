@@ -379,22 +379,28 @@ pub fn open_segment(conn: &Connection, pid: i64, ts: i64) -> Result<(), String> 
     Ok(())
 }
 
-/// 计时器当前是否开口（running 且未因 pause/idle/rest 停表）。
-/// 由事件流重建：pause/idle_start/rest_start 闭合，resume/idle_end/rest_end 重开。
+/// 计时器当前是否开口：以 segments 事实为准（开口段存在=计时在走）。
+/// 事件重放口径在 v1.2 守卫介入后会失真，废弃。
 pub fn timer_open(conn: &Connection, pid: i64) -> Result<bool, String> {
+    let open: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM segments WHERE process_id = ?1 AND ended_at IS NULL",
+            rusqlite::params![pid],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(open > 0)
+}
+
+/// 计时最近一次是谁停/开的（pause/idle_start/rest_start/resume/idle_end/rest_end/switch_in）
+pub fn last_timer_closer(conn: &Connection, pid: i64) -> Result<Option<String>, String> {
     let mut stmt = conn
         .prepare(
             "SELECT kind FROM events
              WHERE process_id = ?1
-               AND kind IN ('switch_in','pause','resume','idle_start','idle_end','rest_start','rest_end','switch_out','process_complete')
+               AND kind IN ('pause','idle_start','rest_start','resume','idle_end','rest_end','switch_in')
              ORDER BY id DESC LIMIT 1",
         )
         .map_err(|e| e.to_string())?;
-    let last: Option<String> = stmt
-        .query_row(rusqlite::params![pid], |r| r.get(0))
-        .ok();
-    Ok(matches!(
-        last.as_deref(),
-        Some("switch_in") | Some("resume") | Some("idle_end") | Some("rest_end")
-    ))
+    Ok(stmt.query_row(rusqlite::params![pid], |r| r.get(0)).ok())
 }

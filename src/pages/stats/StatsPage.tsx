@@ -20,7 +20,7 @@ export function StatsPage() {
 
   return (
     <div className="stats-page" data-testid="stats-page">
-      <div className="capsule" data-testid="view-capsule">
+      <div className="capsule" data-testid="view-capsule" style={{ flex: "none" }}>
         {(["year", "month", "day"] as View[]).map((v) => (
           <button
             key={v}
@@ -33,7 +33,7 @@ export function StatsPage() {
         ))}
       </div>
 
-      <div key={view} className="view-fade">
+      <div key={view} className={`view-fade ${view === "day" ? "view-stretch" : "stats-scroll"}`}>
         {view === "month" && (
           <>
             <div className="stats-month-head">

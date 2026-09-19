@@ -1097,7 +1097,15 @@ body:has(.overlay-card) {
   box-shadow: 0 8px 24px rgba(38, 34, 30, 0.14);
   padding: 10px 12px;
   width: 320px;
-  animation: toast-in var(--dur) var(--ease-out);
+}
+/* 断点卡：从所属行下方向下展开（不复用 toast 的浮感动画） */
+.micro-card.bp-card {
+  animation: bp-card-in var(--dur) var(--ease-out);
+  transform-origin: top center;
+}
+@keyframes bp-card-in {
+  from { opacity: 0; transform: translateY(-6px) scaleY(0.94); }
+  to { opacity: 1; transform: none; }
 }
 .idle-card {
   position: fixed;
@@ -1121,12 +1129,27 @@ body:has(.overlay-card) {
 
 /* ================= M3 · 统计页 ================= */
 .stats-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-top: 12px;
+}
+.stats-scroll {
+  flex: 1;
+  overflow-y: auto;
   width: clamp(480px, 45%, 720px);
   margin: 0 auto;
-  padding: 26px 0 80px;
+  padding: 14px 0 80px;
   display: flex;
   flex-direction: column;
   gap: 26px;
+}
+.view-fade.view-stretch {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 .capsule {
   align-self: center;
@@ -1479,11 +1502,13 @@ body:has(.overlay-card) {
   to { opacity: 1; transform: none; }
 }
 .daygrid-scroll {
-  height: calc(100vh - 130px);
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  scroll-snap-type: y mandatory;
-  /* 让最后一天也能吸附到顶（垫高 = 容器高 - 单元高） */
-  padding-bottom: calc(100vh - 130px - 480px);
+  /* v1.2：自由滚动，去 mandatory 吸附（不等高内容弹跳）；底部垫高让最后一天可读满 */
+  padding-bottom: 240px;
+  width: clamp(480px, 45%, 720px);
+  margin: 0 auto;
 }
 .day-unit {
   scroll-snap-align: start;

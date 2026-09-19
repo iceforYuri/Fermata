@@ -78,6 +78,12 @@ export function useScheduler() {
     }
     prevCompleted.current = completedNow;
 
+    // pendingRest 清理：切换/完成后排队的休止符失效
+    const running0 = b.board.running;
+    if (b.pendingRest && (!running0 || running0.process.id !== b.pendingRest.pid)) {
+      setPendingRest(null);
+    }
+
     if (resting || firing.current) return;
     const running = b.board.running;
     if (!running || !running.timer_open) return;
