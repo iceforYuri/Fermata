@@ -155,3 +155,9 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 3. 断点卡复用 toast-in 动画（位移+透明）气质不符——独立"行下方展开"入场。
 4. 统计页日视角 calc(100vh-130px) 魔数溢出——改实测布局链计算；scroll-snap mandatory 在内容不等高时弹跳——去吸附改自由滚动。
 5. 设置页 scroll-spy 用 IntersectionObserver 批次结果写死末组——改滚动监听取"最靠顶可见组"。
+
+### D38 · v1.2.1 定点修复口径
+- 顶栏 hover 失效根因：弹簧 renderItem 每帧给所有项写内联 --pill-a（未选中=0%）压过 CSS hover 规则；修法=弹簧只写选中项/进行中项，静止未选中清内联交还 CSS；pill 染底封顶 10%（浅灰 pill + 深字）；图标换 Lucide 字形（rows-3/chart-pie/settings，viewBox 24 stroke 1.5）。
+- 日视角锚点=月历选中/上次停留日（初始装载锚日-3 起）；增量生长 prepend 用 scrollTop 补偿（prepend 前后 scrollHeight 差补 scrollTop），视口零跳动。
+- 设置页导航浮于内容列左侧紧邻、上下居中（absolute + translateY(-50%)），内容列恢复居中；spy 沿用 B 步"最靠顶可见组+触底末组"。
+- 统计三视角滚动容器拉通全宽、内容 margin auto 居中，滚动条贴窗口右缘；进程页/设置页不动。

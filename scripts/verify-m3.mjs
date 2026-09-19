@@ -117,6 +117,46 @@ await sleep(800);
 const dotsAfter = (await page.$$("[data-testid=dg-dot]")).length;
 ok("未计时完成标记出现且不画圈", doneTag.includes("未计时完成") && dotsAfter === dotsToday, `${dotsToday}→${dotsAfter}`);
 
+// 9. 日视角锚点=月历选中日（非强制今天）
+await page.click(`.day-unit[data-day="${todayStr()}"] .day-unit-head`).catch(async () => {
+  await page.click("[data-testid=daygrid-date]").catch(() => {});
+});
+await page.waitForSelector("[data-testid=month-cal]");
+await page.click(`[data-testid=cal-cell][data-day="${targetDay}"]`);
+await sleep(200);
+await page.dblclick(`[data-testid=cal-cell][data-day="${targetDay}"]`);
+await page.waitForSelector("[data-testid=daygrid-scroll]");
+await sleep(700);
+const anchorDay = await page.evaluate((d) => {
+  const sc = document.querySelector("[data-testid=daygrid-scroll]");
+  const el = sc.querySelector(`.day-unit[data-day="${d}"]`);
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  const sr = sc.getBoundingClientRect();
+  return { off: Math.round(r.top - sr.top), inView: r.top >= sr.top - 40 && r.top < sr.top + sr.height };
+}, targetDay);
+ok("日视角锚点=选中日", !!anchorDay && anchorDay.inView, JSON.stringify(anchorDay));
+
+// 10. 增量生长 prepend 不跳：滚到顶附近 → 内容增多而视口不动
+const before = await page.evaluate(() => {
+  const sc = document.querySelector("[data-testid=daygrid-scroll]");
+  return { top: sc.scrollTop, h: sc.scrollHeight };
+});
+await page.evaluate(() => {
+  const sc = document.querySelector("[data-testid=daygrid-scroll]");
+  sc.scrollTop = 100;
+});
+await sleep(700);
+const after = await page.evaluate(() => {
+  const sc = document.querySelector("[data-testid=daygrid-scroll]");
+  return { top: sc.scrollTop, h: sc.scrollHeight };
+});
+ok(
+  "prepend 增量生长不跳（scrollTop 补偿）",
+  after.h > before.h && after.top > before.top,
+  `h ${before.h}→${after.h}, top ${before.top}→${after.top}`,
+);
+
 await browser.close();
 const failed = results.filter((r) => !r.pass);
 console.log(`\n== M3 v1.1 ${results.length - failed.length}/${results.length} 通过 ==`);

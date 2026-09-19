@@ -35,7 +35,7 @@ export function StatsPage() {
 
       <div key={view} className={`view-fade ${view === "day" ? "view-stretch" : "stats-scroll"}`}>
         {view === "month" && (
-          <>
+          <div className="stats-measure">
             <div className="stats-month-head">
               <span className="num stats-month-title">{ay} 年 {am} 月</span>
               {anchor !== today && (
@@ -54,7 +54,7 @@ export function StatsPage() {
             />
             <BigRing day={anchor} />
             <DayViewSection day={anchor} />
-          </>
+          </div>
         )}
 
         {view === "day" && (
@@ -66,7 +66,8 @@ export function StatsPage() {
         )}
 
         {view === "year" && (
-          <YearView
+          <div className="stats-measure">
+            <YearView
             year={ay}
             onYear={(y) => setAnchor(`${y}-01-01`)}
             onDrillMonth={(y, m) => {
@@ -74,6 +75,7 @@ export function StatsPage() {
               setView("month");
             }}
           />
+          </div>
         )}
       </div>
     </div>

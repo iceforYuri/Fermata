@@ -33,7 +33,8 @@ export function DayGridView({
     void data.qFirstDay().then((d) => setFirstDay(d ?? today));
   }, [today]);
 
-  const days = useMemo(() => {
+  // 全部可及日（上界=最早有记录，下界=今天）
+  const allDays = useMemo(() => {
     if (!firstDay) return [];
     const out: string[] = [];
     let cur = firstDay;
@@ -46,15 +47,34 @@ export function DayGridView({
     return out;
   }, [firstDay, today]);
 
-  // 进场滚到锚点日
+  // 增量生长：窗口 [startIdx, 末尾]；初始锚日前后几天；滚近顶部 prepend 更早的天
+  const anchorIdx = useMemo(() => Math.max(0, allDays.indexOf(day)), [allDays, day]);
+  const [startIdx, setStartIdx] = useState<number | null>(null);
   useEffect(() => {
-    if (!days.length) return;
+    if (allDays.length && startIdx === null) setStartIdx(Math.max(0, anchorIdx - 3));
+  }, [allDays, anchorIdx, startIdx]);
+  const days = startIdx === null ? [] : allDays.slice(startIdx);
+
+  // 进场滚到锚点日（仅一次）
+  useEffect(() => {
+    if (!days.length || startIdx === null) return;
     const el = scrollRef.current?.querySelector(`[data-day="${day}"]`);
     el?.scrollIntoView({ block: "start" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [days.length]);
+  }, [startIdx !== null]);
 
   const onScroll = () => {
+    // 滚近顶部 → prepend 更早的天，scrollTop 补偿锚定（杜绝跳动）
+    const root = scrollRef.current;
+    if (root && root.scrollTop < 200 && startIdx !== null && startIdx > 0) {
+      const before = root.scrollHeight;
+      const newStart = Math.max(0, startIdx - 10);
+      setStartIdx(newStart);
+      requestAnimationFrame(() => {
+        const delta = root.scrollHeight - before;
+        if (delta > 0) root.scrollTop += delta;
+      });
+    }
     if (idleTimer.current) clearTimeout(idleTimer.current);
     idleTimer.current = setTimeout(() => {
       const root = scrollRef.current;

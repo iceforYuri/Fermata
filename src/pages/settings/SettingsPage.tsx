@@ -272,7 +272,7 @@ export function SettingsPage() {
 
   return (
     <div className="settings-page" ref={rootRef} data-testid="settings-page">
-      <nav className="settings-nav" data-testid="chips-nav">
+      <nav className="settings-nav floating" data-testid="chips-nav">
         {SECTIONS.map(([id, label]) => (
           <button
             key={id}

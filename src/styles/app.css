@@ -1140,9 +1140,12 @@ body:has(.overlay-card) {
 .stats-scroll {
   flex: 1;
   overflow-y: auto;
+  width: 100%;
+  padding: 14px 0 80px;
+}
+.stats-measure {
   width: clamp(480px, 45%, 720px);
   margin: 0 auto;
-  padding: 14px 0 80px;
   display: flex;
   flex-direction: column;
   gap: 26px;
@@ -1333,12 +1336,16 @@ body:has(.overlay-card) {
 /* ================= M4 · 设置页 ================= */
 .settings-page {
   height: 100%;
-  display: flex;
   overflow: hidden;
+  position: relative;
   padding-top: 18px;
 }
-.settings-nav {
-  flex: none;
+.settings-nav.floating {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  /* 浮在内容列左侧紧邻（内容列居中，导航贴其左缘） */
+  left: calc(50% - clamp(240px, 22.5%, 360px) - 168px);
   width: 150px;
   border-right: 1px solid var(--hairline);
   display: flex;
@@ -1365,9 +1372,13 @@ body:has(.overlay-card) {
   .settings-nav { display: none; }
 }
 .settings-scroll {
-  flex: 1;
+  height: 100%;
   overflow-y: auto;
-  padding: 0 0 120px 28px;
+  padding: 0 0 120px;
+}
+.settings-scroll > .set-sec {
+  width: clamp(480px, 45%, 720px);
+  margin: 0 auto;
 }
 .set-sec {
   padding: 14px 0 22px;
@@ -1526,8 +1537,7 @@ body:has(.overlay-card) {
   overflow-y: auto;
   /* v1.2：自由滚动，去 mandatory 吸附；底部垫高让最后一天可读满 */
   padding-bottom: 240px;
-  width: clamp(480px, 45%, 720px);
-  margin: 0 auto;
+  width: 100%;
   /* 滚动内容顶/底缘淡出遮罩 */
   mask-image: linear-gradient(to bottom, transparent, black 28px, black calc(100% - 28px), transparent);
   -webkit-mask-image: linear-gradient(to bottom, transparent, black 28px, black calc(100% - 28px), transparent);
@@ -1624,6 +1634,7 @@ body:has(.overlay-card) {
   padding-left: 2px;
 }
 .morph-tab.active { color: var(--ink); }
+.morph-tab.active .nav-pill { --pill-a: 10%; } /* 静止态封顶 10%；弹簧进行中由内联接管 */
 .morph-tab .rest-mark { position: relative; width: 9px; height: 11px; margin-left: 2px; }
 
 /* v1.2 拖拽落点虚影 */

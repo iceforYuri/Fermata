@@ -18,10 +18,10 @@ const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
     key: "board",
     label: "进程",
     icon: (
-      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <path d="M2.5 8.5h11" />
-        <rect x="3.5" y="3.5" width="6" height="2.4" />
-        <rect x="6.5" y="10.2" width="6" height="2.4" />
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect width="18" height="18" x="3" y="3" rx="2" />
+        <path d="M3 9h18" />
+        <path d="M3 15h18" />
       </svg>
     ),
   },
@@ -29,9 +29,9 @@ const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
     key: "stats",
     label: "统计",
     icon: (
-      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <circle cx="8" cy="8" r="5.2" />
-        <path d="M8 2.8A5.2 5.2 0 0 1 13.2 8" strokeWidth="2.4" />
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 12c.552 0 1.005-.449.95-.998a10 10 0 0 0-8.953-8.951c-.55-.055-.998.398-.998.95v8a1 1 0 0 0 1 1z" />
+        <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
       </svg>
     ),
   },
@@ -39,9 +39,9 @@ const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
     key: "settings",
     label: "设置",
     icon: (
-      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <path d="M5 3.2 11.5 12.8M4.2 10.9l2.6 2.6M11.8 4.6l-1.7 1.7a2.2 2.2 0 0 1-3-3L5.4 1.6" />
-        <circle cx="12" cy="4" r="1.6" />
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+        <circle cx="12" cy="12" r="3" />
       </svg>
     ),
   },
@@ -111,10 +111,18 @@ export const TitleBar = memo(function TitleBar() {
     const p = Math.max(-0.08, Math.min(1.12, pRaw));
     const t = Math.max(0, Math.min(1, pRaw));
     const pillW = parseFloat(el.dataset.pillW ?? "64");
+    const isActive = TABS[i].key === tab;
     el.style.width = `${lerp(36, pillW, p)}px`;
     const pill = el.querySelector<HTMLElement>(".nav-pill");
     if (pill) {
-      pill.style.setProperty("--pill-a", `${smooth(t / 0.4) * 100}%`);
+      const s0 = springs.current[i];
+      if (isActive || s0.p !== s0.target || s0.v !== 0) {
+        // 选中项/弹簧进行中：pill 染底封顶 ~10%（浅灰 pill + 深字）
+        pill.style.setProperty("--pill-a", `${smooth(t / 0.4) * 10}%`);
+      } else {
+        // 未选中且静止：清内联，hover 交还 CSS
+        pill.style.removeProperty("--pill-a");
+      }
     }
     const label = el.querySelector<HTMLElement>(".nav-label");
     if (label) {

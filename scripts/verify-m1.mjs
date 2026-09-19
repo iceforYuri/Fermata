@@ -207,6 +207,28 @@ ok(
   ok("顶栏胶囊 20 连击全中", hits === 10, `${hits * 2}/20`);
 }
 
+// 附3：顶栏 hover/选中可读性（v1.2.1：弹簧不压 CSS hover，pill 封顶 10%）
+{
+  const statsTab = page.locator("[data-testid=tab-stats]");
+  await statsTab.hover();
+  await sleep(300);
+  const hoverBg = await page.evaluate(() => {
+    const pill = document.querySelector("[data-testid=tab-stats] .nav-pill");
+    return getComputedStyle(pill).backgroundColor;
+  });
+  const activePillBg = await page.evaluate(() => {
+    const pill = document.querySelector("[data-testid=tab-board].active .nav-pill") ??
+      document.querySelector("[data-testid=tab-board] .nav-pill");
+    return getComputedStyle(pill).backgroundColor;
+  });
+  // 未选中 hover：5% 染底（rgba 或 color(srgb)）
+  const hoverHasTint = !/0\)$|transparent/.test(hoverBg);
+  // 选中 pill：不超过 10% 墨
+  const m = activePillBg.match(/([\d.]+)%?\s*\/?\s*([\d.]+)%?\)?$/);
+  ok("顶栏 hover 染底生效（未选中）", hoverHasTint, hoverBg);
+  ok("选中 pill 封顶 ~10%", /0\.1\)|10%|0\.1,/.test(activePillBg) || activePillBg.includes("10%"), activePillBg);
+}
+
 // 附：空态可见
 await page.goto(`${BASE}/?fixture=empty`);
 await page.waitForSelector("[data-testid=empty-state]");
