@@ -77,7 +77,12 @@ export function ActiveRow({ bp }: { bp: BoardProcess }) {
           </div>
         ) : (
           <div className="current-step" style={{ color: "var(--ink-soft)" }}>
-            <span className="chevron">{bp.process.breakpoint ?? "无断点"}</span>
+            <span
+              className="chevron"
+              style={bp.breakpoint_effective ? undefined : { color: "var(--ink-ghost)" }}
+            >
+              {bp.breakpoint_effective ?? "未留断点"}
+            </span>
           </div>
         )}
       </div>

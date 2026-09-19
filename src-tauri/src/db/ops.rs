@@ -272,18 +272,17 @@ pub fn waiting_ai_set(conn: &Connection, ts: i64, pid: i64, on: bool) -> Result<
     Ok(())
 }
 
+/// 步骤栈：新步骤置顶（栈顶 position=1，存量下移）
 pub fn step_add(conn: &Connection, ts: i64, pid: i64, title: &str) -> Result<i64, String> {
     get_process(conn, pid)?;
-    let max_pos: Option<i64> = conn
-        .query_row(
-            "SELECT MAX(position) FROM steps WHERE process_id = ?1",
-            rusqlite::params![pid],
-            |r| r.get(0),
-        )
-        .map_err(|e| e.to_string())?;
     conn.execute(
-        "INSERT INTO steps (process_id, title, done, position) VALUES (?1, ?2, 0, ?3)",
-        rusqlite::params![pid, title, max_pos.unwrap_or(0) + 1],
+        "UPDATE steps SET position = position + 1 WHERE process_id = ?1",
+        rusqlite::params![pid],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO steps (process_id, title, done, position) VALUES (?1, ?2, 0, 1)",
+        rusqlite::params![pid, title],
     )
     .map_err(|e| e.to_string())?;
     let sid = conn.last_insert_rowid();
@@ -658,5 +657,17 @@ pub fn idle_confirm(conn: &Connection, ts: i64, pid: i64, yes: bool) -> Result<(
         }
     }
     append_event(conn, ts, "idle_confirm", Some(pid), serde_json::json!({ "yes": yes }))?;
+    Ok(())
+}
+
+/// 清空手动断点 → 回到自动断点（栈顶未完成步骤）
+pub fn breakpoint_clear(conn: &Connection, ts: i64, pid: i64) -> Result<(), String> {
+    get_process(conn, pid)?;
+    conn.execute(
+        "UPDATE processes SET breakpoint = NULL WHERE id = ?1",
+        rusqlite::params![pid],
+    )
+    .map_err(|e| e.to_string())?;
+    append_event(conn, ts, "breakpoint_clear", Some(pid), serde_json::json!({}))?;
     Ok(())
 }

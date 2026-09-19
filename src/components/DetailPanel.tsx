@@ -88,7 +88,8 @@ function DetailInner({ bp }: { bp: BoardProcess }) {
       </section>
 
       <section className="detail-section">
-        <div className="detail-label">步骤</div>
+        <div className="detail-label">步骤栈</div>
+        <GhostStepRow onAdd={addStep} />
         {steps.map((s) => (
           <div
             key={s.id}
@@ -134,7 +135,6 @@ function DetailInner({ bp }: { bp: BoardProcess }) {
             <span className="step-text">{s.title}</span>
           </div>
         ))}
-        <GhostStepRow onAdd={addStep} />
       </section>
 
       <section className="detail-section">

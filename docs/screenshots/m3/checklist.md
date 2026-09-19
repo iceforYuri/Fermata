@@ -67,3 +67,5 @@ mock（9）：stats-month / stats-bigring-today / stats-dayview / stats-daygrid-
 5. 无表单：计划编辑是幽灵行就地回车 ✓
 6. 推拉不弹窗：统计页无模态；悬停浮窗为实心暖卡非模态 ✓
 7. 六原语薄接口：组件零 @tauri-apps/api ✓
+
+> v1.1 修订后证据：docs/screenshots/v11/（胶囊导航/rail/步骤栈空圈/日滚动/淡暖底/MiSans 与 A/B 三值）；回归：verify-m1 18/18、verify-m3 v1.1 12/12、verify-m4 11/11。

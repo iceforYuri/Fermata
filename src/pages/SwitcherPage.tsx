@@ -57,14 +57,26 @@ export function SwitcherPage() {
       return;
     }
     if (targetPid === null) return;
+    // 预填当前生效断点（自动或钉住的手动），Enter=采纳
+    setBpText(running?.breakpoint_effective ?? "");
     setPhase({ kind: "breakpoint", targetPid, targetTitle: title ?? "", oldTitle });
   };
 
   const confirmSwitch = async () => {
     if (phase.kind !== "breakpoint") return;
+    // 断点双层：采纳预填=不动；清空=回自动；改写=手动钉住
+    const oldEffective = running?.breakpoint_effective ?? "";
+    const txt = bpText.trim();
+    if (running) {
+      if (txt === "" && oldEffective !== "" && running.breakpoint_manual) {
+        await data.breakpointClear(running.process.id);
+      } else if (txt !== "" && txt !== oldEffective) {
+        await data.breakpointSet(running.process.id, txt);
+      }
+    }
     // 休息态中显式切换 = 第三条恢复路径（等价"翻下一篇"）
     if (board.rest.resting) await data.restEnd(running?.process.id);
-    await switchTo(phase.targetPid, bpText.trim() || undefined);
+    await switchTo(phase.targetPid, undefined);
     setPhase({ kind: "pick" });
     setBpText("");
     hide();

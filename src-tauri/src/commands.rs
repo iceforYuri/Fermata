@@ -78,6 +78,14 @@ pub async fn process_resume(app: AppHandle, state: State<'_, DbState>, pid: i64)
 }
 
 #[tauri::command]
+pub async fn breakpoint_clear(app: AppHandle, state: State<'_, DbState>, pid: i64) -> Result<(), String> {
+    let c = lock(&state)?;
+    ops::breakpoint_clear(&c, db::now_ms(), pid)?;
+    changed(&app);
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn breakpoint_set(app: AppHandle, state: State<'_, DbState>, pid: i64, text: String) -> Result<(), String> {
     let c = lock(&state)?;
     ops::breakpoint_set(&c, db::now_ms(), pid, &text)?;
@@ -291,6 +299,12 @@ pub async fn idle_confirm(app: AppHandle, state: State<'_, DbState>, pid: i64, y
 }
 
 // ---------- 查询 ----------
+
+#[tauri::command]
+pub async fn q_first_day(state: State<'_, DbState>) -> Result<Option<String>, String> {
+    let c = lock(&state)?;
+    queries::q_first_day(&c)
+}
 
 #[tauri::command]
 pub async fn q_board(state: State<'_, DbState>, day: String) -> Result<BoardDay, String> {

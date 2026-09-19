@@ -129,3 +129,9 @@ settings 表只种 M0 任务列明的 7 键；M4 新增键（idle_confirm=1、fo
 
 ### D32 · v1.1 修订总指针
 顶栏居中胶囊化、稿库改左缘细 rail（仅进程页）、步骤栈+断点双层（ADR-0004）、切页先收面板永收起进场、统计页日视角纵向滚动/月视角不滚动、亮色底 #FAF7F2→#FCFBF7（主题更名亮·淡暖/暗·工作台）、打包 MiSans。全部经用户逐条拍板，合同文档（01/02/04/AGENTS）已同步修订。
+
+### D33 · MiSans 获取与子集化
+官方源 https://hyperos.mi.com/font-download/MiSans.zip（代理可通），TTF 三档（Regular/Medium/Semibold）经 pyftsubset 子集化（GB2312 全集 6898 字符 + ASCII + 常用标点，layout-features 全留含 tnum）→ woff2 共 ~2.7MB（预算 ≤6MB）。许可说明随包（src/assets/fonts/MiSans-LICENSE.txt）。真实 WebView2 落地验证：document.fonts 三档 loaded + 字形度量与回退字体可区分（scripts/verify-wv2-v11.mjs）。
+
+### D34 · 日视角滚动吸附的底部垫高
+scroll-snap 的 start 对齐对最末单元不可达（内容尾部无法上顶），容器垫高 = 容器高 − 单元高，让今天也能吸附到顶。

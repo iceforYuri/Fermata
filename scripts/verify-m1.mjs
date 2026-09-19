@@ -11,6 +11,7 @@ const ok = (name, pass, extra = "") => {
 const browser = await chromium.launch({ args: ["--disable-lcd-text"] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 page.on("pageerror", (e) => console.log("[pageerror]", e.message));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 await page.goto(`${BASE}/`);
 await page.waitForSelector("[data-testid=board-page]");
@@ -64,15 +65,25 @@ await page.waitForSelector("[data-testid=bp-card-input]");
 await page.press("[data-testid=bp-card-input]", "Enter");
 await page.waitForSelector("[data-testid=active-row]");
 
-// 5. 推拉面板开合
-await page.click("[data-testid=lib-toggle]");
+// 5. 推拉面板开合（v1.1：左缘 rail）
+const railVisible = !!(await page.$("[data-testid=lib-rail]"));
+ok("rail 常驻进程页左缘", railVisible);
+await page.click("[data-testid=lib-rail]");
 await page.waitForTimeout(400);
 const libW = await page.$eval("[data-testid=lib-panel]", (el) => el.getBoundingClientRect().width);
-ok("稿库开（300px 划入）", Math.abs(libW - 300) < 2, `w=${libW}`);
-await page.click("[data-testid=lib-toggle]");
+ok("rail 点开=稿库开（300px 划入）", Math.abs(libW - 300) < 2, `w=${libW}`);
+await page.click("[data-testid=lib-rail]");
 await page.waitForTimeout(400);
 const libW2 = await page.$eval("[data-testid=lib-panel]", (el) => el.getBoundingClientRect().width);
-ok("稿库收", libW2 === 0, `w=${libW2}`);
+ok("rail 收=稿库收", libW2 === 0, `w=${libW2}`);
+// rail 只存在于进程页
+await page.click("[data-testid=tab-stats]");
+await page.waitForSelector("[data-testid=stats-page]");
+await page.waitForTimeout(500);
+const railOnStats = !!(await page.$("[data-testid=lib-rail]"));
+await page.click("[data-testid=tab-board]");
+await page.waitForTimeout(500);
+ok("rail 不存在于统计页", !railOnStats);
 // 详情栏
 await page.click("[data-testid=active-row] .row-main");
 await page.waitForTimeout(400);
@@ -137,7 +148,7 @@ ok(
 );
 
 // 9. 稿库拖入成进程
-await page.click("[data-testid=lib-toggle]");
+await page.click("[data-testid=lib-rail]");
 await page.waitForSelector("[data-testid=plan-row]");
 const planCount = await page.$$eval("[data-testid=plan-row]", (r) => r.length);
 const qCount9 = await page.$$eval("[data-testid=suspended-row]", (r) => r.length);
@@ -153,6 +164,25 @@ ok(
   planCount2 === planCount - 1 && qCount92 === qCount9 + 1,
   `plans ${planCount}→${planCount2}, queue ${qCount9}→${qCount92}`,
 );
+
+// 附2：顶栏胶囊 20 连击（真实鼠标点击，回归点击稳定性）
+{
+  let hits = 0;
+  for (let i = 0; i < 10; i++) {
+    const tabStats = await page.$("[data-testid=tab-stats]");
+    const tb = await tabStats.boundingBox();
+    await page.mouse.click(tb.x + tb.width / 2, tb.y + tb.height / 2);
+    await page.waitForSelector("[data-testid=stats-page]", { timeout: 2000 });
+    await sleep(250); // 先收面板再横滑的 140ms + 页面进场
+    const tabBoard = await page.$("[data-testid=tab-board]");
+    const bb = await tabBoard.boundingBox();
+    await page.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2);
+    await page.waitForSelector("[data-testid=board-page]", { timeout: 2000 });
+    await sleep(250);
+    hits++;
+  }
+  ok("顶栏胶囊 20 连击全中", hits === 10, `${hits * 2}/20`);
+}
 
 // 附：空态可见
 await page.goto(`${BASE}/?fixture=empty`);

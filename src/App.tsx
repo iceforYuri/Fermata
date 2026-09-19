@@ -14,7 +14,7 @@ import { DetailPanel } from "./components/DetailPanel";
 import { ArchiveOverlay } from "./components/ArchiveOverlay";
 import { UndoToast } from "./components/UndoToast";
 import { useBoard } from "./store/board";
-import { useUi } from "./store/ui";
+import { setUi, useUi } from "./store/ui";
 import { useScheduler } from "./store/scheduler";
 
 function useHashRoute(): string {
@@ -30,7 +30,7 @@ function useHashRoute(): string {
 
 /** 主应用壳：标题栏 + 三栏 + 浮层 + 调度 tick。休息态霸占 tab 1（版面在玻璃后面等着）。 */
 function Shell() {
-  const { tab } = useUi();
+  const { tab, leftOpen } = useUi();
   const { rest } = useBoard();
   useScheduler();
 
@@ -41,8 +41,26 @@ function Shell() {
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <TitleBar />
       <div className="app-body">
+        {/* 稿库 rail：只在进程页常驻 */}
+        {tab === "board" && (
+          <button
+            className="lib-rail"
+            data-testid="lib-rail"
+            title={leftOpen ? "收起稿库" : "展开稿库"}
+            onClick={() => setUi({ leftOpen: !leftOpen })}
+          >
+            <svg viewBox="0 0 10 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+              {leftOpen ? <path d="M7 2 3 7l4 5" /> : <path d="M3 2l4 5-4 5" />}
+            </svg>
+          </button>
+        )}
         <LibraryPanel />
-        <div className="center-col">
+        <div
+          className="center-col"
+          onClickCapture={() => {
+            if (leftOpen && tab === "board") setUi({ leftOpen: false }); // 点中列任意处收起
+          }}
+        >
           <div
             key={tab}
             className="tab-page"

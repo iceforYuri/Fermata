@@ -79,11 +79,16 @@ export async function refreshBoard() {
 }
 
 /** 外观偏好统一落地（主题/字号阶梯/密度/稿库栏宽），每个窗口每次刷新都应用 */
-const themeOverride = new URLSearchParams(location.search).get("theme");
+const urlParams = new URLSearchParams(location.search);
+const themeOverride = urlParams.get("theme");
+const paperOverride = urlParams.get("paper"); // A/B 封版对比用
 
 function applyPrefs(prefs: Record<string, string>) {
   const root = document.documentElement;
   root.dataset.theme = themeOverride ?? prefs.theme ?? "light";
+  if (paperOverride && themeOverride !== "dark") {
+    root.style.setProperty("--paper", `#${paperOverride.replace("#", "")}`);
+  }
   root.dataset.font = prefs.font_scale ?? "standard";
   root.dataset.density = prefs.density ?? "standard";
   if (prefs.lib_width) {
@@ -148,6 +153,17 @@ let effectRefs = 0;
 /** 生效主题（单一来源）：URL override（截图用）优先，其次 settings.theme */
 export function effectiveTheme(s: BoardState): "light" | "dark" {
   return (themeOverride ?? s.settings.theme) === "dark" ? "dark" : "light";
+}
+
+/** 休息态窄选择器（primitive 快照，避免 1Hz tick 引发重渲染） */
+export function useResting(): boolean {
+  return useSyncExternalStore(
+    (cb) => {
+      listeners.add(cb);
+      return () => listeners.delete(cb);
+    },
+    () => state.rest.resting,
+  );
 }
 
 /** 色标 → 当前生效主题 hex */

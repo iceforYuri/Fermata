@@ -14,10 +14,11 @@
   z-index: 30;
   background: var(--paper);
 }
-.titlebar .drag {
-  position: absolute;
-  inset: 0;
-  -webkit-app-region: drag; /* 浏览器下为普通区域，Tauri 下等价 data-tauri-drag-region */
+/* v1.1：拖拽区只剩两侧留白，导航不被覆盖（点击稳定性根治） */
+.titlebar .drag-side {
+  flex: 1;
+  height: 100%;
+  -webkit-app-region: drag;
 }
 .titlebar .tabs {
   position: relative;
@@ -238,7 +239,7 @@
   height: 15px;
   flex: none;
   border: 1px solid var(--ink-faint);
-  border-radius: 3px;
+  border-radius: 50%; /* 步骤栈：空圈 */
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -251,6 +252,15 @@
   width: 10px;
   height: 10px;
   color: var(--ink);
+  opacity: 0; /* 未完成=空圈，无勾无杠 */
+  transition: opacity var(--dur-fast);
+}
+.step-check:hover svg {
+  opacity: 0.45;
+}
+.detail-step.done .step-check svg,
+.step-check.filled svg {
+  opacity: 1;
 }
 @keyframes step-advance {
   from {
@@ -1378,3 +1388,116 @@ body:has(.overlay-card) {
 /* 版面密度 */
 [data-density="compact"] { --row-gap: 8px; }
 [data-density="loose"] { --row-gap: 12px; }
+
+
+/* ================= v1.1 · 胶囊导航 ================= */
+.capsule-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--hairline);
+  border-radius: 7px;
+  padding: 2px;
+  background: color-mix(in srgb, var(--ink) 3.5%, transparent);
+}
+.capsule-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px; /* 命中区连同胶囊 padding ≥36px */
+  padding: 0 12px;
+  border-radius: 5px;
+  font-size: var(--fs-micro);
+  color: var(--ink-soft);
+  opacity: 0.6;
+  transition: opacity var(--dur-fast) var(--ease-out), background var(--dur-fast);
+}
+.capsule-tab:hover { opacity: 1; }
+.capsule-icon {
+  display: grid;
+  place-items: center;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.capsule-icon svg { width: 15px; height: 15px; }
+.capsule-tab:hover .capsule-icon { transform: translateY(-1px); }
+.capsule-tab .capsule-indicator {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 2px;
+  height: 2px;
+  background: var(--ink);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.capsule-tab:hover .capsule-indicator { transform: scaleX(0.4); }
+.capsule-tab.active {
+  opacity: 1;
+  color: var(--ink);
+  font-weight: 600;
+  background: color-mix(in srgb, var(--ink) 8%, transparent); /* 选中染底加深一档 */
+}
+.capsule-tab.active .capsule-indicator { transform: scaleX(1); }
+
+
+/* ================= v1.1 · 稿库 rail ================= */
+.lib-rail {
+  flex: none;
+  width: 28px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-ghost);
+  cursor: pointer;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.lib-rail:hover {
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  color: var(--ink-soft);
+}
+.lib-rail svg { width: 10px; height: 14px; }
+
+/* ================= v1.1 · 统计页滚动模型 ================= */
+.view-fade {
+  animation: view-fade-in 160ms var(--ease-out);
+}
+@keyframes view-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.daygrid-scroll {
+  height: calc(100vh - 130px);
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  /* 让最后一天也能吸附到顶（垫高 = 容器高 - 单元高） */
+  padding-bottom: calc(100vh - 130px - 480px);
+}
+.day-unit {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  min-height: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding-top: 8px;
+}
+.day-unit-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--paper);
+  padding: 4px 14px;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.day-today-tag {
+  font-size: var(--fs-micro);
+  color: var(--ink-faint);
+  font-weight: 400;
+}

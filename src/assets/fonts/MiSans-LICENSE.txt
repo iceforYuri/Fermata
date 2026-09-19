@@ -1,0 +1,9 @@
+MiSans 字体许可说明
+==================
+
+本目录内 MiSans-*.woff2 为小米公司 MiSans 字体的子集化版本（子集：GB2312 全集 + ASCII + 常用标点；工具：fontTools pyftsubset）。
+
+字体来源：小米官方发布页 https://hyperos.mi.com/font/（MiSans.zip，2025-01 版）。
+许可：MiSans 为小米公司推出的免费商用字体，须保留本说明。字体版权归小米公司所有。
+
+子集化仅删减字符集，未修改字形。

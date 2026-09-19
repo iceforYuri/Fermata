@@ -2,10 +2,30 @@
  * 原型定稿参数全表同步记录于 docs/deviation.md D10 与 DB palette migration v2。
  */
 
+/* v1.1：打包 MiSans（子集 GB2312+ASCII，三档共 ~2.7MB） */
+@font-face {
+  font-family: "MiSans";
+  src: url("../assets/fonts/MiSans-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "MiSans";
+  src: url("../assets/fonts/MiSans-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: "MiSans";
+  src: url("../assets/fonts/MiSans-Semibold.woff2") format("woff2");
+  font-weight: 600;
+  font-display: swap;
+}
+
 :root {
   /* —— 底色与墨色 —— */
-  --paper: #faf7f2;
-  --paper-deep: #f3eee6;
+  --paper: #fcfbf7; /* v1.1 亮·淡暖 */
+  --paper-deep: #f5f3ed;
   --ink: #26221e;
   --ink-soft: rgba(38, 34, 30, 0.6);
   --ink-faint: rgba(38, 34, 30, 0.38);
@@ -52,7 +72,7 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 
   /* —— 玻璃 —— */
-  --glass-bg: rgba(250, 247, 242, 0.55);
+  --glass-bg: rgba(252, 251, 247, 0.55);
   --glass-blur: blur(22px) saturate(1.25);
 
   /* 面板 */
@@ -98,8 +118,8 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family:
-    "Source Han Sans SC", "HarmonyOS Sans SC", "PingFang SC",
-    "Microsoft YaHei", system-ui, sans-serif;
+    "MiSans", "Noto Sans SC", "Microsoft YaHei UI", system-ui, sans-serif;
+  font-feature-settings: "tnum";
   font-size: var(--fs-body);
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;

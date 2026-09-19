@@ -382,6 +382,13 @@ function ringElapsed(pid: number): number {
     }, 0);
 }
 
+function stepsTopUndone(pid: number): string | undefined {
+  return state.steps
+    .filter((x) => x.process_id === pid)
+    .sort((a, b) => a.position - b.position)
+    .find((x) => !x.done)?.title;
+}
+
 function toBoardProcess(p: Process): BoardProcess {
   const open = state.segs.find((g) => g.pid === p.id && g.end === null);
   return {
@@ -395,6 +402,8 @@ function toBoardProcess(p: Process): BoardProcess {
     aging_ms: aging(p),
     active_segment_started_at: open ? open.start : null,
     timer_open: p.state === "running" && !!open,
+    breakpoint_effective: p.breakpoint ?? (stepsTopUndone(p.id) || null),
+    breakpoint_manual: p.breakpoint !== null,
   };
 }
 
@@ -479,6 +488,11 @@ export const mockData: DataApi = {
     ev("breakpoint_set", pid, { text });
   },
 
+  async breakpointClear(pid) {
+    proc(pid).breakpoint = null;
+    ev("breakpoint_clear", pid);
+  },
+
   async colorSet(pid, slot) {
     proc(pid).color_tag = slot;
     ev("color_set", pid, { slot });
@@ -511,9 +525,9 @@ export const mockData: DataApi = {
 
   async stepAdd(pid, title) {
     proc(pid);
+    for (const st of state.steps.filter((x) => x.process_id === pid)) st.position += 1; // 置顶
     const id = state.nextId++;
-    const max = Math.max(0, ...state.steps.filter((x) => x.process_id === pid).map((x) => x.position));
-    state.steps.push({ id, process_id: pid, title, done: false, done_at: null, position: max + 1 });
+    state.steps.push({ id, process_id: pid, title, done: false, done_at: null, position: 1 });
     ev("step_add", pid, { step_id: id, title });
     return id;
   },
@@ -839,6 +853,11 @@ export const mockData: DataApi = {
       };
     }
     return cells.map((c, i) => ({ cell: i, ...c }));
+  },
+
+  async qFirstDay() {
+    const days = state.segs.map((g) => dayOfTs(g.start));
+    return days.length ? days.sort()[0] : null;
   },
 
   async exportEvents() {

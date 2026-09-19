@@ -67,6 +67,10 @@ src-tauri/
 docs/                 设计文档与验收证据（screenshots/ 每阶段一册）
 ```
 
+## 字体
+
+随包内置 MiSans（小米免费商用字体，子集 GB2312+ASCII，三档字重共 ~2.7MB），许可说明见 `src/assets/fonts/MiSans-LICENSE.txt`。
+
 ## 词汇与纪律
 
 - 词汇表（进程/挂起/断点/折线/休止符…）见 [CONTEXT.md](docs/../CONTEXT.md)

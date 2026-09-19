@@ -205,3 +205,49 @@ fn grid_cell_majority_ownership_and_untimed_completion() {
     // 切换次数 = switch_in 计数 = 4
     assert_eq!(stats.switch_count, 4);
 }
+
+// ================= v1.1 · 步骤栈 + 断点双层（ADR-0004） =================
+
+#[test]
+fn step_stack_and_breakpoint_layers() {
+    let conn = db::open_in_memory().unwrap();
+    let t0 = 1_800_000_000_000i64;
+    let day = db::day_of(t0);
+
+    let p = ops::process_create(&conn, t0, "栈与断点", None, Some(&day)).unwrap();
+
+    // 新步骤置顶：s1 在底，s3 栈顶
+    let s1 = ops::step_add(&conn, t0 + 1, p, "第一步").unwrap();
+    let s2 = ops::step_add(&conn, t0 + 2, p, "第二步").unwrap();
+    let s3 = ops::step_add(&conn, t0 + 3, p, "第三步").unwrap();
+    let board = queries::q_board(&conn, &day).unwrap();
+    let bp = board.suspended.iter().find(|x| x.process.id == p).unwrap();
+    let order: Vec<i64> = bp.steps.iter().map(|x| x.id).collect();
+    assert_eq!(order, vec![s3, s2, s1], "步骤栈新步骤置顶");
+
+    // 自动断点 = 栈顶未完成
+    assert_eq!(bp.breakpoint_effective.as_deref(), Some("第三步"));
+    assert!(!bp.breakpoint_manual);
+
+    // 勾选栈顶 → 自动断点跟随到下一个未完成
+    ops::step_check(&conn, t0 + 4, s3, true).unwrap();
+    let bp = queries::q_board(&conn, &day).unwrap().suspended.into_iter().find(|x| x.process.id == p).unwrap();
+    assert_eq!(bp.breakpoint_effective.as_deref(), Some("第二步"));
+
+    // 手动写入 = 钉住，不随步骤变更覆盖
+    ops::breakpoint_set(&conn, t0 + 5, p, "手写：等评审意见").unwrap();
+    ops::step_check(&conn, t0 + 6, s2, true).unwrap();
+    let bp = queries::q_board(&conn, &day).unwrap().suspended.into_iter().find(|x| x.process.id == p).unwrap();
+    assert_eq!(bp.breakpoint_effective.as_deref(), Some("手写：等评审意见"));
+    assert!(bp.breakpoint_manual);
+
+    // 清空手动 → 回自动
+    ops::breakpoint_clear(&conn, t0 + 7, p).unwrap();
+    let bp = queries::q_board(&conn, &day).unwrap().suspended.into_iter().find(|x| x.process.id == p).unwrap();
+    assert_eq!(bp.breakpoint_effective.as_deref(), Some("第一步"));
+    assert!(!bp.breakpoint_manual);
+
+    // 断点清空事件留痕
+    let evts = queries::q_events(&conn, None).unwrap();
+    assert!(evts.iter().any(|e| e.kind == "breakpoint_clear" && e.process_id == Some(p)));
+}

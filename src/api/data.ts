@@ -19,6 +19,7 @@ const tauriData: DataApi = {
   processPause: (pid) => invoke("process_pause", { pid }),
   processResume: (pid) => invoke("process_resume", { pid }),
   breakpointSet: (pid, text) => invoke("breakpoint_set", { pid, text }),
+  breakpointClear: (pid) => invoke("breakpoint_clear", { pid }),
   colorSet: (pid, slot) => invoke("color_set", { pid, slot }),
   waitingAiSet: (pid, on) => invoke("waiting_ai_set", { pid, on }),
   stepAdd: (pid, title) => invoke("step_add", { pid, title }),
@@ -59,6 +60,7 @@ const tauriData: DataApi = {
   qYearOverview: (year) => invoke("q_year_overview", { year }),
   qDayView: (day) => invoke("q_day_view", { day }),
   qDayGrid: (day) => invoke("q_day_grid", { day }),
+  qFirstDay: () => invoke("q_first_day"),
   exportEvents: () => invoke("export_events"),
 };
 

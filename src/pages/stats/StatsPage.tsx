@@ -7,14 +7,10 @@ import { YearView } from "./YearView";
 
 type View = "year" | "month" | "day";
 
-function shiftDay(day: string, delta: number): string {
-  const [y, m, d] = day.split("-").map(Number);
-  return dayStr(new Date(y, m - 1, d + delta));
-}
-
 /**
- * 统计页（Tab 2）：视角胶囊 [年|月|日]；月=月历+大环+当天视图；日=96 格日网格；年=月环网格。
- * 进入默认月视角锚定今天；钻取：年点月环→月，月单击=选中、双击→日，日顶部换天、点日期回月。
+ * 统计页（Tab 2）：视角胶囊 [年|月|日]（~160ms 交叉淡化+轻微纵向位移）；
+ * 月=月历（不滚动，换月仅年视角点月环/回到今天）+大环+当天视图；
+ * 日=纵向滚动网格；年=月环网格。
  */
 export function StatsPage() {
   const today = dayStr(new Date());
@@ -37,48 +33,49 @@ export function StatsPage() {
         ))}
       </div>
 
-      {view === "month" && (
-        <>
-          <div className="stats-month-head">
-            <span className="num stats-month-title">{ay} 年 {am} 月</span>
-            {anchor !== today && (
-              <button className="back-today" data-testid="back-today" onClick={() => setAnchor(today)}>
-                回到今天
-              </button>
-            )}
-          </div>
-          <MonthCalendar
-            anchor={anchor}
-            onSelect={(d) => setAnchor(d)}
-            onDrill={(d) => {
-              setAnchor(d);
-              setView("day");
+      <div key={view} className="view-fade">
+        {view === "month" && (
+          <>
+            <div className="stats-month-head">
+              <span className="num stats-month-title">{ay} 年 {am} 月</span>
+              {anchor !== today && (
+                <button className="back-today" data-testid="back-today" onClick={() => setAnchor(today)}>
+                  回到今天
+                </button>
+              )}
+            </div>
+            <MonthCalendar
+              anchor={anchor}
+              onSelect={(d) => setAnchor(d)}
+              onDrill={(d) => {
+                setAnchor(d);
+                setView("day");
+              }}
+            />
+            <BigRing day={anchor} />
+            <DayViewSection day={anchor} />
+          </>
+        )}
+
+        {view === "day" && (
+          <DayGridView
+            day={anchor}
+            onAnchor={setAnchor}
+            onBackToMonth={() => setView("month")}
+          />
+        )}
+
+        {view === "year" && (
+          <YearView
+            year={ay}
+            onYear={(y) => setAnchor(`${y}-01-01`)}
+            onDrillMonth={(y, m) => {
+              setAnchor(`${y}-${String(m).padStart(2, "0")}-01`);
+              setView("month");
             }}
           />
-          <BigRing day={anchor} />
-          <DayViewSection day={anchor} />
-        </>
-      )}
-
-      {view === "day" && (
-        <DayGridView
-          day={anchor}
-          onPrevDay={() => setAnchor(shiftDay(anchor, -1))}
-          onNextDay={() => setAnchor(shiftDay(anchor, 1))}
-          onBackToMonth={() => setView("month")}
-        />
-      )}
-
-      {view === "year" && (
-        <YearView
-          year={ay}
-          onYear={(y) => setAnchor(`${y}-01-01`)}
-          onDrillMonth={(y, m) => {
-            setAnchor(`${y}-${String(m).padStart(2, "0")}-01`);
-            setView("month");
-          }}
-        />
-      )}
+        )}
+      </div>
     </div>
   );
 }

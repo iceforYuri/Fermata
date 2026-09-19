@@ -13,6 +13,8 @@ pub struct BoardProcess {
     pub active_segment_started_at: Option<i64>, // 运行中：当前开口段起点
     pub timer_open: bool,                     // 计时器是否开口（暂停=闭）
     pub ring_elapsed_ms: i64,                 // 本次时间片已计时长（扣暂停/空闲/休息）
+    pub breakpoint_effective: Option<String>, // 生效断点：COALESCE(手动, 栈顶未完成步骤)
+    pub breakpoint_manual: bool,              // true = 手动钉住
 }
 
 #[derive(Serialize)]
@@ -79,6 +81,10 @@ fn ring_elapsed_ms(conn: &Connection, pid: i64, now: i64) -> Result<i64, String>
 
 fn board_process(conn: &Connection, day: &str, p: Process) -> Result<BoardProcess, String> {
     let steps = steps_of(conn, p.id)?;
+    // 生效断点 = 手动钉住优先，否则栈顶未完成步骤（ADR-0004）
+    let top_undone = steps.iter().find(|s| !s.done).map(|s| s.title.clone());
+    let breakpoint_manual = p.breakpoint.is_some();
+    let breakpoint_effective = p.breakpoint.clone().or(top_undone);
     let day_total_ms = q_process_day_total(conn, p.id, day)?;
     let aging_ms = if matches!(p.state.as_str(), "suspended" | "waiting_ai") {
         Some(q_suspended_ms(conn, p.id, day)?)
@@ -91,6 +97,8 @@ fn board_process(conn: &Connection, day: &str, p: Process) -> Result<BoardProces
         timer_open: p.state == "running" && active_segment_started_at.is_some(),
         active_segment_started_at,
         ring_elapsed_ms: ring_elapsed,
+        breakpoint_effective,
+        breakpoint_manual,
         process: p,
         steps,
         day_total_ms,
@@ -933,4 +941,10 @@ pub fn q_day_grid(conn: &Connection, day: &str) -> Result<Vec<GridCell>, String>
         out.push(cell);
     }
     Ok(out)
+}
+
+/// 最早有记录的日期（日视角滚动上界）
+pub fn q_first_day(conn: &Connection) -> Result<Option<String>, String> {
+    conn.query_row("SELECT MIN(day) FROM segments", [], |r| r.get(0))
+        .map_err(|e| e.to_string())
 }

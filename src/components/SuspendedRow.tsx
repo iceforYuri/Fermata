@@ -47,7 +47,12 @@ export function SuspendedRow({
         <div className="suspended-title">{p.title}</div>
         <div className="suspended-sub">
           {waiting && <span className="waiting-mark" title="等 AI" data-testid="waiting-mark" />}
-          <span className="chevron">{p.breakpoint ?? "未留断点"}</span>
+          <span
+            className="chevron"
+            style={bp.breakpoint_effective ? undefined : { color: "var(--ink-ghost)" }}
+          >
+            {bp.breakpoint_effective ?? "未留断点"}
+          </span>
           <span className="aging-label">挂 {fmtDur(bp.aging_ms ?? 0)}</span>
         </div>
       </div>

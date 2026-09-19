@@ -1,85 +1,94 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { data, type GridCell } from "../../api/data";
 import { markHex, useBoard } from "../../store/board";
 import { fmtClock, fmtDur } from "../../util";
+import { dayStr } from "./MonthCalendar";
+
+function addDays(day: string, n: number): string {
+  const [y, m, d] = day.split("-").map(Number);
+  return dayStr(new Date(y, m - 1, d + n));
+}
 
 /**
- * 96 格日网格：12 列 × 8 行，每格 15 分钟，列主序阅读；
- * 空格画极浅中性点（空隙即数据）；悬停圆圈 → 进程浮窗（实心暖卡）。
+ * 日视角（v1.1）：纵向连续滚动，每天=日期头+96 格网格；按天懒加载（视口外只留壳）；
+ * scroll-snap 按天吸附；吸顶日期头点击回月视角；上界=最早有记录日，下界=今天；
+ * 静止 ~200ms 后锚点联动。
  */
 export function DayGridView({
   day,
-  onPrevDay,
-  onNextDay,
+  onAnchor,
   onBackToMonth,
 }: {
   day: string;
-  onPrevDay: () => void;
-  onNextDay: () => void;
+  onAnchor: (day: string) => void;
   onBackToMonth: () => void;
 }) {
-  const board = useBoard();
-  const [cells, setCells] = useState<GridCell[] | null>(null);
+  const today = dayStr(new Date());
+  const [firstDay, setFirstDay] = useState<string | null>(null);
   const [hover, setHover] = useState<{ cell: GridCell; x: number; y: number } | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
-    void data.qDayGrid(day).then(setCells);
-  }, [day, board.tick]);
+    void data.qFirstDay().then((d) => setFirstDay(d ?? today));
+  }, [today]);
 
-  const today = (() => {
-    const d = new Date();
-    const p = (n: number) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-  })();
-  const isFuture = day > today;
-  const hasData = cells?.some((c) => c.owner_process_id !== null) ?? false;
+  const days = useMemo(() => {
+    if (!firstDay) return [];
+    const out: string[] = [];
+    let cur = firstDay;
+    let guard = 0;
+    while (cur <= today && guard < 400) {
+      out.push(cur);
+      cur = addDays(cur, 1);
+      guard++;
+    }
+    return out;
+  }, [firstDay, today]);
 
-  const label = `${Number(day.slice(5, 7))} 月 ${Number(day.slice(8))} 日`;
+  // 进场滚到锚点日
+  useEffect(() => {
+    if (!days.length) return;
+    const el = scrollRef.current?.querySelector(`[data-day="${day}"]`);
+    el?.scrollIntoView({ block: "start" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [days.length]);
+
+  const onScroll = () => {
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+    idleTimer.current = setTimeout(() => {
+      const root = scrollRef.current;
+      if (!root) return;
+      const rootTop = root.getBoundingClientRect().top;
+      let current = day;
+      let found = false;
+      root.querySelectorAll<HTMLElement>(".day-unit").forEach((el) => {
+        if (found) return;
+        // 取覆盖滚动顶沿的第一个单元（底部单元可能整体高于视口）
+        const elTop = el.getBoundingClientRect().top - rootTop + root.scrollTop;
+        if (elTop + el.offsetHeight > root.scrollTop + 8) {
+          current = el.dataset.day!;
+          found = true;
+        }
+      });
+      if (current !== day) onAnchor(current); // 静止后锚点联动
+    }, 200);
+  };
+
+  if (!firstDay) return null;
 
   return (
-    <div className="daygrid" data-testid="daygrid">
-      <div className="daygrid-nav">
-        <button data-testid="daygrid-prev" onClick={onPrevDay}>‹</button>
-        <button className="daygrid-date" data-testid="daygrid-date" onClick={onBackToMonth} title="回到月视角">
-          {label}
-        </button>
-        <button data-testid="daygrid-next" onClick={onNextDay}>›</button>
-      </div>
-
-      {isFuture ? (
-        <div className="daygrid-empty" data-testid="daygrid-future">尚无记录</div>
-      ) : !hasData && cells ? (
-        <div className="daygrid-empty" data-testid="daygrid-empty">这一天留白</div>
-      ) : null}
-
-      <div className="daygrid-grid">
-        {(cells ?? []).map((c) => (
-          <div key={c.cell} className="dg-cell" data-cell={c.cell}>
-            {c.owner_process_id !== null ? (
-              <span
-                className="dg-dot"
-                data-testid="dg-dot"
-                data-pid={c.owner_process_id}
-                style={{ background: markHex(board, c.color_tag) ?? "var(--ring-neutral)" }}
-                onMouseEnter={(e) => {
-                  const r = (e.target as HTMLElement).getBoundingClientRect();
-                  setHover({ cell: c, x: r.left, y: r.top });
-                }}
-                onMouseLeave={() => setHover(null)}
-              />
-            ) : (
-              <span className="dg-empty-dot" />
-            )}
-          </div>
-        ))}
-      </div>
-      <div className="daygrid-ticks">
-        {[0, 3, 6, 9].map((col) => (
-          <span key={col} className="num dg-tick" style={{ gridColumnStart: col + 1 }}>
-            {col / 3 * 6}
-          </span>
-        ))}
-      </div>
-
+    <div className="daygrid-scroll" data-testid="daygrid-scroll" ref={scrollRef} onScroll={onScroll}>
+      {days.map((d) => (
+        <DayUnit
+          key={d}
+          day={d}
+          today={today}
+          scrollRoot={scrollRef}
+          onBackToMonth={onBackToMonth}
+          onHover={setHover}
+        />
+      ))}
       {hover && hover.cell.title && (
         <div
           className="dg-tip"
@@ -95,6 +104,87 @@ export function DayGridView({
               fmtDur(hover.cell.seg_end - hover.cell.seg_start)}
           </div>
           {hover.cell.breakpoint && <div className="dg-tip-bp">断点：{hover.cell.breakpoint}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DayUnit({
+  day,
+  today,
+  scrollRoot,
+  onBackToMonth,
+  onHover,
+}: {
+  day: string;
+  today: string;
+  scrollRoot: React.RefObject<HTMLDivElement | null>;
+  onBackToMonth: () => void;
+  onHover: (h: { cell: GridCell; x: number; y: number } | null) => void;
+}) {
+  const board = useBoard();
+  const [cells, setCells] = useState<GridCell[] | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // 按天懒加载：接近视口才查
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          void data.qDayGrid(day).then(setCells);
+          obs.disconnect();
+        }
+      },
+      { root: scrollRoot.current, rootMargin: "900px 0px" }, // 视口 ±2 天预取
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [day, scrollRoot]);
+
+  const isFuture = day > today;
+  const hasData = cells?.some((c) => c.owner_process_id !== null) ?? false;
+  const label = `${Number(day.slice(5, 7))} 月 ${Number(day.slice(8))} 日`;
+
+  return (
+    <div className="day-unit" data-day={day} ref={ref} data-testid="day-unit">
+      <button
+        className="day-unit-head num"
+        data-testid="day-unit-head"
+        onClick={onBackToMonth}
+        title="回到月视角"
+      >
+        {label}
+        {day === today && <span className="day-today-tag">今天</span>}
+      </button>
+      {isFuture ? (
+        <div className="daygrid-empty">尚无记录</div>
+      ) : cells === null ? (
+        <div className="daygrid-empty" style={{ color: "var(--ink-ghost)" }}>…</div>
+      ) : !hasData ? (
+        <div className="daygrid-empty">这一天留白</div>
+      ) : (
+        <div className="daygrid-grid" data-testid="daygrid">
+          {cells.map((c) => (
+            <div key={c.cell} className="dg-cell" data-cell={c.cell}>
+              {c.owner_process_id !== null ? (
+                <span
+                  className="dg-dot"
+                  data-testid="dg-dot"
+                  style={{ background: markHex(board, c.color_tag) ?? "var(--ring-neutral)" }}
+                  onMouseEnter={(e) => {
+                    const r = (e.target as HTMLElement).getBoundingClientRect();
+                    onHover({ cell: c, x: r.left, y: r.top });
+                  }}
+                  onMouseLeave={() => onHover(null)}
+                />
+              ) : (
+                <span className="dg-empty-dot" />
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>

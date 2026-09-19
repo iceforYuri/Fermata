@@ -77,3 +77,5 @@
 ```
 
 截图：wv2-board.png / wv2-detail.png / wv2-library.png（真实 WebView2）+ mock 矩阵 9 张。
+
+> v1.1 修订后证据：docs/screenshots/v11/（胶囊导航/rail/步骤栈空圈/日滚动/淡暖底/MiSans 与 A/B 三值）；回归：verify-m1 18/18、verify-m3 v1.1 12/12、verify-m4 11/11。

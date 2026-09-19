@@ -53,6 +53,8 @@ export interface BoardProcess {
   active_segment_started_at: number | null;
   timer_open: boolean;
   ring_elapsed_ms: number;
+  breakpoint_effective: string | null; // 生效断点：手动钉住优先，否则栈顶未完成步骤
+  breakpoint_manual: boolean;
 }
 
 export interface RestState {
@@ -126,6 +128,7 @@ export interface DataApi {
   processPause(pid: number): Promise<void>;
   processResume(pid: number): Promise<void>;
   breakpointSet(pid: number, text: string): Promise<void>;
+  breakpointClear(pid: number): Promise<void>;
   colorSet(pid: number, slot: number | null): Promise<void>;
   waitingAiSet(pid: number, on: boolean): Promise<void>;
   stepAdd(pid: number, title: string): Promise<number>;
@@ -168,5 +171,6 @@ export interface DataApi {
   qYearOverview(year: number): Promise<YearOverview>;
   qDayView(day: string): Promise<DayView>;
   qDayGrid(day: string): Promise<GridCell[]>;
+  qFirstDay(): Promise<string | null>;
   exportEvents(): Promise<string>;
 }
