@@ -143,3 +143,15 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 3. **无按压反馈**：补 :active（转实 + 下沉 1px + 染底）。
 4. **stepper 卸载 bug**：NumRow 输入框 blur 即 commit → ± 钮 mousedown 阶段被卸载、click 永不派发；修法=± 钮 onMouseDown preventDefault（阻焦点转移），回归断言改真实鼠标点 ±。
 拖拽区两侧留白方案保留且实证可用（两侧各 421px data-tauri-drag-region）；TitleBar memo 保留。
+
+## 2026-09-19 · v1.2 设计修订与缺陷修复
+
+### D36 · v1.2 修订总指针
+统一栈（ADR-0005：steps 表加 kind、breakpoint 字段退役为 note 条目、entry_delete、stack_top 派生）、无边界 morph 导航（reference/navigation.md 弹簧模型 response 0.42s / zeta 0.86）、拖拽激活（FLIP 挤位+落点虚影覆盖活跃位）、日网格时间段刻度与 45° 半圆（70%/15% 阈值入 tokens）、设置页左竖导航（窄窗阈值 900px）、rail 常驻"← 稿库"提示、休息页 Esc/Enter/继续小字/SVG▶。全部用户拍板，合同文档已同步。
+
+### D37 · v1.2 直修五缺陷的根因记录
+1. idle_end 无守卫曾重开手动 pause/休息中的计时——改 last_timer_closer 口径校验（仅 idle_start 停的才由 idle_end 重开）。
+2. pendingRest 在切换/完成后残留排队休止符——变更即清。
+3. 断点卡复用 toast-in 动画（位移+透明）气质不符——独立"行下方展开"入场。
+4. 统计页日视角 calc(100vh-130px) 魔数溢出——改实测布局链计算；scroll-snap mandatory 在内容不等高时弹跳——去吸附改自由滚动。
+5. 设置页 scroll-spy 用 IntersectionObserver 批次结果写死末组——改滚动监听取"最靠顶可见组"。
