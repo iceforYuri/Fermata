@@ -57,22 +57,18 @@ export function SwitcherPage() {
       return;
     }
     if (targetPid === null) return;
-    // 预填当前生效断点（自动或钉住的手动），Enter=采纳
-    setBpText(running?.breakpoint_effective ?? "");
+    // 预填栈顶条目文本，Enter=采纳
+    setBpText(running?.stack_top?.title ?? "");
     setPhase({ kind: "breakpoint", targetPid, targetTitle: title ?? "", oldTitle });
   };
 
   const confirmSwitch = async () => {
     if (phase.kind !== "breakpoint") return;
-    // 断点双层：采纳预填=不动；清空=回自动；改写=手动钉住
-    const oldEffective = running?.breakpoint_effective ?? "";
+    // 统一栈：写内容=压 note 到旧进程栈顶；采纳预填/留空=不动
+    const oldTop = running?.stack_top?.title ?? "";
     const txt = bpText.trim();
-    if (running) {
-      if (txt === "" && oldEffective !== "" && running.breakpoint_manual) {
-        await data.breakpointClear(running.process.id);
-      } else if (txt !== "" && txt !== oldEffective) {
-        await data.breakpointSet(running.process.id, txt);
-      }
+    if (running && txt !== "" && txt !== oldTop) {
+      await data.breakpointSet(running.process.id, txt);
     }
     // 休息态中显式切换 = 第三条恢复路径（等价"翻下一篇"）
     if (board.rest.resting) await data.restEnd(running?.process.id);
@@ -177,7 +173,7 @@ export function SwitcherPage() {
                 {isWaiting && <span className="waiting-mark" style={{ background: markHex(board, p.color_tag) ?? "var(--ink-faint)" }} />}
                 {p.title}
               </span>
-              <span className="sw-bp">{p.breakpoint ?? ""}</span>
+              <span className="sw-bp">{bp.stack_top?.title ?? ""}</span>
               <span className="aging-label">挂 {fmtDur(bp.aging_ms ?? 0)}</span>
               <span className="sw-key num">{i + 1 <= 9 ? i + 1 : ""}</span>
             </div>

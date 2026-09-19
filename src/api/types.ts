@@ -8,7 +8,6 @@ export interface Process {
   state: ProcessState;
   prev_state: string | null;
   color_tag: number | null;
-  breakpoint: string | null;
   notes: string | null;
   created_at: number;
   activated_count: number;
@@ -24,6 +23,12 @@ export interface Step {
   done: boolean;
   done_at: number | null;
   position: number;
+  kind: "step" | "note"; // note = 断点条
+}
+
+export interface StackTop {
+  title: string;
+  kind: "step" | "note";
 }
 
 export interface Plan {
@@ -53,8 +58,7 @@ export interface BoardProcess {
   active_segment_started_at: number | null;
   timer_open: boolean;
   ring_elapsed_ms: number;
-  breakpoint_effective: string | null; // 生效断点：手动钉住优先，否则栈顶未完成步骤
-  breakpoint_manual: boolean;
+  stack_top: StackTop | null; // 导语：栈顶条目（note 或未勾选 step）
 }
 
 export interface RestState {
@@ -117,6 +121,7 @@ export interface DayView {
 export interface GridCell {
   cell: number; owner_process_id: number | null; color_tag: number | null;
   title: string | null; seg_start: number | null; seg_end: number | null; breakpoint: string | null;
+  share: number; is_start: boolean; is_end: boolean;
 }
 
 /** 数据内核接口：Tauri 与 mock 双实现 */
@@ -127,8 +132,8 @@ export interface DataApi {
   processReopen(pid: number): Promise<void>;
   processPause(pid: number): Promise<void>;
   processResume(pid: number): Promise<void>;
-  breakpointSet(pid: number, text: string): Promise<void>;
-  breakpointClear(pid: number): Promise<void>;
+  breakpointSet(pid: number, text: string): Promise<void>; // = 压 note 栈顶
+  entryDelete(stepId: number): Promise<void>;
   colorSet(pid: number, slot: number | null): Promise<void>;
   waitingAiSet(pid: number, on: boolean): Promise<void>;
   stepAdd(pid: number, title: string): Promise<number>;

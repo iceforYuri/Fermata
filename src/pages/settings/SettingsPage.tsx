@@ -229,7 +229,7 @@ export function SettingsPage() {
 
   // scroll-spy：滚动监听取"最靠顶可见组"（IO 批次写死末组的缺陷修法）
   useEffect(() => {
-    const container = rootRef.current?.closest(".tab-page");
+    const container = rootRef.current?.querySelector(".settings-scroll");
     if (!container) return;
     const onScroll = () => {
       const rootTop = container.getBoundingClientRect().top;
@@ -272,18 +272,19 @@ export function SettingsPage() {
 
   return (
     <div className="settings-page" ref={rootRef} data-testid="settings-page">
-      <div className="chips-nav" data-testid="chips-nav">
+      <nav className="settings-nav" data-testid="chips-nav">
         {SECTIONS.map(([id, label]) => (
           <button
             key={id}
-            className={`capsule-seg${activeSec === id ? " active" : ""}`}
+            className={`settings-nav-item${activeSec === id ? " active" : ""}`}
             data-testid={`chip-${id}`}
             onClick={() => scrollTo(id)}
           >
             {label}
           </button>
         ))}
-      </div>
+      </nav>
+      <div className="settings-scroll">
 
       <section data-sec="slice" className="set-sec">
         <div className="detail-label">时间片与提醒</div>
@@ -342,6 +343,7 @@ export function SettingsPage() {
         </div>
         {exported && <div className="set-exported num" data-testid="export-path">{exported}</div>}
       </section>
+      </div>
     </div>
   );
 }

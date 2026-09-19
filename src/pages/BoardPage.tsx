@@ -17,6 +17,7 @@ import { SuspendedQueue } from "../components/SuspendedRow";
 export function BoardPage() {
   const { board } = useBoard();
   const [pendingSwitch, setPendingSwitch] = useState<{ pid: number; rect: DOMRect } | null>(null);
+  const [dragOverActive, setDragOverActive] = useState(false);
   const [idlePrompt, setIdlePrompt] = useState<{ pid: number; title: string } | null>(null);
 
   // 空闲接线：以 DB 计时状态幂等（防重复事件）；确认卡只在本会话亲历 idle_start 后出现
@@ -80,7 +81,12 @@ export function BoardPage() {
         <EmptyState />
       ) : (
         <>
-          {board.running && <ActiveRow bp={board.running} />}
+          {board.running && (
+            <div style={{ position: "relative" }}>
+              <ActiveRow bp={board.running} />
+              {dragOverActive && <div className="active-drop-ghost" data-testid="active-drop-ghost" />}
+            </div>
+          )}
           {/* 折线位置落点：稿库拖到此处 = 直接激活 */}
           <div
             data-testid="fold-drop"
@@ -104,6 +110,7 @@ export function BoardPage() {
             rows={board.suspended}
             day={day}
             onRequestSwitch={(pid, rect) => setPendingSwitch({ pid, rect })}
+            onDragOverActive={setDragOverActive}
           />
         </>
       )}

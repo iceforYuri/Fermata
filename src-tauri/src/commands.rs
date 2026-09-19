@@ -78,14 +78,6 @@ pub async fn process_resume(app: AppHandle, state: State<'_, DbState>, pid: i64)
 }
 
 #[tauri::command]
-pub async fn breakpoint_clear(app: AppHandle, state: State<'_, DbState>, pid: i64) -> Result<(), String> {
-    let c = lock(&state)?;
-    ops::breakpoint_clear(&c, db::now_ms(), pid)?;
-    changed(&app);
-    Ok(())
-}
-
-#[tauri::command]
 pub async fn breakpoint_set(app: AppHandle, state: State<'_, DbState>, pid: i64, text: String) -> Result<(), String> {
     let c = lock(&state)?;
     ops::breakpoint_set(&c, db::now_ms(), pid, &text)?;
@@ -105,6 +97,14 @@ pub async fn color_set(app: AppHandle, state: State<'_, DbState>, pid: i64, slot
 pub async fn waiting_ai_set(app: AppHandle, state: State<'_, DbState>, pid: i64, on: bool) -> Result<(), String> {
     let c = lock(&state)?;
     ops::waiting_ai_set(&c, db::now_ms(), pid, on)?;
+    changed(&app);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn entry_delete(app: AppHandle, state: State<'_, DbState>, step_id: i64) -> Result<(), String> {
+    let c = lock(&state)?;
+    ops::entry_delete(&c, db::now_ms(), step_id)?;
     changed(&app);
     Ok(())
 }

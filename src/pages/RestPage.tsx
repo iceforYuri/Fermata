@@ -17,7 +17,7 @@ export function RestPage() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Enter") resume();
+      if (e.key === "Enter" || e.key === "Escape") resume(); // Esc/Enter=继续
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -51,11 +51,13 @@ export function RestPage() {
           <path d="M8 5.5v13l11-6.5z" />
         </svg>
       </div>
+      <div className="rest-continue-hint">继续</div>
       <div className="rest-clock num">休息中 · {fmtDur(elapsed)}</div>
       <div className="rest-source" data-testid="rest-source">{sourceText}</div>
       <div className="rest-foot">
         <span>今日累计 {fmtDur(totalToday)}</span>
         <span>Alt+Q 可切进程</span>
+        <span>Enter / Esc 继续</span>
       </div>
     </div>
   );

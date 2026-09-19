@@ -27,8 +27,13 @@ export function ActiveRow({ bp }: { bp: BoardProcess }) {
   const ringFrozen = useRef(remaining);
   if (!paused) ringFrozen.current = remaining;
 
+  // 统一栈：就地勾选框只在栈顶条目是未完成步骤时出现（ADR-0005）
   const steps = bp.steps;
-  const currentStep = steps.find((s) => !s.done) ?? null;
+  const stackTop = bp.stack_top;
+  const currentStep =
+    stackTop && stackTop.kind === "step"
+      ? steps.find((s) => !s.done && s.title === stackTop.title) ?? null
+      : null;
 
   const pid = bp.process.id;
   const checkStep = (stepId: number) => {
@@ -79,9 +84,9 @@ export function ActiveRow({ bp }: { bp: BoardProcess }) {
           <div className="current-step" style={{ color: "var(--ink-soft)" }}>
             <span
               className="chevron"
-              style={bp.breakpoint_effective ? undefined : { color: "var(--ink-ghost)" }}
+              style={stackTop ? undefined : { color: "var(--ink-ghost)" }}
             >
-              {bp.breakpoint_effective ?? "未留断点"}
+              {stackTop?.title ?? "未留断点"}
             </span>
           </div>
         )}

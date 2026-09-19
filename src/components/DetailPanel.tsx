@@ -76,13 +76,15 @@ function DetailInner({ bp }: { bp: BoardProcess }) {
 
       <section className="detail-section">
         <div className="detail-label">断点</div>
-        <div className={`detail-breakpoint${p.breakpoint ? "" : " empty"}`}>
+        <div className="detail-breakpoint">
           <InlineEdit
-            value={p.breakpoint ?? ""}
-            placeholder="留一句：做到哪了"
+            value=""
+            placeholder="留一句：做到哪了（写入即压栈顶）"
             editColor={color}
             testid="detail-breakpoint"
-            onCommit={(v) => void act(() => data.breakpointSet(p.id, v))}
+            onCommit={(v) => {
+              if (v) void act(() => data.breakpointSet(p.id, v));
+            }}
           />
         </div>
       </section>
@@ -93,8 +95,9 @@ function DetailInner({ bp }: { bp: BoardProcess }) {
         {steps.map((s) => (
           <div
             key={s.id}
-            className={`detail-step${s.done ? " done" : ""}`}
+            className={`detail-step${s.done ? " done" : ""}${s.kind === "note" ? " note" : ""}`}
             data-testid="detail-step"
+            data-kind={s.kind}
             onPointerDown={(e) => {
               if ((e.target as HTMLElement).closest(".step-check")) return;
               dragStep.current = s.id;
@@ -123,16 +126,31 @@ function DetailInner({ bp }: { bp: BoardProcess }) {
               window.addEventListener("pointerup", up);
             }}
           >
-            <span
-              className="step-check"
-              data-testid="detail-step-check"
-              onClick={() => void act(() => data.stepCheck(s.id, !s.done))}
-            >
-              <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M1.5 5.2 4 7.6 8.5 2.6" />
-              </svg>
-            </span>
+            {s.kind === "note" ? (
+              <span className="step-note-mark">▸</span>
+            ) : (
+              <span
+                className="step-check"
+                data-testid="detail-step-check"
+                onClick={() => void act(() => data.stepCheck(s.id, !s.done))}
+              >
+                <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M1.5 5.2 4 7.6 8.5 2.6" />
+                </svg>
+              </span>
+            )}
             <span className="step-text">{s.title}</span>
+            <button
+              className="entry-del"
+              data-testid="entry-del"
+              title="删除条目"
+              onClick={(e) => {
+                e.stopPropagation();
+                void act(() => data.entryDelete(s.id));
+              }}
+            >
+              ×
+            </button>
           </div>
         ))}
       </section>

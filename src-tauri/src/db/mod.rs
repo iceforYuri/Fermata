@@ -214,6 +214,25 @@ fn migrate(conn: &Connection) -> Result<(), String> {
         )
         .map_err(|e| e.to_string())?;
     }
+
+    // v3（ADR-0005 统一栈）：steps 加 kind（step|note）；旧 breakpoint 列迁移为置顶 note 后退役
+    if applied < 3 {
+        conn.execute_batch(
+            "ALTER TABLE steps ADD COLUMN kind TEXT NOT NULL DEFAULT 'step';
+             UPDATE steps SET position = position + 1
+               WHERE process_id IN (SELECT id FROM processes WHERE breakpoint IS NOT NULL AND breakpoint != '');
+             INSERT INTO steps (process_id, title, done, done_at, position, kind)
+               SELECT id, breakpoint, 0, NULL, 1, 'note' FROM processes
+               WHERE breakpoint IS NOT NULL AND breakpoint != '';
+             ALTER TABLE processes DROP COLUMN breakpoint;",
+        )
+        .map_err(|e| format!("迁移 v3 失败: {e}"))?;
+        conn.execute(
+            "INSERT INTO schema_migrations (version, applied_at) VALUES (3, ?1)",
+            rusqlite::params![now_ms()],
+        )
+        .map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 
@@ -238,7 +257,6 @@ pub struct Process {
     pub state: String,
     pub prev_state: Option<String>,
     pub color_tag: Option<i64>,
-    pub breakpoint: Option<String>,
     pub created_at: i64,
     pub activated_count: i64,
     pub completed_at: Option<i64>,
@@ -255,6 +273,7 @@ pub struct Step {
     pub done: bool,
     pub done_at: Option<i64>,
     pub position: i64,
+    pub kind: String, // step | note（断点条）
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -303,7 +322,6 @@ pub fn row_to_process(r: &rusqlite::Row) -> rusqlite::Result<Process> {
         state: r.get("state")?,
         prev_state: r.get("prev_state")?,
         color_tag: r.get("color_tag")?,
-        breakpoint: r.get("breakpoint")?,
         created_at: r.get("created_at")?,
         activated_count: r.get("activated_count")?,
         completed_at: r.get("completed_at")?,
@@ -321,6 +339,7 @@ pub fn row_to_step(r: &rusqlite::Row) -> rusqlite::Result<Step> {
         done: r.get::<_, i64>("done")? != 0,
         done_at: r.get("done_at")?,
         position: r.get("position")?,
+        kind: r.get::<_, String>("kind").unwrap_or_else(|_| "step".into()),
     })
 }
 

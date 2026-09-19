@@ -87,8 +87,14 @@ pub fn process_switch(
     if let Some(cur) = current {
         close_open_segment(conn, cur, ts)?;
         if let Some(bp) = breakpoint {
+            // 切换留断点 = 压 note 到旧进程栈顶
             conn.execute(
-                "UPDATE processes SET breakpoint = ?2 WHERE id = ?1",
+                "UPDATE steps SET position = position + 1 WHERE process_id = ?1",
+                rusqlite::params![cur],
+            )
+            .map_err(|e| e.to_string())?;
+            conn.execute(
+                "INSERT INTO steps (process_id, title, done, position, kind) VALUES (?1, ?2, 0, 1, 'note')",
                 rusqlite::params![cur, bp],
             )
             .map_err(|e| e.to_string())?;
@@ -184,14 +190,31 @@ pub fn process_resume(conn: &Connection, ts: i64, pid: i64) -> Result<(), String
     Ok(())
 }
 
+/// 写断点 = 压一条 note（断点条）到栈顶（ADR-0005；不再有"手动断点字段"）
 pub fn breakpoint_set(conn: &Connection, ts: i64, pid: i64, text: &str) -> Result<(), String> {
     get_process(conn, pid)?;
     conn.execute(
-        "UPDATE processes SET breakpoint = ?2 WHERE id = ?1",
+        "UPDATE steps SET position = position + 1 WHERE process_id = ?1",
+        rusqlite::params![pid],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO steps (process_id, title, done, position, kind) VALUES (?1, ?2, 0, 1, 'note')",
         rusqlite::params![pid, text],
     )
     .map_err(|e| e.to_string())?;
-    append_event(conn, ts, "breakpoint_set", Some(pid), json!({ "text": text }))?;
+    append_event(conn, ts, "entry_add", Some(pid), json!({ "kind": "note", "title": text }))?;
+    Ok(())
+}
+
+/// 删除栈条目（步骤/断点条通用）
+pub fn entry_delete(conn: &Connection, ts: i64, step_id: i64) -> Result<(), String> {
+    let pid: i64 = conn
+        .query_row("SELECT process_id FROM steps WHERE id = ?1", rusqlite::params![step_id], |r| r.get(0))
+        .map_err(|e| format!("条目 {step_id} 不存在: {e}"))?;
+    conn.execute("DELETE FROM steps WHERE id = ?1", rusqlite::params![step_id])
+        .map_err(|e| e.to_string())?;
+    append_event(conn, ts, "entry_delete", Some(pid), json!({ "step_id": step_id }))?;
     Ok(())
 }
 
@@ -655,17 +678,5 @@ pub fn idle_confirm(conn: &Connection, ts: i64, pid: i64, yes: bool) -> Result<(
         }
     }
     append_event(conn, ts, "idle_confirm", Some(pid), serde_json::json!({ "yes": yes }))?;
-    Ok(())
-}
-
-/// 清空手动断点 → 回到自动断点（栈顶未完成步骤）
-pub fn breakpoint_clear(conn: &Connection, ts: i64, pid: i64) -> Result<(), String> {
-    get_process(conn, pid)?;
-    conn.execute(
-        "UPDATE processes SET breakpoint = NULL WHERE id = ?1",
-        rusqlite::params![pid],
-    )
-    .map_err(|e| e.to_string())?;
-    append_event(conn, ts, "breakpoint_clear", Some(pid), serde_json::json!({}))?;
     Ok(())
 }

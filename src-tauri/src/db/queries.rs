@@ -13,8 +13,7 @@ pub struct BoardProcess {
     pub active_segment_started_at: Option<i64>, // 运行中：当前开口段起点
     pub timer_open: bool,                     // 计时器是否开口（暂停=闭）
     pub ring_elapsed_ms: i64,                 // 本次时间片已计时长（扣暂停/空闲/休息）
-    pub breakpoint_effective: Option<String>, // 生效断点：COALESCE(手动, 栈顶未完成步骤)
-    pub breakpoint_manual: bool,              // true = 手动钉住
+    pub stack_top: Option<StackTop>,          // 导语：栈顶条目（note 或未勾选 step）
 }
 
 #[derive(Serialize)]
@@ -24,6 +23,12 @@ pub struct BoardDay {
     pub suspended: Vec<BoardProcess>, // 含 waiting_ai，按 queue_position
     pub completed: Vec<BoardProcess>, // 按 completed_at
     pub completed_total_ms: i64,      // 已完栏总时长
+}
+
+#[derive(Serialize, Clone)]
+pub struct StackTop {
+    pub title: String,
+    pub kind: String, // step | note
 }
 
 #[derive(Serialize)]
@@ -81,10 +86,11 @@ fn ring_elapsed_ms(conn: &Connection, pid: i64, now: i64) -> Result<i64, String>
 
 fn board_process(conn: &Connection, day: &str, p: Process) -> Result<BoardProcess, String> {
     let steps = steps_of(conn, p.id)?;
-    // 生效断点 = 手动钉住优先，否则栈顶未完成步骤（ADR-0004）
-    let top_undone = steps.iter().find(|s| !s.done).map(|s| s.title.clone());
-    let breakpoint_manual = p.breakpoint.is_some();
-    let breakpoint_effective = p.breakpoint.clone().or(top_undone);
+    // 导语 = 栈顶条目：断点条（note）或未勾选的步骤（已勾选沉底语义之外原位保留但不算"做到哪"）
+    let stack_top = steps
+        .iter()
+        .find(|s| s.kind == "note" || !s.done)
+        .map(|s| StackTop { title: s.title.clone(), kind: s.kind.clone() });
     let day_total_ms = q_process_day_total(conn, p.id, day)?;
     let aging_ms = if matches!(p.state.as_str(), "suspended" | "waiting_ai") {
         Some(q_suspended_ms(conn, p.id, day)?)
@@ -97,8 +103,7 @@ fn board_process(conn: &Connection, day: &str, p: Process) -> Result<BoardProces
         timer_open: p.state == "running" && active_segment_started_at.is_some(),
         active_segment_started_at,
         ring_elapsed_ms: ring_elapsed,
-        breakpoint_effective,
-        breakpoint_manual,
+        stack_top,
         process: p,
         steps,
         day_total_ms,
@@ -754,6 +759,8 @@ pub fn q_day_view(conn: &Connection, day: &str) -> Result<DayView, String> {
     let mut done = vec![];
     let mut ongoing = vec![];
     for p in &procs {
+        let steps = steps_of(conn, p.id)?;
+        let top = steps.iter().find(|st| st.kind == "note" || !st.done).map(|st| st.title.clone());
         let ms = q_process_day_total(conn, p.id, day)?;
         let (done_n, total_n): (i64, i64) = conn
             .query_row(
@@ -769,7 +776,7 @@ pub fn q_day_view(conn: &Connection, day: &str) -> Result<DayView, String> {
             ms,
             steps_done: done_n,
             steps_total: total_n,
-            breakpoint: p.breakpoint.clone(),
+            breakpoint: top,
         };
         if p.state == "completed" {
             done.push(dvp);
@@ -870,6 +877,26 @@ pub struct GridCell {
     pub seg_start: Option<i64>,
     pub seg_end: Option<i64>,
     pub breakpoint: Option<String>,
+    pub share: f64,      // 主导占用者占格比例（0..1）
+    pub is_start: bool,  // 段起点落此格（半圆朝向右下）
+    pub is_end: bool,    // 段止点落此格（半朝向左上）
+}
+
+impl GridCell {
+    fn empty(cell: i64) -> Self {
+        GridCell {
+            cell,
+            owner_process_id: None,
+            color_tag: None,
+            title: None,
+            seg_start: None,
+            seg_end: None,
+            breakpoint: None,
+            share: 0.0,
+            is_start: false,
+            is_end: false,
+        }
+    }
 }
 
 /// 96 格日网格：一段进程从起点格沿阅读方向连续填充；一格多进程归占时最多者
@@ -915,28 +942,33 @@ pub fn q_day_grid(conn: &Connection, day: &str) -> Result<Vec<GridCell>, String>
             e.2 = e.2.max(se);
         }
         let top = agg.into_iter().max_by_key(|(_, v)| v.0);
+        let cell_total: i64 = owners.iter().map(|o| o.1).sum();
         let cell = match top {
-            Some((pid, (_, ss, se))) => {
-                let p = get_process(conn, pid)?;
-                GridCell {
-                    cell: i as i64,
-                    owner_process_id: Some(pid),
-                    color_tag: p.color_tag,
-                    title: Some(p.title),
-                    seg_start: Some(ss),
-                    seg_end: Some(se),
-                    breakpoint: p.breakpoint,
+            Some((pid, (ms, ss, se))) => {
+                let share = if cell_total > 0 { ms as f64 / cell_total as f64 } else { 0.0 };
+                if share < 0.15 {
+                    // 占比 <15% 的占用者不显示
+                    GridCell::empty(i as i64)
+                } else {
+                    let p = get_process(conn, pid)?;
+                    let steps = steps_of(conn, pid)?;
+                    let top_title = steps.iter().find(|st| st.kind == "note" || !st.done).map(|st| st.title.clone());
+                    let cell_start = start + i as i64 * 900_000;
+                    GridCell {
+                        cell: i as i64,
+                        owner_process_id: Some(pid),
+                        color_tag: p.color_tag,
+                        title: Some(p.title),
+                        seg_start: Some(ss),
+                        seg_end: Some(se),
+                        breakpoint: top_title,
+                        share,
+                        is_start: (ss >= cell_start && ss < cell_start + 900_000),
+                        is_end: (se > cell_start && se <= cell_start + 900_000),
+                    }
                 }
             }
-            None => GridCell {
-                cell: i as i64,
-                owner_process_id: None,
-                color_tag: None,
-                title: None,
-                seg_start: None,
-                seg_end: None,
-                breakpoint: None,
-            },
+            None => GridCell::empty(i as i64),
         };
         out.push(cell);
     }

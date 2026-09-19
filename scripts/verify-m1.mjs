@@ -94,21 +94,22 @@ await page.waitForTimeout(400);
 const detW2 = await page.$eval("[data-testid=detail-panel]", (el) => el.getBoundingClientRect().width);
 ok("详情栏收", detW2 === 0, `w=${detW2}`);
 
-// 6. 双态编辑：详情栏断点 Enter 提交 / Esc 还原
+// 6. 断点写入=压 note 栈顶 / Esc 不写
 await page.click("[data-testid=active-row] .row-main");
 await page.waitForSelector("[data-testid=detail-breakpoint]");
 await page.click("[data-testid=detail-breakpoint]");
 await page.fill("[data-testid=detail-breakpoint-editing]", "断点甲");
 await page.press("[data-testid=detail-breakpoint-editing]", "Enter");
-await page.waitForTimeout(300);
-const bpText = await page.textContent("[data-testid=detail-breakpoint]");
-ok("双态编辑·Enter 提交", bpText.includes("断点甲"), bpText.trim());
+await page.waitForTimeout(400);
+const noteRow = await page.$$eval("[data-testid=detail-step][data-kind=note]", (els) => els.map((e) => e.textContent));
+ok("断点写入=note 压栈顶", noteRow.some((t) => t.includes("断点甲")), JSON.stringify(noteRow));
+const notesBefore = await page.$$eval("[data-testid=detail-step][data-kind=note]", (els) => els.length);
 await page.click("[data-testid=detail-breakpoint]");
 await page.fill("[data-testid=detail-breakpoint-editing]", "断点乙不应生效");
 await page.press("[data-testid=detail-breakpoint-editing]", "Escape");
 await page.waitForTimeout(300);
-const bpText2 = await page.textContent("[data-testid=detail-breakpoint]");
-ok("双态编辑·Esc 还原", bpText2.includes("断点甲"), bpText2.trim());
+const notesAfter = await page.$$eval("[data-testid=detail-step][data-kind=note]", (els) => els.length);
+ok("Esc 还原（不压栈）", notesAfter === notesBefore, `${notesBefore}→${notesAfter}`);
 await page.click("[data-testid=detail-close]");
 
 // 7. 新建落队尾
@@ -133,8 +134,9 @@ const last = `[data-testid=suspended-row][data-pid="${before8[before8.length - 1
 const box = await page.locator(last).boundingBox();
 await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 await page.mouse.down();
+const qTopY = await page.evaluate(() => document.querySelector("[data-testid=suspended-queue]").getBoundingClientRect().top);
 await page.mouse.move(box.x + box.width / 2, box.y + 2, { steps: 3 }); // < 4px 不应启动
-await page.mouse.move(box.x + box.width / 2, box.y - 340, { steps: 12 }); // 越过队首
+await page.mouse.move(box.x + box.width / 2, qTopY + 10, { steps: 12 }); // 队列顶（折线下）
 await page.waitForTimeout(150);
 await page.mouse.up();
 await page.waitForTimeout(400);
@@ -146,6 +148,27 @@ ok(
   after8[0] === before8[before8.length - 1],
   `[${before8}] → [${after8}]`,
 );
+
+// 8b. 拖过折线到活跃位：虚影覆盖 + 松手切换 + 断点卡展开
+{
+  const rows8b = await page.$$eval("[data-testid=suspended-row]", (els) => els.map((e) => e.dataset.pid));
+  const pid = rows8b[rows8b.length - 1];
+  const box = await page.locator(`[data-testid=suspended-row][data-pid="${pid}"]`).boundingBox();
+  const foldY = await page.evaluate(() => document.querySelector("[data-testid=active-row]").getBoundingClientRect().bottom);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2, foldY - 40, { steps: 10 });
+  await sleep(200);
+  const ghost = await page.$("[data-testid=active-drop-ghost]");
+  await page.mouse.up();
+  await sleep(300);
+  const card = await page.$("[data-testid=bp-card]");
+  ok("拖到活跃位：虚影覆盖+断点卡展开", !!ghost && !!card);
+  await page.press("[data-testid=bp-card-input]", "Enter"); // 空断点确认
+  await sleep(500);
+  const activeNow = await page.getAttribute("[data-testid=active-row]", "data-pid");
+  ok("拖到活跃位=切换", activeNow === pid, `active=${activeNow} 期望 ${pid}`);
+}
 
 // 9. 稿库拖入成进程
 await page.click("[data-testid=lib-rail]");

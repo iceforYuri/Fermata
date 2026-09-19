@@ -111,6 +111,56 @@ export function DayGridView({
   );
 }
 
+/** 格内标记：主导占用 ≥70% 实点；<70% 45° 斜半圆（段起=色右下、段止=色左上；中段默认右下） */
+function CellMark({
+  cell,
+  color,
+  onHover,
+}: {
+  cell: GridCell;
+  color: string;
+  onHover: (h: { cell: GridCell; x: number; y: number } | null) => void;
+}) {
+  const halfThreshold = parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue("--grid-half-threshold") || "0.7",
+  );
+  const enter = (e: React.MouseEvent) => {
+    const r = (e.target as HTMLElement).getBoundingClientRect();
+    onHover({ cell, x: r.left, y: r.top });
+  };
+  if (cell.share >= halfThreshold) {
+    return (
+      <span
+        className="dg-dot"
+        data-testid="dg-dot"
+        style={{ background: color }}
+        onMouseEnter={enter}
+        onMouseLeave={() => onHover(null)}
+      />
+    );
+  }
+  // 45° 斜半圆：右上-左下对角线切半；段起/中段=色在右下，段止=色在左上
+  return (
+    <svg
+      className="dg-half"
+      data-testid="dg-dot"
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      onMouseEnter={enter}
+      onMouseLeave={() => onHover(null)}
+    >
+      <circle cx="8" cy="8" r="7.2" fill="none" stroke={color} strokeWidth="1" opacity="0.45" />
+      <circle cx="8" cy="8" r="7.2" fill={color} clipPath={`url(#halfclip-${cell.cell})`} />
+      <defs>
+        <clipPath id={`halfclip-${cell.cell}`}>
+          <path d={`M ${cell.is_end ? "0 16 L16 0 L0 0" : "0 16 L16 0 L16 16"} Z`} />
+        </clipPath>
+      </defs>
+    </svg>
+  );
+}
+
 function DayUnit({
   day,
   today,
@@ -171,15 +221,10 @@ function DayUnit({
           {cells.map((c) => (
             <div key={c.cell} className="dg-cell" data-cell={c.cell}>
               {c.owner_process_id !== null ? (
-                <span
-                  className="dg-dot"
-                  data-testid="dg-dot"
-                  style={{ background: markHex(board, c.color_tag) ?? "var(--ring-neutral)" }}
-                  onMouseEnter={(e) => {
-                    const r = (e.target as HTMLElement).getBoundingClientRect();
-                    onHover({ cell: c, x: r.left, y: r.top });
-                  }}
-                  onMouseLeave={() => onHover(null)}
+                <CellMark
+                  cell={c}
+                  color={markHex(board, c.color_tag) ?? "var(--ring-neutral)"}
+                  onHover={onHover}
                 />
               ) : (
                 <span className="dg-empty-dot" />

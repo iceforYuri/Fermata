@@ -35,10 +35,9 @@ fn main() {
             bp.process.id,
             bp.process.title,
             if bp.process.state == "waiting_ai" { " [等AI]" } else { "" },
-            bp.process
-                .breakpoint
-                .as_deref()
-                .map(|b| format!("（断点：{b}）"))
+            bp.stack_top
+                .as_ref()
+                .map(|t| format!("（断点：{}）", t.title))
                 .unwrap_or_default(),
         );
     }

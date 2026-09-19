@@ -52,6 +52,7 @@ function Shell() {
             <svg viewBox="0 0 10 14" fill="none" stroke="currentColor" strokeWidth="1.5">
               {leftOpen ? <path d="M7 2 3 7l4 5" /> : <path d="M3 2l4 5-4 5" />}
             </svg>
+            {!leftOpen && <span className="rail-hint" data-testid="rail-hint">稿库</span>}
           </button>
         )}
         <LibraryPanel />

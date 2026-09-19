@@ -80,6 +80,10 @@
 
   /* 统计环：无色标进程的中性灰切片（灰占比本身是信号） */
   --ring-neutral: #c9c2b8;
+
+  /* 日网格半圆阈值（v1.2） */
+  --grid-half-threshold: 0.7;
+  --grid-min-share: 0.15;
 }
 
 [data-theme="dark"] {

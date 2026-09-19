@@ -143,7 +143,7 @@ fn main() {
             gika_lib::commands::process_pause,
             gika_lib::commands::process_resume,
             gika_lib::commands::breakpoint_set,
-            gika_lib::commands::breakpoint_clear,
+            gika_lib::commands::entry_delete,
             gika_lib::commands::color_set,
             gika_lib::commands::waiting_ai_set,
             gika_lib::commands::step_add,

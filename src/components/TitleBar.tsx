@@ -1,7 +1,17 @@
-import { memo } from "react";
+import { memo, useEffect, useRef } from "react";
 import { system } from "../api/system";
 import { setUi, useUi, type Tab } from "../store/ui";
 import { useResting } from "../store/board";
+
+/* 弹簧参数：参照 docs/reference/navigation.md（response 0.42s, zeta 0.86） */
+const OMEGA = (2 * Math.PI) / 0.42;
+const K = OMEGA * OMEGA;
+const C = 2 * 0.86 * OMEGA;
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const smooth = (x: number) => {
+  const t = Math.max(0, Math.min(1, x));
+  return t * t * (3 - 2 * t);
+};
 
 const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
   {
@@ -37,7 +47,6 @@ const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
   },
 ];
 
-/** 休止符小符号（SVG 自绘：字体覆盖不稳） */
 function RestMark() {
   return (
     <svg className="rest-mark" viewBox="0 0 10 12" data-testid="rest-mark">
@@ -53,35 +62,87 @@ function RestMark() {
 }
 
 /**
- * 顶栏（v1.1）：拖拽区=两侧留白（不盖导航），居中胶囊导航 + 右上窗控。
- * memo + 窄选择器，1Hz tick 不重渲染（点击稳定性的根治之一）。
+ * 顶栏（v1.2）：无边界 morph 导航——无容器底无分隔线；未选中=小图标，选中=弹簧 morph
+ * 展开"图标+文字"（pill 染底极淡）。几何居中（窗口正中），命中区 ≥36px，项距用 padding。
  */
 export const TitleBar = memo(function TitleBar() {
   const { tab } = useUi();
   const resting = useResting();
+  const itemsRef = useRef<(HTMLButtonElement | null)[]>([]);
+  const springs = useRef(TABS.map((t) => ({ p: t.key === "board" ? 1 : 0, v: 0, target: t.key === "board" ? 1 : 0 })));
+  const raf = useRef(0);
+  const lastT = useRef(0);
 
   const switchTab = (next: Tab) => {
     if (next === tab) return;
-    // 先收起两侧面板（~140ms），再横滑切换（~220ms）；任何切页面板都收起进场
     setUi({ leftOpen: false, rightPid: null, archiveOpen: false });
     setTimeout(() => setUi({ tab: next }), 140);
   };
 
+  // 弹簧渲染循环
+  useEffect(() => {
+    springs.current.forEach((s, i) => (s.target = TABS[i].key === tab ? 1 : 0));
+    if (raf.current) return;
+    const tick = (t: number) => {
+      const dt = Math.min((lastT.current ? t - lastT.current : 16.7) / 1000, 0.032);
+      lastT.current = t;
+      let active = false;
+      springs.current.forEach((s, i) => {
+        if (s.p === s.target && s.v === 0) return;
+        s.v += (-K * (s.p - s.target) - C * s.v) * dt;
+        s.p += s.v * dt;
+        if (Math.abs(s.p - s.target) < 0.001 && Math.abs(s.v) < 0.005) {
+          s.p = s.target;
+          s.v = 0;
+        } else {
+          active = true;
+        }
+        renderItem(i, s.p);
+      });
+      raf.current = active ? requestAnimationFrame(tick) : 0;
+    };
+    raf.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf.current);
+  }, [tab]);
+
+  function renderItem(i: number, pRaw: number) {
+    const el = itemsRef.current[i];
+    if (!el) return;
+    const p = Math.max(-0.08, Math.min(1.12, pRaw));
+    const t = Math.max(0, Math.min(1, pRaw));
+    const pillW = parseFloat(el.dataset.pillW ?? "64");
+    el.style.width = `${lerp(36, pillW, p)}px`;
+    const pill = el.querySelector<HTMLElement>(".nav-pill");
+    if (pill) {
+      pill.style.setProperty("--pill-a", `${smooth(t / 0.4) * 100}%`);
+    }
+    const label = el.querySelector<HTMLElement>(".nav-label");
+    if (label) {
+      label.style.opacity = String(smooth((t - 0.5) / 0.45));
+    }
+  }
+
   return (
-    <div className="titlebar">
+    <div className="titlebar borderless">
       <div className="drag drag-side" data-tauri-drag-region />
-      <nav className="capsule-nav" data-testid="capsule-nav">
-        {TABS.map((t) => (
+      <nav className="morph-nav" data-testid="capsule-nav">
+        {TABS.map((t, i) => (
           <button
             key={t.key}
-            className={`capsule-tab${tab === t.key ? " active" : ""}`}
+            ref={(el) => {
+              itemsRef.current[i] = el;
+            }}
+            className={`morph-tab${tab === t.key ? " active" : ""}`}
             data-testid={`tab-${t.key}`}
+            data-pill-w={64 + t.label.length * 14}
             onClick={() => switchTab(t.key)}
           >
-            <span className="capsule-icon">{t.icon}</span>
-            <span className="capsule-label">{t.label}</span>
+            <span className="nav-pill" />
+            <span className="nav-icon">{t.icon}</span>
+            <span className="nav-label" style={{ opacity: tab === t.key ? 1 : 0 }}>
+              {t.label}
+            </span>
             {t.key === "board" && resting && tab !== "board" && <RestMark />}
-            <span className="capsule-indicator" />
           </button>
         ))}
       </nav>

@@ -104,7 +104,6 @@ function buildRich(): MockState {
       state,
       prev_state: opts.prev_state ?? null,
       color_tag: opts.color_tag ?? null,
-      breakpoint: opts.breakpoint ?? null,
       notes: null,
       created_at: opts.created_at ?? now,
       activated_count: opts.activated_count ?? 1,
@@ -140,6 +139,7 @@ function buildRich(): MockState {
       done: true,
       done_at: now - 7 * H,
       position: i + 1,
+      kind: "step",
     }),
   );
 
@@ -168,16 +168,17 @@ function buildRich(): MockState {
       done: done as boolean,
       done_at: (done as boolean) ? now - 4 * H : null,
       position: i + 1,
+      kind: "step",
     }),
   );
 
   // 挂起 ×4（老化各不相同，含等AI）
   const mails = mk("回三封邮件", "suspended", {
     color_tag: 5,
-    breakpoint: "已回两封，剩财务那封",
     created_at: now - 8 * H,
     queue_position: 1,
   });
+  s.steps.push({ id: s.nextId++, process_id: mails.id, title: "已回两封，剩财务那封", done: false, done_at: null, position: 1, kind: "note" });
   seg(mails.id, 4.55 * H, 4.2 * H);
   s.suspendedSince[mails.id] = now - 4.2 * H;
   const weekly = mk("写周报", "suspended", {
@@ -194,11 +195,11 @@ function buildRich(): MockState {
   s.suspendedSince[book.id] = now - 1.3 * H;
   const waiting = mk("等 AI 跑财报数据", "waiting_ai", {
     color_tag: 1,
-    breakpoint: "Q3 口径已发，等批跑完",
     prev_state: "suspended",
     created_at: now - 1.8 * H,
     queue_position: 4,
   });
+  s.steps.push({ id: s.nextId++, process_id: waiting.id, title: "Q3 口径已发，等批跑完", done: false, done_at: null, position: 1, kind: "note" });
   s.agingBase[waiting.id] = 5 * M; // 等AI 前只有 5 分钟老化
   s.suspendedSince[waiting.id] = null;
 
@@ -243,7 +244,7 @@ function buildRich(): MockState {
       const [title, color] = HIST[rnd() % HIST.length];
       const p: Process = {
         id: s.nextId++, title, state: "completed", prev_state: null,
-        color_tag: color, breakpoint: null, notes: null,
+        color_tag: color, notes: null,
         created_at: 0, activated_count: 1,
         completed_at: 0, queue_position: null, board_date: ds,
       };
@@ -342,7 +343,10 @@ function queueTail(pid: number) {
 function suspend(pid: number, breakpoint?: string) {
   const p = proc(pid);
   closeSeg(pid);
-  if (breakpoint !== undefined) p.breakpoint = breakpoint;
+  if (breakpoint !== undefined && breakpoint !== "") {
+    for (const st of state.steps.filter((x) => x.process_id === pid)) st.position += 1;
+    state.steps.push({ id: state.nextId++, process_id: pid, title: breakpoint, done: false, done_at: null, position: 1, kind: "note" });
+  }
   p.state = "suspended";
   p.prev_state = null;
   queueTail(pid);
@@ -382,11 +386,12 @@ function ringElapsed(pid: number): number {
     }, 0);
 }
 
-function stepsTopUndone(pid: number): string | undefined {
-  return state.steps
+function stackTop(pid: number): { title: string; kind: "step" | "note" } | null {
+  const t = state.steps
     .filter((x) => x.process_id === pid)
     .sort((a, b) => a.position - b.position)
-    .find((x) => !x.done)?.title;
+    .find((x) => x.kind === "note" || !x.done);
+  return t ? { title: t.title, kind: t.kind } : null;
 }
 
 function toBoardProcess(p: Process): BoardProcess {
@@ -402,8 +407,7 @@ function toBoardProcess(p: Process): BoardProcess {
     aging_ms: aging(p),
     active_segment_started_at: open ? open.start : null,
     timer_open: p.state === "running" && !!open,
-    breakpoint_effective: p.breakpoint ?? (stepsTopUndone(p.id) || null),
-    breakpoint_manual: p.breakpoint !== null,
+    stack_top: stackTop(p.id),
   };
 }
 
@@ -416,7 +420,6 @@ export const mockData: DataApi = {
       state: "suspended",
       prev_state: null,
       color_tag: colorTag ?? null,
-      breakpoint: null,
       notes: null,
       created_at: Date.now(),
       activated_count: 0,
@@ -484,13 +487,18 @@ export const mockData: DataApi = {
   },
 
   async breakpointSet(pid, text) {
-    proc(pid).breakpoint = text;
-    ev("breakpoint_set", pid, { text });
+    for (const st of state.steps.filter((x) => x.process_id === pid)) st.position += 1;
+    state.steps.push({ id: state.nextId++, process_id: pid, title: text, done: false, done_at: null, position: 1, kind: "note" });
+    ev("entry_add", pid, { kind: "note", title: text });
   },
 
-  async breakpointClear(pid) {
-    proc(pid).breakpoint = null;
-    ev("breakpoint_clear", pid);
+  async entryDelete(stepId) {
+    const i = state.steps.findIndex((x) => x.id === stepId);
+    if (i >= 0) {
+      const pid = state.steps[i].process_id;
+      state.steps.splice(i, 1);
+      ev("entry_delete", pid, { step_id: stepId });
+    }
   },
 
   async colorSet(pid, slot) {
@@ -527,7 +535,7 @@ export const mockData: DataApi = {
     proc(pid);
     for (const st of state.steps.filter((x) => x.process_id === pid)) st.position += 1; // 置顶
     const id = state.nextId++;
-    state.steps.push({ id, process_id: pid, title, done: false, done_at: null, position: 1 });
+    state.steps.push({ id, process_id: pid, title, done: false, done_at: null, position: 1, kind: "step" });
     ev("step_add", pid, { step_id: id, title });
     return id;
   },
@@ -797,7 +805,7 @@ export const mockData: DataApi = {
         .reduce((a, g) => a + (g.end ?? Date.now()) - g.start, 0),
       steps_done: state.steps.filter((x) => x.process_id === p.id && x.done).length,
       steps_total: state.steps.filter((x) => x.process_id === p.id).length,
-      breakpoint: p.breakpoint,
+      breakpoint: stackTop(p.id)?.title ?? null,
     });
     const plans = state.plans.filter((p) => p.scheduled_date === day);
     return {
@@ -823,9 +831,11 @@ export const mockData: DataApi = {
     const cells: {
       owner_process_id: number | null; color_tag: number | null; title: string | null;
       seg_start: number | null; seg_end: number | null; breakpoint: string | null;
+      share: number; is_start: boolean; is_end: boolean;
     }[] = Array.from({ length: 96 }, () => ({
       owner_process_id: null, color_tag: null, title: null,
       seg_start: null, seg_end: null, breakpoint: null,
+      share: 0, is_start: false, is_end: false,
     }));
     const cellMs: Map<number, Map<number, number>> = new Map();
     for (const g of state.segs) {
@@ -847,9 +857,16 @@ export const mockData: DataApi = {
       if (!top) continue;
       const p = proc(top[0]);
       const g = state.segs.find((x) => x.pid === top[0] && dayOfTs(x.start) === day);
+      const total = [...m.values()].reduce((a, b) => a + b, 0);
+      const share = total > 0 ? top[1] / total : 0;
+      if (share < 0.15) continue; // <15% 不显示
+      const cs = ds + c * CELL;
       cells[c] = {
         owner_process_id: p.id, color_tag: p.color_tag, title: p.title,
-        seg_start: g?.start ?? null, seg_end: g?.end ?? null, breakpoint: p.breakpoint,
+        seg_start: g?.start ?? null, seg_end: g?.end ?? null, breakpoint: stackTop(p.id)?.title ?? null,
+        share,
+        is_start: (g?.start ?? 0) >= cs && (g?.start ?? 0) < cs + CELL,
+        is_end: (g?.end ?? 0) > cs && (g?.end ?? 0) <= cs + CELL,
       };
     }
     return cells.map((c, i) => ({ cell: i, ...c }));
