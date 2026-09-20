@@ -30,9 +30,19 @@ Fermata 面向全天与 AI 协作、频繁切换任务的知识工作者。普�
 
 ## 界面
 
-![日网格统计](docs/screenshots/release/readme-daygrid.png)
+切换浮层与休止符弹窗（真实窗口实拍）：
 
-![暗 · 工作台](docs/screenshots/release/board-rich-dark.png)
+![切换浮层](docs/screenshots/release/real-overlay-switcher.png)
+![休止符弹窗](docs/screenshots/release/real-overlay-restpop.png)
+
+统计页 · 日视角时间格（悬停浮窗）与月视角：
+
+![日网格](docs/screenshots/release/readme-daygrid.png)
+![月视角](docs/screenshots/release/real-stats-month.png)
+
+双主题（亮 · 淡暖 / 暗 · 工作台）：
+
+![暗色主题](docs/screenshots/release/board-rich-dark.png)
 
 ## 安装
 
