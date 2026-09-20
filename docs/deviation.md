@@ -179,3 +179,10 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 - F3 口径：断点卡的断点留给被切走的旧进程（04 明文）；无活跃进程时没有旧进程可留 → 直切不弹卡。
 - F4 MRU：被切走落挂起队首（其余后移），新建仍落队尾，档案重开仍落队尾（01 明文"回挂起队列尾部"）。
 - 测试残留的进程行已按进程本体从库中移除（事件日志不动，append-only 不破）。
+
+### D43 · v1.2.3 空态放置区 + 日网格18×6 + 时间片小卡 + 休止符右下角
+- 日网格改 18 列 × 6 行 = 108 格（每格 10 分钟、每列 1 小时），时窗 06:00–24:00；**0–6 点不画**（跨午夜段截断到 0 点止），为保守默认值，后续若用户要 24h 全窗再开设置项。
+- 空态放置区承接稿库拖入（text/gika-plan）：落挂起不激活，与"拖到版面=激活"区分。
+- 时间环点击调时间片小卡（25/45/60/90）：slice_override 只调**本次**时间片语义（写 slice_override 事件，环重置满环），不改进程默认片长。
+- 休止符弹窗挪主屏工作区右下角（距右/下 16px 逻辑）：修法=全链路物理像素——Tauri primary_monitor().work_area()（物理）+ 卡尺寸 420×300 逻辑 ×scale_factor + 无边框窗隐形 resize 边按对称折算。原 SystemParametersInfoW 实现把逻辑卡尺寸当物理用（125% 缩放下卡片右/下缘超出工作区 ~98px）。已删 windows-sys 的 SPI_GETWORKAREA 依赖。
+- 验收方法偏离：本机 CopyFromScreen 截屏抓不到 WebView2 窗口（DirectComposition 翻转链），浮层视觉证据 = CDP Page.captureScreenshot（内容）+ Win32 GetWindowRect 枚举（落点，存 restpop-bottom-right-position.txt）；不抢焦点回归 debug_focus_check pass。

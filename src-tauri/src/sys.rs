@@ -89,8 +89,28 @@ pub async fn hide_switcher(app: AppHandle) -> Result<(), String> {
     hide(&app, "switcher")
 }
 
+/// 主屏工作区右下角（避开任务栏），卡片可视边距右/下各 16px（逻辑）。
+/// 全链路物理像素：work_area 是物理值，卡尺寸 420×300 逻辑 ×scale，再折算无边框窗的隐形边。
 #[tauri::command]
 pub async fn show_restpop(app: AppHandle) -> Result<(), String> {
+    if let Ok(w) = get_window(&app, "restpop") {
+        let scale = w.scale_factor().unwrap_or(1.0);
+        let card_w = (420.0 * scale).round() as i32;
+        let card_h = (300.0 * scale).round() as i32;
+        let margin = (16.0 * scale).round() as i32;
+        // 无边框窗外框含 Windows 隐形 resize 边，按对称折算，让可视卡片贴住 16px 边距
+        let outer = w
+            .outer_size()
+            .unwrap_or(tauri::PhysicalSize::new(card_w as u32, card_h as u32));
+        let bx = (outer.width as i32 - card_w).max(0) / 2;
+        let by = (outer.height as i32 - card_h).max(0) / 2;
+        if let Ok(Some(m)) = w.primary_monitor() {
+            let wa = m.work_area();
+            let x = wa.position.x + wa.size.width as i32 - card_w - margin - bx;
+            let y = wa.position.y + wa.size.height as i32 - card_h - margin - by;
+            let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
+        }
+    }
     show(&app, "restpop", false) // 不抢焦点（WS_EX_NOACTIVATE）
 }
 

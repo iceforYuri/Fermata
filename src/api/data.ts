@@ -39,6 +39,7 @@ const tauriData: DataApi = {
   restEnd: (pid) => invoke("rest_end", { pid }),
   sliceComplete: (pid) => invoke("slice_complete", { pid }),
   sliceAborted: (pid, elapsedMs) => invoke("slice_aborted", { pid, elapsedMs }),
+  sliceOverride: (pid, minutes) => invoke("slice_override", { pid, minutes }),
   qBoard: (day) => invoke("q_board", { day }),
   qProcessDayTotal: (pid, day) => invoke("q_process_day_total", { pid, day }),
   qSuspendedMs: (pid, day) => invoke("q_suspended_ms", { pid, day }),

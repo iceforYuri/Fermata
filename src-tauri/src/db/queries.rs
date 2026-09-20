@@ -899,11 +899,13 @@ impl GridCell {
     }
 }
 
-/// 96 格日网格：一段进程从起点格沿阅读方向连续填充；一格多进程归占时最多者
+/// 108 格日网格（v1.3：18 列×6 行，06:00–24:00 时窗，每格 10 分钟）；
+/// 一段进程从起点格沿阅读方向连续填充；一格多进程归占时最多者；时窗外（0–6 点）不画
 pub fn q_day_grid(conn: &Connection, day: &str) -> Result<Vec<GridCell>, String> {
-    let (start, _) = day_range(day)?;
+    let (day_start, _) = day_range(day)?;
+    let start = day_start + 6 * 3_600_000; // 时窗起点 06:00
     let now = now_ms();
-    let mut cells_ms: Vec<Vec<(i64, i64, i64, i64)>> = vec![vec![]; 96]; // cell -> (pid, ms, seg_start, seg_end)
+    let mut cells_ms: Vec<Vec<(i64, i64, i64, i64)>> = vec![vec![]; 108]; // cell -> (pid, ms, seg_start, seg_end)
     let mut stmt = conn
         .prepare(
             "SELECT s.process_id, s.started_at, COALESCE(s.ended_at, ?2)
@@ -919,20 +921,26 @@ pub fn q_day_grid(conn: &Connection, day: &str) -> Result<Vec<GridCell>, String>
         .collect::<Vec<_>>();
 
     for (pid, seg_s, seg_e) in &segs {
-        let a = (*seg_s - start).max(0);
-        let b = (*seg_e - start).max(0);
-        let c0 = (a / 900_000).min(95) as usize;
-        let c1 = ((b.max(a + 1) - 1) / 900_000).min(95) as usize;
+        // 截断到时窗内：06:00 前/24:00 后的部分不画
+        let eff_s = (*seg_s).max(start);
+        let eff_e = (*seg_e).min(start + 18 * 3_600_000);
+        if eff_e <= eff_s {
+            continue;
+        }
+        let a = eff_s - start;
+        let b = eff_e - start;
+        let c0 = (a / 600_000).min(107) as usize;
+        let c1 = ((b - 1) / 600_000).min(107) as usize;
         for c in c0..=c1 {
-            let cell_s = start + c as i64 * 900_000;
-            let overlap = (std::cmp::min(*seg_e, cell_s + 900_000) - std::cmp::max(*seg_s, cell_s)).max(0);
+            let cell_s = start + c as i64 * 600_000;
+            let overlap = (std::cmp::min(eff_e, cell_s + 600_000) - std::cmp::max(eff_s, cell_s)).max(0);
             if overlap > 0 {
                 cells_ms[c].push((*pid, overlap, *seg_s, *seg_e));
             }
         }
     }
 
-    let mut out = vec![];
+    let mut out = Vec::with_capacity(108);
     for (i, owners) in cells_ms.iter().enumerate() {
         let mut agg: std::collections::HashMap<i64, (i64, i64, i64)> = std::collections::HashMap::new();
         for &(pid, ms, ss, se) in owners {
@@ -953,7 +961,7 @@ pub fn q_day_grid(conn: &Connection, day: &str) -> Result<Vec<GridCell>, String>
                     let p = get_process(conn, pid)?;
                     let steps = steps_of(conn, pid)?;
                     let top_title = steps.iter().find(|st| st.kind == "note" || !st.done).map(|st| st.title.clone());
-                    let cell_start = start + i as i64 * 900_000;
+                    let cell_start = start + i as i64 * 600_000;
                     GridCell {
                         cell: i as i64,
                         owner_process_id: Some(pid),
@@ -963,8 +971,8 @@ pub fn q_day_grid(conn: &Connection, day: &str) -> Result<Vec<GridCell>, String>
                         seg_end: Some(se),
                         breakpoint: top_title,
                         share,
-                        is_start: (ss >= cell_start && ss < cell_start + 900_000),
-                        is_end: (se > cell_start && se <= cell_start + 900_000),
+                        is_start: (ss >= cell_start && ss < cell_start + 600_000),
+                        is_end: (se > cell_start && se <= cell_start + 600_000),
                     }
                 }
             }

@@ -1,6 +1,6 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { data, type BoardProcess } from "../api/data";
-import { act, markHex, sliceMs, useBoard } from "../store/board";
+import { act, markHex, setSliceOverride, sliceMs, useBoard } from "../store/board";
 import { completeWithUndo, togglePause } from "../store/actions";
 import { openDetail } from "../store/ui";
 import { fmtDur } from "../util";
@@ -12,6 +12,21 @@ import { TimeRing } from "./TimeRing";
  */
 export function ActiveRow({ bp }: { bp: BoardProcess }) {
   const board = useBoard();
+  const [sliceOpen, setSliceOpen] = useState(false);
+  useEffect(() => {
+    if (!sliceOpen) return;
+    const close = (e: KeyboardEvent) => e.key === "Escape" && setSliceOpen(false);
+    const clickOut = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest("[data-testid=time-ring-btn]") &&
+          !(e.target as HTMLElement).closest("[data-testid=slice-card]")) setSliceOpen(false);
+    };
+    window.addEventListener("keydown", close);
+    window.addEventListener("mousedown", clickOut);
+    return () => {
+      window.removeEventListener("keydown", close);
+      window.removeEventListener("mousedown", clickOut);
+    };
+  }, [sliceOpen]);
   const color = markHex(board, bp.process.color_tag);
 
   // 环精确化（了结 D13）：ring_elapsed_ms 后端锚定 switch_in/slice_complete，
@@ -115,13 +130,44 @@ export function ActiveRow({ bp }: { bp: BoardProcess }) {
             </span>
           )}
         </div>
-        <TimeRing
-          remainingMs={overtime && !paused ? total : paused ? Math.max(0, ringFrozen.current) : Math.max(0, Math.min(total, remaining))}
-          totalMs={total}
-          color={color}
-          dimmed={paused}
-          testid="time-ring"
-        />
+        <div style={{ position: "relative" }}>
+          <div
+            className="ring-click"
+            data-testid="time-ring-btn"
+            title="调本次时间片"
+            onClick={() => setSliceOpen((v) => !v)}
+          >
+            <TimeRing
+              remainingMs={overtime && !paused ? total : paused ? Math.max(0, ringFrozen.current) : Math.max(0, Math.min(total, remaining))}
+              totalMs={total}
+              color={color}
+              dimmed={paused}
+              testid="time-ring"
+            />
+          </div>
+          {sliceOpen && (
+            <div className="slice-card" data-testid="slice-card">
+              {[25, 45, 60, 90].map((m) => (
+                <button
+                  key={m}
+                  className={`choice-chip${sliceMs(board) === m * 60_000 ? " active" : ""}`}
+                  data-testid={`slice-opt-${m}`}
+                  onClick={() => {
+                    // 只调本次：写事件 + 当前环重置满环继续
+                    void act(async () => {
+                      await data.sliceComplete(bp.process.id);
+                      await data.sliceOverride(bp.process.id, m);
+                    });
+                    setSliceOverride(bp.process.id, m);
+                    setSliceOpen(false);
+                  }}
+                >
+                  {m}m
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

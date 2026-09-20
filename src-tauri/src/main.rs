@@ -162,6 +162,7 @@ fn main() {
             gika_lib::commands::rest_end,
             gika_lib::commands::slice_complete,
             gika_lib::commands::slice_aborted,
+            gika_lib::commands::slice_override,
             gika_lib::commands::q_board,
             gika_lib::commands::q_process_day_total,
             gika_lib::commands::q_suspended_ms,

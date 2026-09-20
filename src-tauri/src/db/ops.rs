@@ -695,3 +695,10 @@ pub fn idle_confirm(conn: &Connection, ts: i64, pid: i64, yes: bool) -> Result<(
     append_event(conn, ts, "idle_confirm", Some(pid), serde_json::json!({ "yes": yes }))?;
     Ok(())
 }
+
+/// 本次时间片长度覆盖（只调本次；settings.slice_minutes 不动）
+pub fn slice_override(conn: &Connection, ts: i64, pid: i64, minutes: i64) -> Result<(), String> {
+    get_process(conn, pid)?;
+    append_event(conn, ts, "slice_override", Some(pid), serde_json::json!({ "minutes": minutes }))?;
+    Ok(())
+}

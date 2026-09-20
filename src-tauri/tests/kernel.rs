@@ -179,22 +179,34 @@ fn grid_cell_majority_ownership_and_untimed_completion() {
     let a = ops::process_create(&conn, t(0), "甲占多数", Some(1), Some(&day)).unwrap();
     let b = ops::process_create(&conn, t(0), "乙占少数", Some(2), Some(&day)).unwrap();
 
-    // 甲在 10:00–10:10 运行（格 40 占 10 分钟），乙 10:05–10:07（格 40 占 2 分钟）
+    // 甲在 10:00–10:10 运行（格 24 = 10:00–10:10 占 10 分钟），乙 10:05–10:07（格 24 占 2 分钟）
     ops::process_switch(&conn, t(600), a, None).unwrap(); // 10:00
     ops::process_switch(&conn, t(607), b, None).unwrap(); // 10:07 切走甲
     ops::process_switch(&conn, t(610), a, None).unwrap(); // 10:10 切回甲
     ops::process_switch(&conn, t(615), b, None).unwrap(); // 10:15
 
     let grid = queries::q_day_grid(&conn, &day).unwrap();
-    let cell40 = &grid[40];
-    assert_eq!(cell40.owner_process_id, Some(a), "格 40 归多数派甲");
-    assert_eq!(cell40.color_tag, Some(1));
+    assert_eq!(grid.len(), 108, "18×6=108 格");
+    let cell24 = &grid[24];
+    assert_eq!(cell24.owner_process_id, Some(a), "格 24 归多数派甲");
+    assert_eq!(cell24.color_tag, Some(1));
+    // 0–6 点窗口外不画：格 0 = 06:00–06:10
+    assert!(grid[0].owner_process_id.is_none());
 
     // 未计时完成（零 segment）不画圈
     let c = ops::process_create(&conn, t(700), "丙零时长", None, Some(&day)).unwrap();
     ops::process_complete(&conn, t(701), c).unwrap();
     let grid2 = queries::q_day_grid(&conn, &day).unwrap();
     assert!(grid2.iter().all(|cell| cell.owner_process_id != Some(c)), "未计时完成不画圈");
+
+    // 跨午夜截断：23:50–00:20 的分段，在 06:00 起的时窗内只有跨 0 点段不进当天窗口
+    let night = ops::process_create(&conn, t(1430), "夜里赶工", None, Some(&day)).unwrap();
+    ops::process_switch(&conn, t(1430), night, None).unwrap(); // 23:50
+    ops::process_switch(&conn, t(1440) - 1, b, None).unwrap(); // 24:00 前切走
+    let grid3 = queries::q_day_grid(&conn, &day).unwrap();
+    // 23:50–23:59:59 在窗口内：格 107（23:50–24:00）
+    assert_eq!(grid3[107].owner_process_id, Some(night), "跨午夜段在窗口内部分照常");
+    assert!(grid3.iter().take(107).all(|c| c.owner_process_id != Some(night) || c.cell == 107));
 
     // q_day_stats 自洽：total == 各切片之和 == segments 闭合和
     let stats = queries::q_day_stats(&conn, &day).unwrap();
@@ -209,8 +221,8 @@ fn grid_cell_majority_ownership_and_untimed_completion() {
             .sum()
     };
     assert_eq!(stats.total_ms, seg_sum, "大环总专注 == segments 闭合和");
-    // 切换次数 = switch_in 计数 = 4
-    assert_eq!(stats.switch_count, 4);
+    // 切换次数 = switch_in 计数（含跨午夜验收段的两次）= 6
+    assert_eq!(stats.switch_count, 6);
 }
 
 // ================= v1.2 · 统一栈（ADR-0005） =================

@@ -423,3 +423,11 @@ pub async fn export_events(app: AppHandle, state: State<'_, DbState>) -> Result<
     std::fs::write(&path, json).map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().to_string())
 }
+
+#[tauri::command]
+pub async fn slice_override(app: AppHandle, state: State<'_, DbState>, pid: i64, minutes: i64) -> Result<(), String> {
+    let c = lock(&state)?;
+    ops::slice_override(&c, db::now_ms(), pid, minutes)?;
+    changed(&app);
+    Ok(())
+}

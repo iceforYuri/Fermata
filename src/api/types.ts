@@ -155,6 +155,7 @@ export interface DataApi {
   restEnd(pid?: number): Promise<void>;
   sliceComplete(pid: number): Promise<void>;
   sliceAborted(pid: number, elapsedMs: number): Promise<void>;
+  sliceOverride(pid: number, minutes: number): Promise<void>;
   qBoard(day: string): Promise<BoardDay>;
   qProcessDayTotal(pid: number, day: string): Promise<number>;
   qSuspendedMs(pid: number, day: string): Promise<number>;

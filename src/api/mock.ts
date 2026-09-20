@@ -649,6 +649,9 @@ export const mockData: DataApi = {
     (state.slices[pid] ??= { complete: 0, aborted: 0 }).complete += 1;
     ev("slice_complete", pid);
   },
+  async sliceOverride(pid, minutes) {
+    ev("slice_override", pid, { minutes });
+  },
   async sliceAborted(pid, elapsedMs) {
     (state.slices[pid] ??= { complete: 0, aborted: 0 }).aborted += 1;
     ev("slice_aborted", pid, { elapsed_ms: elapsedMs });
@@ -834,13 +837,14 @@ export const mockData: DataApi = {
   },
 
   async qDayGrid(day) {
-    const [ds] = dayRangeMs(day);
-    const CELL = 900_000;
+    const [d0] = dayRangeMs(day);
+    const ds = d0 + 6 * 3_600_000; // 时窗起点 06:00
+    const CELL = 600_000;
     const cells: {
       owner_process_id: number | null; color_tag: number | null; title: string | null;
       seg_start: number | null; seg_end: number | null; breakpoint: string | null;
       share: number; is_start: boolean; is_end: boolean;
-    }[] = Array.from({ length: 96 }, () => ({
+    }[] = Array.from({ length: 108 }, () => ({
       owner_process_id: null, color_tag: null, title: null,
       seg_start: null, seg_end: null, breakpoint: null,
       share: 0, is_start: false, is_end: false,
@@ -849,11 +853,15 @@ export const mockData: DataApi = {
     for (const g of state.segs) {
       if (dayOfTs(g.start) !== day) continue;
       const e = g.end ?? Date.now();
-      const c0 = Math.max(0, Math.floor((g.start - ds) / CELL));
-      const c1 = Math.min(95, Math.floor((Math.max(e, g.start + 1) - 1 - ds) / CELL));
+      // 截断到时窗内
+      const gs = Math.max(g.start, ds);
+      const ge = Math.min(e, ds + 18 * 3_600_000);
+      if (ge <= gs) continue;
+      const c0 = Math.min(107, Math.floor((gs - ds) / CELL));
+      const c1 = Math.min(107, Math.floor((ge - 1 - ds) / CELL));
       for (let c = c0; c <= c1; c++) {
         const cs = ds + c * CELL;
-        const ov = Math.max(0, Math.min(e, cs + CELL) - Math.max(g.start, cs));
+        const ov = Math.max(0, Math.min(ge, cs + CELL) - Math.max(gs, cs));
         if (ov <= 0) continue;
         if (!cellMs.has(c)) cellMs.set(c, new Map());
         const m = cellMs.get(c)!;
@@ -869,12 +877,14 @@ export const mockData: DataApi = {
       const share = total > 0 ? top[1] / total : 0;
       if (share < 0.15) continue; // <15% 不显示
       const cs = ds + c * CELL;
+      const gs = g ? Math.max(g.start, ds) : 0;
+      const ge = g ? Math.min(g.end ?? Date.now(), ds + 18 * 3_600_000) : 0;
       cells[c] = {
         owner_process_id: p.id, color_tag: p.color_tag, title: p.title,
         seg_start: g?.start ?? null, seg_end: g?.end ?? null, breakpoint: stackTop(p.id)?.title ?? null,
         share,
-        is_start: (g?.start ?? 0) >= cs && (g?.start ?? 0) < cs + CELL,
-        is_end: (g?.end ?? 0) > cs && (g?.end ?? 0) <= cs + CELL,
+        is_start: gs >= cs && gs < cs + CELL,
+        is_end: ge > cs && ge <= cs + CELL,
       };
     }
     return cells.map((c, i) => ({ cell: i, ...c }));

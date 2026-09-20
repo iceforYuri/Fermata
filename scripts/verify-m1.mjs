@@ -265,18 +265,24 @@ ok(
   await page.click("[data-testid=tab-board]");
   await page.waitForSelector(".track-page.current [data-testid=board-page]");
   await sleep(300);
-  const t0 = await page.evaluate(() => performance.now());
+  // 页内 MutationObserver 计时（排除 CDP 轮询噪音）
+  await page.evaluate(() => {
+    const w = window;
+    w.__slideT = 0;
+    document.querySelector("[data-testid=tab-stats]").addEventListener("click", () => {
+      w.__clickT = performance.now(); // 从页内 click 事件起算（排除 Playwright 输入延迟）
+    }, true);
+    new MutationObserver(() => {
+      if (!w.__slideT) w.__slideT = performance.now();
+    }).observe(document.querySelector("[data-testid=track]"), { attributes: true });
+  });
   await page.click("[data-testid=tab-stats]");
-  let elapsed = -1;
-  for (let i = 0; i < 30; i++) {
-    const tr = await page.evaluate(() => document.querySelector("[data-testid=track]").style.transform);
-    if (tr !== "translateX(0%)") {
-      elapsed = await page.evaluate((s) => performance.now() - s, t0);
-      break;
-    }
-    await sleep(2);
-  }
-  ok("F1 无面板切页零延迟起滑", elapsed >= 0 && elapsed < 60, `${elapsed.toFixed(0)}ms`);
+  await page.waitForSelector(".track-page.current [data-testid=stats-page]");
+  const elapsed = await page.evaluate(() => {
+    const w = window;
+    return w.__slideT - w.__clickT;
+  });
+  ok("F1 无面板切页零延迟起滑", elapsed >= 0 && elapsed < 20, `${elapsed.toFixed(1)}ms`);
   await page.click("[data-testid=tab-board]");
   await page.waitForSelector(".track-page.current [data-testid=board-page]");
 }
@@ -296,10 +302,30 @@ ok(
   ok("F4 被切走落挂起队首（MRU）", activeId === first, `active=${activeId}, 队首=${prevActive}`);
 }
 
-// 附：空态可见
+// 附7：时间环小卡（只调本次）
+{
+  await page.click("[data-testid=time-ring-btn]");
+  await page.waitForSelector("[data-testid=slice-card]");
+  await page.click("[data-testid=slice-opt-60]");
+  await sleep(500);
+  const ringLabel = await page.textContent("[data-testid=time-ring] .ring-label");
+  ok("时间环小卡：选 60m 后环读数=60", ringLabel === "60", `ring=${ringLabel}`);
+  await page.keyboard.press("Escape");
+}
+
+// 附：空态可见 + 空态拖入成进程（落挂起不激活）
 await page.goto(`${BASE}/?fixture=empty`);
 await page.waitForSelector("[data-testid=empty-state]");
 ok("空态引导语", (await page.textContent("[data-testid=empty-state]")).includes("版面还空着"));
+// 稿库拖入空板
+await page.click("[data-testid=lib-rail]");
+await page.waitForSelector("[data-testid=plan-row]");
+const plans0 = await page.$$eval("[data-testid=plan-row]", (r) => r.length);
+await page.dragAndDrop("[data-testid=plan-row] >> nth=0", "[data-testid=empty-state]");
+await sleep(500);
+const susp = await page.$$eval("[data-testid=suspended-row]", (r) => r.length);
+const noActive = (await page.$("[data-testid=active-row]")) === null;
+ok("空态拖入成进程（落挂起不激活）", susp === 1 && noActive, `suspended=${susp} active=${!noActive}`);
 
 // 附：休息态渲染
 await page.goto(`${BASE}/?fixture=rest`);

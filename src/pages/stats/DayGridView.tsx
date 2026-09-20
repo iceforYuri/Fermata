@@ -304,7 +304,7 @@ function DayUnit({
               ))}
             </div>
             <div className="daygrid-ticks" data-testid="daygrid-ticks-bottom">
-              {[["6", 3], ["12", 6], ["18", 9], ["24", 12]].map(([t, line]) => (
+              {[["6", 0], ["12", 6], ["18", 12], ["24", 18]].map(([t, line]) => (
                 <span key={t} className="num dg-tick" style={{ left: (line as number) * 36 }}>{t}</span>
               ))}
             </div>

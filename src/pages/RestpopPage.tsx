@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { system } from "../api/system";
 import { markHex, useBoard } from "../store/board";
 import {
   chooseRest,
@@ -7,7 +8,6 @@ import {
   nextProcessFromRest,
   resumeFromRest,
 } from "../store/actions";
-import { useState } from "react";
 import { fmtDur } from "../util";
 
 /**
@@ -18,6 +18,14 @@ import { fmtDur } from "../util";
 export function RestpopPage() {
   const board = useBoard();
   const [nextOpen, setNextOpen] = useState(false);
+  const [animKey, setAnimKey] = useState(0);
+  useEffect(() => {
+    let un: (() => void) | undefined;
+    system.onOverlayVisibility((label, visible) => {
+      if (label === "restpop" && visible) setAnimKey((k) => k + 1); // 每次 show 重播进场
+    }).then((f) => (un = f));
+    return () => un?.();
+  }, []);
   const { rest } = board;
   const running = board.board?.running ?? null;
   const pid = running?.process.id ?? null;
@@ -41,7 +49,7 @@ export function RestpopPage() {
   const restingView = rest.resting && (rest.choice === "rest" || rest.choice === "close");
 
   return (
-    <div className="overlay-card restpop" data-testid="restpop">
+    <div className="overlay-card restpop restpop-enter" key={animKey} data-testid="restpop">
       <div className="restpop-head">
         <span className="restpop-source" data-testid="restpop-source">
           {rest.resting ? sourceText : "休止符"}

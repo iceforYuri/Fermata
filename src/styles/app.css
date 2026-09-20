@@ -1302,7 +1302,7 @@ body:has(.overlay-card) {
 .daygrid-empty { color: var(--ink-ghost); font-size: var(--fs-body); padding: 60px 0; }
 .daygrid-grid {
   display: grid;
-  grid-template-rows: repeat(8, 50px);
+  grid-template-rows: repeat(6, 64px);
   grid-auto-flow: column;
   grid-auto-columns: 36px;
 }
@@ -1315,7 +1315,7 @@ body:has(.overlay-card) {
 .daygrid-ticks {
   position: relative;
   height: 15px;
-  width: 432px;
+  width: 648px;
   margin: 2px 0;
 }
 .dg-tick {
@@ -1738,3 +1738,25 @@ body:has(.lib-rail:hover) .lib-hint-arrow { animation: hint-breathe 2.4s ease-in
   50% { transform: translateX(-4px); }
 }
 .center-inner { position: relative; }
+
+/* v1.3 时间环小卡（实心暖卡，非玻璃） */
+.ring-click { cursor: pointer; border-radius: 50%; transition: filter var(--dur-fast); }
+.ring-click:hover { filter: brightness(1.08); }
+.slice-card {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--paper-deep);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(38, 34, 30, 0.14);
+  animation: bp-card-in var(--dur) var(--ease-out);
+}
+
+/* restpop 从右下沿轻微滑入 */
+.restpop-enter { animation: restpop-in 200ms var(--ease-out); }
+@keyframes restpop-in { from { opacity: 0.6; transform: translateY(8px); } to { opacity: 1; transform: none; } }
