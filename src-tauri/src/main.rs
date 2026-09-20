@@ -271,6 +271,16 @@ fn main() {
 
             fermata_lib::sys::precreate_overlays(&app.handle())?;
 
+            // 关主窗 = 退出整个应用：两个预建浮层是附属，无托盘的 v1 不留驻后台
+            if let Some(main_win) = app.get_webview_window("main") {
+                let app_handle = app.handle().clone();
+                main_win.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { .. } = event {
+                        app_handle.exit(0);
+                    }
+                });
+            }
+
             fermata_lib::sys::spawn_idle_watchdog(app.handle().clone());
 
             // 热键与置顶从 settings 读
