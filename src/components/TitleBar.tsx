@@ -156,22 +156,25 @@ export const TitleBar = memo(function TitleBar() {
       <div className="drag drag-side" data-tauri-drag-region />
       <nav className="morph-nav" data-testid="capsule-nav">
         {TABS.map((t, i) => (
-          <span className="morph-slot" key={t.key}>
-            <button
-              ref={(el) => {
-                itemsRef.current[i] = el;
-              }}
-              className={`morph-tab${tab === t.key ? " active" : ""}`}
-              data-testid={`tab-${t.key}`}
-              data-pill-w={64 + t.label.length * 14}
-              onClick={() => switchTab(t.key)}
-            >
-              <span className="nav-pill" />
-              <span className="nav-icon">{t.icon}</span>
-              <span className="nav-label">{t.label}</span>
-              {t.key === "board" && resting && tab !== "board" && <RestMark />}
-            </button>
-          </span>
+          <button
+            key={t.key}
+            ref={(el) => {
+              itemsRef.current[i] = el;
+            }}
+            className={`morph-tab${tab === t.key ? " active" : ""}`}
+            data-testid={`tab-${t.key}`}
+            data-pill-w={64 + t.label.length * 14}
+            // 按下即切换（pointerdown）：morph 动画中按钮在移动，等 click（抬起）可能已移出命中区
+            onPointerDown={(e) => {
+              if (e.button === 0) switchTab(t.key);
+            }}
+            onClick={() => switchTab(t.key)} // 键盘 Enter/Space 走 click；与 pointerdown 重复时 switchTab 幂等
+          >
+            <span className="nav-pill" />
+            <span className="nav-icon">{t.icon}</span>
+            <span className="nav-label">{t.label}</span>
+            {t.key === "board" && resting && tab !== "board" && <RestMark />}
+          </button>
         ))}
       </nav>
       <div className="drag drag-side" data-tauri-drag-region />
