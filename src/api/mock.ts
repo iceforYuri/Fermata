@@ -633,6 +633,9 @@ export const mockData: DataApi = {
   async planDone(id) {
     const pl = state.plans.find((x) => x.id === id && x.state === "pool");
     if (!pl) throw new Error("计划不在稿库");
+    // 记稠密名次（1-based），回退插回原位用
+    pl.prev_position =
+      state.plans.filter((x) => x.state === "pool" && (x.position ?? 0) < (pl.position ?? 0)).length + 1;
     pl.state = "completed";
     pl.completed_at = Date.now();
     ev("plan_done", null, { plan_id: id });
@@ -643,6 +646,29 @@ export const mockData: DataApi = {
     if (!pl) throw new Error("计划不在稿库");
     pl.state = "deleted";
     ev("plan_delete", null, { plan_id: id });
+  },
+
+  async planReopen(id) {
+    const pl = state.plans.find((x) => x.id === id && x.state === "completed");
+    if (!pl) throw new Error("计划不在完成态");
+    // 插回 min(prev_position, 队列长度) 原位；**不改他人 position**：邻居间取分数位中值
+    const pool = state.plans
+      .filter((x) => x.state === "pool")
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.id - b.id);
+    const len = pool.length;
+    const idx0 = pl.prev_position != null
+      ? Math.max(0, Math.min(pl.prev_position, len) - 1)
+      : len;
+    const before = idx0 > 0 ? (pool[idx0 - 1].position ?? 0) : null;
+    const after = idx0 < pool.length ? (pool[idx0].position ?? 0) : null;
+    pl.position =
+      before !== null && after !== null ? (before + after) / 2
+      : before === null && after !== null ? after - 1
+      : before !== null ? before + 1
+      : 1;
+    pl.state = "pool";
+    pl.completed_at = null;
+    ev("plan_reopen", null, { plan_id: id });
   },
 
   async idleStart(pid) {
@@ -847,7 +873,7 @@ export const mockData: DataApi = {
       steps_total: state.steps.filter((x) => x.process_id === p.id).length,
       breakpoint: stackTop(p.id)?.title ?? null,
     });
-    const plans = state.plans.filter((p) => p.scheduled_date === day);
+    const plans = state.plans.filter((p) => p.scheduled_date === day && p.state !== "deleted");
     return {
       day,
       done: rows.filter((p) => p.state === "completed").map(toDvp),

@@ -365,3 +365,100 @@ fn switched_out_lands_queue_head() {
     assert!(pd.queue_position.unwrap() > pc.queue_position.unwrap(), "新建仍落队尾");
     assert!(pc.queue_position.unwrap() > pa.queue_position.unwrap());
 }
+
+// ================= fix/plan-ops：计划四修 =================
+
+#[test]
+fn plan_reopen_and_day_view_filters_deleted() {
+    let conn = db::open_in_memory().unwrap();
+    let t0 = 1_800_000_000_000i64;
+    let day = db::day_of(t0);
+
+    let p1 = ops::plan_create(&conn, t0, "待改计划", Some(30), Some(&day)).unwrap();
+    let p2 = ops::plan_create(&conn, t0 + 1, "要删计划", None, Some(&day)).unwrap();
+
+    // 删除即消失：deleted 不出现在 q_day_view
+    ops::plan_delete(&conn, t0 + 2, p2).unwrap();
+    let dv = queries::q_day_view(&conn, &day).unwrap();
+    assert!(
+        dv.plans.iter().all(|p| p.id != p2),
+        "deleted 计划不得出现在 q_day_view"
+    );
+    assert!(dv.plans.iter().any(|p| p.id == p1), "pool 计划仍在");
+
+    // 完成 → 放回稿库：回 pool、completed_at 清空、插回原位
+    ops::plan_done(&conn, t0 + 3, p1).unwrap();
+    let dv = queries::q_day_view(&conn, &day).unwrap();
+    assert!(dv.not_done.iter().all(|p| p.id != p1), "完成态不在未做清单");
+    let prev: Option<i64> = conn
+        .query_row("SELECT prev_position FROM plans WHERE id = ?1", rusqlite::params![p1], |r| r.get(0))
+        .unwrap();
+    assert_eq!(prev, Some(1), "plan_done 记位 prev_position");
+
+    // 期间新增一条（落队尾），回退仍应插回原位（原位未越界）
+    let p3 = ops::plan_create(&conn, t0 + 35, "插队计划", None, Some(&day)).unwrap();
+    ops::plan_reopen(&conn, t0 + 4, p1).unwrap();
+    let order: Vec<String> = {
+        let mut stmt = conn.prepare("SELECT title FROM plans WHERE state = 'pool' ORDER BY position, id").unwrap();
+        stmt.query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect()
+    };
+    assert_eq!(order, vec!["待改计划", "插队计划"], "回退插回原位（队首），新增让位");
+    let (state, completed_at): (String, Option<i64>) = conn
+        .query_row("SELECT state, completed_at FROM plans WHERE id = ?1", rusqlite::params![p1], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap();
+    assert_eq!(state, "pool");
+    assert_eq!(completed_at, None);
+    let dv = queries::q_day_view(&conn, &day).unwrap();
+    assert!(dv.not_done.iter().any(|p| p.id == p1), "回退后回未做清单");
+
+    // 夹紧：prev_position 越界（期间队列变短）→ min(prev, len)
+    ops::plan_done(&conn, t0 + 5, p3).unwrap(); // p3 原位 2 → prev=2
+    ops::plan_done(&conn, t0 + 6, p1).unwrap(); // p1 原位 1 → prev=1；pool 空
+    ops::plan_reopen(&conn, t0 + 7, p3).unwrap(); // len=0 → 夹到唯一位
+    let order: Vec<i64> = {
+        let mut stmt = conn.prepare("SELECT id FROM plans WHERE state = 'pool' ORDER BY position, id").unwrap();
+        stmt.query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect()
+    };
+    assert_eq!(order, vec![p3], "空队列回退落唯一位");
+    ops::plan_reopen(&conn, t0 + 8, p1).unwrap(); // prev=1, len=1 → min=1 → 队首
+    let order: Vec<i64> = {
+        let mut stmt = conn.prepare("SELECT id FROM plans WHERE state = 'pool' ORDER BY position, id").unwrap();
+        stmt.query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect()
+    };
+    assert_eq!(order, vec![p1, p3], "夹紧到 min(prev,len)：p1 回队首");
+
+    // 分数位插入：reopen 不改他人 position；反复 done/reopen 相对顺序稳定
+    let pos_of = |id: i64| -> f64 {
+        conn.query_row("SELECT COALESCE(position,0) FROM plans WHERE id = ?1", rusqlite::params![id], |r| r.get(0))
+            .unwrap()
+    };
+    let p4 = ops::plan_create(&conn, t0 + 10, "丁", None, Some(&day)).unwrap();
+    let p5 = ops::plan_create(&conn, t0 + 11, "戊", None, Some(&day)).unwrap();
+    // pool: p1 p3 p4 p5；完成中间的 p3 再回退
+    let before: Vec<(i64, f64)> = vec![p1, p3, p4, p5].into_iter().map(|x| (x, pos_of(x))).collect();
+    ops::plan_done(&conn, t0 + 12, p3).unwrap();
+    ops::plan_reopen(&conn, t0 + 13, p3).unwrap();
+    assert_eq!(pos_of(p1), before[0].1, "他人 position 不被重写（p1）");
+    assert_eq!(pos_of(p4), before[2].1, "他人 position 不被重写（p4）");
+    assert_eq!(pos_of(p5), before[3].1, "他人 position 不被重写（p5）");
+    let order: Vec<i64> = {
+        let mut stmt = conn.prepare("SELECT id FROM plans WHERE state = 'pool' ORDER BY position, id").unwrap();
+        stmt.query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect()
+    };
+    assert_eq!(order, vec![p1, p3, p4, p5], "回退后相对顺序不变");
+    // 再来三轮 done/reopen 往返，顺序仍不变
+    for k in 0..3 {
+        ops::plan_done(&conn, t0 + 20 + k * 2, p3).unwrap();
+        ops::plan_reopen(&conn, t0 + 21 + k * 2, p3).unwrap();
+        let ord: Vec<i64> = {
+            let mut stmt = conn.prepare("SELECT id FROM plans WHERE state = 'pool' ORDER BY position, id").unwrap();
+            stmt.query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect()
+        };
+        assert_eq!(ord, vec![p1, p3, p4, p5], "往返 {k} 后顺序不变");
+    }
+
+    // 守卫：非完成态不能回退；事件已记
+    assert!(ops::plan_reopen(&conn, t0 + 30, p1).is_err(), "pool 态不能再 reopen");
+    let evts = queries::q_events(&conn, None).unwrap();
+    assert!(evts.iter().any(|e| e.kind == "plan_reopen"), "写 plan_reopen 事件");
+}

@@ -207,6 +207,36 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 - **kernel.rs 日网格测试修复（顺带）**：主会话 v1.4 改 GridCell 为 marks[]（占用率取前二、对角分半）后测试未跟上；断言迁到 marks API（首枚=多数派、次席、空格 marks.is_empty），跨午夜用例锚到昨天——v1.4 的"占用止点钳到当下"会把锚在今天晚间的未来段钳没。
 - docs/screenshots/v12/restpop-bottom-right-position.txt 是更名前抓的窗口枚举证据（标题行含 gika），作为当时证据保留。
 
+### D45 · 计划四修（fix/plan-ops）
+- **删除即消失**：q_day_view 的 plans 查询补 `state != 'deleted'`（mock 同步）——此前删除的计划照常在当天视图渲染。
+- **完成态降级**：当天视图计划区完成行标题划线+变淡（与步骤勾选同语言），"未计时完成"标签保留。
+- **plan_reopen**：completed → pool，completed_at 清空，position 落队尾，写 `plan_reopen` 事件；非完成态守卫报错。UI=完成行 hover 出 ↩「放回稿库」，过去的日子同样可回退（当天视图按日渲染，无时限）。
+- **标题双态编辑**：复用 InlineEdit，落两处（当天视图计划区 + 稿库）；仅 pool 态可编辑（完成态标题不可点编）。稿库行编辑态禁拖（draggable 随编辑态切换，防文本选择被拖动手势劫持）。
+- **顺手修存量延迟**：DayViewSection 的 qDayView 依赖只有 [day, board.tick]（1Hz），计划操作后视图最长滞后 1s——deps 补 board.plans，操作即反映。
+
+### D46 · 计划回退原位 + 行级动效（fix/plan-ops 第二轮）
+- **回退原位**：migration v4 给 plans 加 `prev_position`。plan_done 记的是**稠密名次**（1-based，pool 内 COUNT 前排+1），不是稀疏 position 值——否则删除挖洞后原位语义失真。plan_reopen 插回 min(prev_position, 当前 pool 长度) 并密化让位（目标位及之后顺移）；prev NULL（存量数据）落队尾。mock 同口径。
+- **动效语言**（不新增曲线/时长）：完成=伪元素划线 scaleX 0→1 从左画出（160ms ease-out）+ 标题降淡（color var(--dur)）；删除=沉降收起（量高→0 + 淡出 200ms ease-out，JS 延迟 240ms 才真正删数据）；稿库完成=划线后接沉降（行离 pool 列表）；稿库新行（回退/新建）=高度 0→44 弹簧开缝（220ms，与 dnd.SQUEEZE 同 cubic-bezier(0.34,1.36,0.64,1)），初次装载不播。共用助手 `src/components/rowAnim.ts`。
+- **InlineEdit 加 disabled**：完成态标题仍挂同一 DOM 节点（组件类型不变），划线/颜色过渡才连续——此前完成瞬间 React 换节点导致划线跳变无动画。disabled 态 cursor:default 不可点编。
+- 截图中间帧手法：Playwright 截图快于真实动画，用注入 `transition-duration: 3200ms !important`（含 ::before/::after，`*` 不匹配伪元素）减速 20 倍截半途帧。
+
+### D47 · 未做区出入动效 + 计划区视觉锚点（fix/plan-ops 第三轮）
+- 「未做」区行不是直接操作对象，是计划区 ✓/↩/✕ 的联动结果：行出=LeavingRow 幽灵行（diff 时记下标题/量高/旧序邻位 afterId，挂起后下一帧沉降 200ms，到点卸载）；行入=EnteringRow（0 高挂载→量 scrollHeight→弹簧撑开 220ms，播完恢复自适应）。首次装载不播。rowAnim.ts 改 .tsx。
+- 锚点钉法=rAF 连续钉 600ms（操作帧起），不是一次性 scrollTop 补偿——幽灵沉降/进入弹簧/✕ 的 240ms 延迟落库都是动画中段的布局变化，钉一次钉不住。贴底/贴顶由浏览器自然夹紧。
+- `.stats-scroll` 加 `overflow-anchor: none` 关浏览器原生锚定（防与自钉双重补偿）。
+- 测试口径：锚点断言前必须等上一步操作的 600ms 钉窗结束再摆滚动位，否则钉环会把测试的手动 scrollTop 拉回（8c 首跑 Δ=108.8px 的根因）。
+
+### D48 · 分数位 position + 钉锚窗口收窄（fix/plan-ops 第四轮）
+- **分数位插入**：废除 plan_reopen 的 pool 密化重写（重写会让 pool 行与完成行保留的旧 position 撞值，`ORDER BY position, id` 撞出 id 序、视觉跳变）。改邻居中值插入：目标位 = （上邻居 + 下邻居）/2，无上邻 = 下邻 − 1，无下邻 = 上邻 + 1，空表 = 1。SQLite INTEGER 亲和列无损存 REAL（2.5 这类）；Rust `Plan.position` 改 `Option<f64>`，plan_create 的 MAX 按 f64 读；mock 同口径。prev_position 仍是稠密名次语义（只用来算目标位）。cargo test 加"往返 4 次相对顺序不变 + 他人 position 不被重写"。
+- **钉锚收窄**：rAF 钉窗 600ms → **340ms**（= 刷新延迟 ~80ms + 沉降 200 / 开缝 220），且只在量到位移的帧写 scrollTop（不脏不写）；连续操作新钉替换旧钉（pinGen）。✕ 删除的钉窗从数据提交回调起算（行沉降在计划区内、不动区头；未做区幽灵沉降发生在 +240ms 提交后）。
+- **帧耗证据**（scripts/measure-pin-frames.mjs，PerformanceObserver longtask + rAF 帧间隔，mock/headless Chromium）：修复前 `{"longTasks":[],"frames":90,"maxFrameMs":16.8,"p95":16.7,"over33":0}`，修复后同值——mock 环境帧耗本就在帧预算内，用户感知到的卡是真机 WebView2 上 600ms 每帧强制同步布局与高度动画同帧互踩的结构性问题；收窄+按需写消除该结构条件。真机复测脚本已入库。
+
+### D49 · 未做区动效乐观同步（fix/plan-ops 第五轮）
+- **根因**：点 ✓ 时计划区划线当帧起跑，未做区幽灵沉降却挂在 qDayView refetch 的 diff 上（store-changed → 取数 ~80ms → setView → diff effect 才挂 leaving），三条时间线脱链 → 视觉上是两段动画。
+- **修法（乐观同步）**：✓/✕/↙ handler 同一拍做三件事——调命令（照旧）+ 立即挂未做区 leaving/entering（乐观，标题/高度/邻位当帧从 DOM 量取）+ pinAnchor。↩ 的开缝占位行插在 min(prev_position, len) 名次处（与后端同口径）。diff effect 和解：已在 leavingRows 的 id 不重挂；乐观进入行在 refetch 确认后卸壳（optimisticEnter 清 id，enteringIds 播完自卸）。busyPlans 防抖：同 id 在飞再点忽略。
+- 钉锚窗口 340ms 起点=点击帧，三者同窗完成。
+- **帧耗对照**（measure-pin-frames.mjs，headless mock）：修复前（diff 驱动）`longTasks:0, maxFrame 16.8ms, p95 16.7`；修复后 `longTasks:0, maxFrame 16.8ms, p95 16.8`——结构指标本就不超帧，本轮修的是**时序脱链**（视觉两段动画），不是帧预算。真机手感由用户验收。
+
 ### D50 · 日网格悬停改整格全量清单（feature/daygrid-hover-all，v1.4.1）
 - 命中区从半瓣圆点上移到整格 `.dg-cell`（有占用才出窗；幽灵点空格不出）；CellMarks 回归纯渲染。
 - `GridCell.occupants`（全部占用者按 ms 降序截前 4）+ `occupant_count`（总数）；20%/80% 阈值只管 marks 画不画，不管清单说不说；钳制区间沿用 v1.4 口径。mock 同步；q_plans 排序不受影响。

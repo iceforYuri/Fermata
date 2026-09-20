@@ -186,6 +186,14 @@ pub async fn plan_delete(app: AppHandle, state: State<'_, DbState>, id: i64) -> 
     Ok(())
 }
 
+#[tauri::command]
+pub async fn plan_reopen(app: AppHandle, state: State<'_, DbState>, id: i64) -> Result<(), String> {
+    let c = lock(&state)?;
+    ops::plan_reopen(&c, db::now_ms(), id)?;
+    changed(&app);
+    Ok(())
+}
+
 // ---------- 系统层事件 ----------
 
 #[tauri::command]
