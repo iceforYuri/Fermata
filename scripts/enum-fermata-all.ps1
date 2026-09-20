@@ -13,8 +13,8 @@ public class WinEnum {
   public struct RECT { public int Left, Top, Right, Bottom; }
 }
 '@
-$targets = @((Get-Process gika -ErrorAction SilentlyContinue).Id)
-if ($targets.Count -eq 0) { Write-Output "no gika process"; exit }
+$targets = @((Get-Process fermata -ErrorAction SilentlyContinue).Id)
+if ($targets.Count -eq 0) { Write-Output "no fermata process"; exit }
 $script:lines = New-Object System.Collections.ArrayList
 $cb = [WinEnum+EnumProc]{ param($h,$l)
   [uint32]$pid2 = 0; [WinEnum]::GetWindowThreadProcessId($h, [ref]$pid2) | Out-Null

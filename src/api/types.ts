@@ -42,7 +42,7 @@ export interface Plan {
   position: number | null;
 }
 
-export interface GikaEvent {
+export interface FermataEvent {
   id: number;
   ts: number;
   kind: string;
@@ -171,7 +171,7 @@ export interface DataApi {
   qSuspendedMs(pid: number, day: string): Promise<number>;
   qSliceStats(pid: number, day: string): Promise<SliceStats>;
   qContinuousWorkMs(day: string): Promise<number>;
-  qEvents(day?: string): Promise<GikaEvent[]>;
+  qEvents(day?: string): Promise<FermataEvent[]>;
   qSettings(): Promise<[string, string][]>;
   qPalette(): Promise<PaletteEntry[]>;
   qPlans(): Promise<Plan[]>;

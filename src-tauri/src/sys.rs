@@ -223,7 +223,7 @@ pub fn precreate_overlays(app: &AppHandle) -> Result<(), String> {
         "switcher",
         WebviewUrl::App("/?window=switcher#/overlay/switcher".into()),
     )
-    .title("gika 切换")
+    .title("Fermata 切换")
     .inner_size(520.0, 320.0)
     .decorations(false)
     .always_on_top(true)
@@ -243,7 +243,7 @@ pub fn precreate_overlays(app: &AppHandle) -> Result<(), String> {
     });
 
     WebviewWindowBuilder::new(app, "restpop", WebviewUrl::App("/?window=restpop#/overlay/restpop".into()))
-        .title("gika 休止符")
+        .title("Fermata 休止符")
         .inner_size(420.0, 300.0)
         .decorations(false)
         .always_on_top(true)
@@ -258,12 +258,12 @@ pub fn precreate_overlays(app: &AppHandle) -> Result<(), String> {
 }
 
 /// 空闲看门狗：阈值每轮从 settings.idle_threshold_minutes 读（改设置即生效）；
-/// GIKA_IDLE_SECS 环境变量优先（验收用）。
+/// FERMATA_IDLE_SECS 环境变量优先（验收用）。
 pub fn spawn_idle_watchdog(app: AppHandle) {
     std::thread::spawn(move || {
         let mut idling = false;
         loop {
-            let threshold: u64 = std::env::var("GIKA_IDLE_SECS")
+            let threshold: u64 = std::env::var("FERMATA_IDLE_SECS")
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .or_else(|| {
@@ -282,13 +282,13 @@ pub fn spawn_idle_watchdog(app: AppHandle) {
                     if let Some(st) = app.try_state::<SysState>() {
                         if let Ok(mut g) = st.idling.lock() { *g = true; }
                     }
-                    let _ = app.emit("gika-idle", true);
+                    let _ = app.emit("fermata-idle", true);
                 } else if idling && secs < threshold {
                     idling = false;
                     if let Some(st) = app.try_state::<SysState>() {
                         if let Ok(mut g) = st.idling.lock() { *g = false; }
                     }
-                    let _ = app.emit("gika-idle", false);
+                    let _ = app.emit("fermata-idle", false);
                 }
             }
             std::thread::sleep(std::time::Duration::from_secs(1));

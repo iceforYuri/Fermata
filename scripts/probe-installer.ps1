@@ -1,5 +1,5 @@
 # What is the NSIS installer doing: list its child processes and any visible windows
-$setup = Get-Process -Name "gika_1.0.0_x64-setup" -ErrorAction SilentlyContinue
+$setup = Get-Process -Name "fermata_1.0.0_x64-setup" -ErrorAction SilentlyContinue
 if (-not $setup) { Write-Output "installer not running"; exit }
 Write-Output "installer pid: $($setup.Id), threads: $($setup.Threads.Count), cpu: $($setup.CPU)"
 $cim = Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq $setup.Id }

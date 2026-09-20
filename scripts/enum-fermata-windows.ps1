@@ -1,4 +1,4 @@
-# List visible windows whose title contains gika, with rects, and sample corner pixels
+# List visible windows whose title contains Fermata, with rects, and sample corner pixels
 Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
@@ -8,11 +8,11 @@ public class WinRect {
   public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
 }
 "@
-$procs = Get-Process | Where-Object { $_.MainWindowTitle -like "*gika*" }
+$procs = Get-Process | Where-Object { $_.MainWindowTitle -like "*Fermata*" }
 foreach ($p in $procs) {
   $r = New-Object WinRect+RECT
   [WinRect]::GetWindowRect($p.MainWindowHandle, [ref]$r) | Out-Null
   $vis = [WinRect]::IsWindowVisible($p.MainWindowHandle)
   Write-Output ("{0} | title={1} | rect={2},{3}-{4},{5} | visible={6}" -f $p.ProcessName, $p.MainWindowTitle, $r.Left, $r.Top, $r.Right, $r.Bottom, $vis)
 }
-if (-not $procs) { Write-Output "no gika windows found via MainWindowTitle" }
+if (-not $procs) { Write-Output "no fermata windows found via MainWindowTitle" }

@@ -91,7 +91,7 @@ export function BoardPage() {
   };
 
   const onColumnDragOver = (e: React.DragEvent) => {
-    if (!e.dataTransfer.types.includes("text/gika-plan")) return;
+    if (!e.dataTransfer.types.includes("text/fermata-plan")) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
     setLibDrag(locate(e.clientY));
@@ -101,7 +101,7 @@ export function BoardPage() {
     if (!innerRef.current?.contains(e.relatedTarget as Node | null)) setLibDrag(null);
   };
   const onColumnDrop = (e: React.DragEvent) => {
-    const raw = e.dataTransfer.getData("text/gika-plan");
+    const raw = e.dataTransfer.getData("text/fermata-plan");
     const at = locate(e.clientY);
     setLibDrag(null);
     if (!raw) return;

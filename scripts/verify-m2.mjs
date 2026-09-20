@@ -1,5 +1,5 @@
 // M2 验收：CDP 连真实 tauri dev（:9222），三窗 target 直驱。
-// 前置：GIKA_DB_PATH 指向一个【全新空库】，dev 已起。
+// 前置：FERMATA_DB_PATH 指向一个【全新空库】，dev 已起。
 import { chromium } from "playwright";
 import { execSync } from "node:child_process";
 import { mkdirSync } from "node:fs";

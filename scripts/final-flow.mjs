@@ -20,7 +20,7 @@ await page.waitForSelector("[data-testid=empty-state]", { timeout: 30000 });
 await shot("empty");
 
 // 新建两个进程（底部 + 号）
-await page.fill("[data-testid=new-row-input]", "写 gika 收官清单");
+await page.fill("[data-testid=new-row-input]", "写 Fermata 收官清单");
 await page.press("[data-testid=new-row-input]", "Enter");
 await sleep(300);
 await page.fill("[data-testid=new-row-input]", "读一遍宪法自查表");

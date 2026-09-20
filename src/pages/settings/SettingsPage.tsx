@@ -343,6 +343,11 @@ export function SettingsPage() {
         </div>
         {exported && <div className="set-exported num" data-testid="export-path">{exported}</div>}
       </section>
+
+      {/* 构建戳：核对"这份程序是不是最新构建" */}
+      <div className="build-stamp num" data-testid="build-stamp">
+        Fermata · 构建 {__BUILD_HASH__} · {__BUILD_TIME__}
+      </div>
       </div>
     </div>
   );

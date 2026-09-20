@@ -7,7 +7,7 @@ import type {
   BoardProcess,
   CellMark,
   DataApi,
-  GikaEvent,
+  FermataEvent,
   PaletteEntry,
   Plan,
   Process,
@@ -30,7 +30,7 @@ interface MockState {
   steps: Step[];
   plans: Plan[];
   segs: Seg[];
-  events: GikaEvent[];
+  events: FermataEvent[];
   slices: Record<number, { complete: number; aborted: number }>;
   suspendedSince: Record<number, number | null>; // 当前挂起开口起点（含等AI前区间已在 agingBase 折现）
   agingBase: Record<number, number>; // 已闭合挂起区间累计 ms
@@ -145,7 +145,7 @@ function buildRich(): MockState {
   );
 
   // 运行中
-  const run = mk("改 gika 数据内核", "running", {
+  const run = mk("改 Fermata 数据内核", "running", {
     color_tag: 3,
     created_at: now - 6.6 * H,
     queue_position: null,

@@ -1,4 +1,4 @@
-/* gika M1 · 进程页样式（tokens 之外的布局层）
+/* Fermata M1 · 进程页样式（tokens 之外的布局层）
  * 纪律：无渐变按钮、无 emoji 图标、无 pill、阴影极克制、1px 细节。
  */
 
@@ -1459,6 +1459,15 @@ body:has(.overlay-card) {
   padding-bottom: 1px;
 }
 .set-exported { font-size: var(--fs-micro); color: var(--ink-faint); padding-left: 168px; }
+
+/* 构建戳：设置页页脚，核对该程序对应的构建 */
+.build-stamp {
+  margin-top: 36px;
+  font-size: var(--fs-micro);
+  color: var(--ink-ghost);
+  text-align: center;
+  user-select: text;
+}
 
 /* 字号阶梯 */
 [data-font="compact"] { --fs-display: 26px; --fs-body: 14px; --fs-small: 12px; --fs-micro: 11.5px; }

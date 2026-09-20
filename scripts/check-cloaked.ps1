@@ -11,7 +11,7 @@ public class DwmChk {
   [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr h, int idx);
 }
 '@
-$targets = @((Get-Process gika -ErrorAction SilentlyContinue).Id)
+$targets = @((Get-Process fermata -ErrorAction SilentlyContinue).Id)
 $script:lines = New-Object System.Collections.ArrayList
 $cb = [DwmChk+EnumProc]{ param($h,$l)
   [uint32]$pid2 = 0; [DwmChk]::GetWindowThreadProcessId($h, [ref]$pid2) | Out-Null

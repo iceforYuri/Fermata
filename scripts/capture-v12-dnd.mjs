@@ -34,7 +34,7 @@ await sleep(400);
   const tx = q.x + q.width / 2, ty = q.y + 90; // 队列中部
   await page.evaluate(([x, y]) => {
     const dt = new DataTransfer();
-    dt.setData("text/gika-plan", "{}");
+    dt.setData("text/fermata-plan", "{}");
     document.querySelector("[data-testid=board-page]").dispatchEvent(
       new DragEvent("dragover", { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer: dt }),
     );

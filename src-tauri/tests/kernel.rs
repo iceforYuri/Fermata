@@ -1,7 +1,7 @@
 //! M0 集成测试：非法迁移 / 事件 append-only / switch 闭合 segment。
 //! 全部用内存库 + 显式时间戳，确定性。
 
-use gika_lib::db::{self, ops, queries};
+use fermata_lib::db::{self, ops, queries};
 
 type EventRow = (i64, i64, String, Option<i64>, Option<String>);
 
@@ -167,11 +167,12 @@ fn switch_closes_segment_matching_event_delta() {
 #[test]
 fn grid_cell_majority_ownership_and_untimed_completion() {
     let conn = db::open_in_memory().unwrap();
-    // 锚定一个确定的日子（本地时区 10:00 起，第 40 格 = 10:00–10:15）
+    // 锚定昨天（本地时区 10:00 起，第 40 格 = 10:00–10:15）：
+    // 全部时段恒在过去，q_day_grid v1.4 的"占用止点钳到当下"不会钳掉夜里段
     let base = {
         let today = db::today_local();
         let (s, _) = db::day_range(&today).unwrap();
-        s
+        s - 86_400_000
     };
     let t = |mins: i64| base + mins * 60_000;
     let day = db::day_of(base);
@@ -188,16 +189,21 @@ fn grid_cell_majority_ownership_and_untimed_completion() {
     let grid = queries::q_day_grid(&conn, &day).unwrap();
     assert_eq!(grid.len(), 108, "18×6=108 格");
     let cell24 = &grid[24];
-    assert_eq!(cell24.owner_process_id, Some(a), "格 24 归多数派甲");
-    assert_eq!(cell24.color_tag, Some(1));
+    // v1.4 marks 口径：格 24 甲 7 分钟（70%）居首、乙 3 分钟（30%）次席，对角分半
+    assert_eq!(cell24.marks.first().map(|m| m.process_id), Some(a), "格 24 首枚=多数派甲");
+    assert_eq!(cell24.marks.first().and_then(|m| m.color_tag), Some(1));
+    assert_eq!(cell24.marks.get(1).map(|m| m.process_id), Some(b), "格 24 次席=乙");
     // 0–6 点窗口外不画：格 0 = 06:00–06:10
-    assert!(grid[0].owner_process_id.is_none());
+    assert!(grid[0].marks.is_empty());
 
     // 未计时完成（零 segment）不画圈
     let c = ops::process_create(&conn, t(700), "丙零时长", None, Some(&day)).unwrap();
     ops::process_complete(&conn, t(701), c).unwrap();
     let grid2 = queries::q_day_grid(&conn, &day).unwrap();
-    assert!(grid2.iter().all(|cell| cell.owner_process_id != Some(c)), "未计时完成不画圈");
+    assert!(
+        grid2.iter().all(|cell| cell.marks.iter().all(|m| m.process_id != c)),
+        "未计时完成不画圈"
+    );
 
     // 跨午夜截断：23:50–00:20 的分段，在 06:00 起的时窗内只有跨 0 点段不进当天窗口
     let night = ops::process_create(&conn, t(1430), "夜里赶工", None, Some(&day)).unwrap();
@@ -205,8 +211,11 @@ fn grid_cell_majority_ownership_and_untimed_completion() {
     ops::process_switch(&conn, t(1440) - 1, b, None).unwrap(); // 24:00 前切走
     let grid3 = queries::q_day_grid(&conn, &day).unwrap();
     // 23:50–23:59:59 在窗口内：格 107（23:50–24:00）
-    assert_eq!(grid3[107].owner_process_id, Some(night), "跨午夜段在窗口内部分照常");
-    assert!(grid3.iter().take(107).all(|c| c.owner_process_id != Some(night) || c.cell == 107));
+    assert!(
+        grid3[107].marks.iter().any(|m| m.process_id == night),
+        "跨午夜段在窗口内部分照常"
+    );
+    assert!(grid3.iter().take(107).all(|c| c.marks.iter().all(|m| m.process_id != night)));
 
     // q_day_stats 自洽：total == 各切片之和 == segments 闭合和
     let stats = queries::q_day_stats(&conn, &day).unwrap();
