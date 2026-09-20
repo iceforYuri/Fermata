@@ -83,13 +83,16 @@
   /* 统计环：无色标进程的中性灰切片（灰占比本身是信号） */
   --ring-neutral: #c9c2b8;
 
-  /* 日网格（v1.3：18×6，06:00–24:00 时窗，每格 10 分钟） */
-  --grid-half-threshold: 0.7;
-  --grid-min-share: 0.15;
+  /* 日网格（v1.3：18×6，06:00–24:00 时窗，每格 10 分钟）
+     v1.4：share 改占用率口径（分母=格的 10 分钟）；<20% 不画、20–80% 半圆、≥80% 全圆 */
+  --grid-half-threshold: 0.8;
+  --grid-min-share: 0.2;
   --grid-start-hour: 6;
   --grid-cell-min: 10;
   --grid-cols: 18;
   --grid-rows: 6;
+  /* 日视角进场锚点：锚日大日期标底缘距窗口底的固定间距（底部垫高与之同值） */
+  --day-enter-gap: 40px;
 }
 
 [data-theme="dark"] {

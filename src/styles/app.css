@@ -1551,13 +1551,19 @@ body:has(.overlay-card) {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  /* v1.2：自由滚动，去 mandatory 吸附；底部垫高让最后一天可读满 */
-  padding-bottom: 240px;
+  /* v1.4：关掉浏览器原生 scroll anchoring——prepend 补偿由代码自己做，
+     双补偿叠加会把视口顶到最底（快速滚轮下已复现） */
+  overflow-anchor: none;
+  /* v1.4：底部垫高=进场锚点同一条规则——滚到尽头即今天的进场位置 */
+  padding-bottom: var(--day-enter-gap);
   width: 100%;
+  /* v1.4：隐藏滚动条（滚轮+月视角直达导航）；双保险兼容老 WebView2 */
+  scrollbar-width: none;
   /* 滚动内容顶/底缘淡出遮罩 */
   mask-image: linear-gradient(to bottom, transparent, black 28px, black calc(100% - 28px), transparent);
   -webkit-mask-image: linear-gradient(to bottom, transparent, black 28px, black calc(100% - 28px), transparent);
 }
+.daygrid-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .day-unit {
   min-height: 500px;
   display: flex;
@@ -1568,6 +1574,8 @@ body:has(.overlay-card) {
   margin-bottom: 72px; /* 日间隔加大 */
   position: relative;
 }
+/* 末尾日不再需要日间隔：底部只剩 --day-enter-gap 的垫高 */
+.day-unit:last-child { margin-bottom: 0; }
 /* 极简吸顶小日期签：大日期标滚出顶沿时出现 */
 .day-mini-head {
   position: sticky;
@@ -1591,10 +1599,14 @@ body:has(.overlay-card) {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  /* v1.4：壳（未加载/留白/未来日）与数据日等高（网格384+刻19+标28+缝20+余量），
+     大日期标 margin-top:auto 钉底——进场锚点测壳即测真，prepend 补偿零漂移 */
+  min-height: 474px;
 }
 .daygrid-body .daygrid-empty { text-align: center; }
 .day-big-label {
   align-self: flex-end;
+  margin-top: auto; /* v1.4：钉到 body 底，壳态与数据态同位 */
   display: flex;
   align-items: baseline;
   gap: 6px;

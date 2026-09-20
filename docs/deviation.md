@@ -192,3 +192,10 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 - **中列整列感应**：稿库拖入的 dragover/drop 从挂起队列窄区提到 `.center-inner` 整列；拖出中列（relatedTarget 出列）或 Esc（原生）收缝。SuspendedRow 的窄感应区与 BoardPage 的 4px 折线条删除；EmptyState 不再自持 drop。
 - **语义统一**：稿库拖到活跃位且当前有活跃 → 先落队再弹断点卡（归属原活跃，Enter 确认/Esc 取消整个切换、新进程留在队列）；空板拖入改"直接激活"（推翻 D43 的"落挂起不激活"，用户拍板：空板没有旧进程可留断点，时间从松手开始计）；队列位 = 挂到该位。
 - **测试环境偏离**：headless Chromium 的 Playwright 合成 HTML5 拖动里，dragover 命中测试不可靠（命中 .track-page 而非深层行元素，深元素监听收不到），虚影断言改用 bubbles 合成 DragEvent 直测中列 handler 几何；原生 drop 链路（mouse.up）在 mock 与真实 exe 均正常。真实 exe 的 OLE 拖放由 CDP 实证覆盖。
+
+### D45 · v1.4 日视角五项定点修复（用户商讨定稿）
+- **上滑加载跳底根因**：prepend 的 scrollTop 手动补偿与 Chromium 原生 scroll anchoring 双补偿叠加，快速滚轮下被钳到滚动区最底（"回到当天"）。修法=`.daygrid-scroll` 加 `overflow-anchor: none`（原生锚定让位给手动补偿；慢/快滚轮 Playwright 双向复现对照）。
+- **share 口径修订（v1.2 文档语义 vs 实现歧义坐实）**：原实现算的是"格内各进程总占用中主导者占比"（支配率，单进程恒 1.0 → 永远全圆），规格本意是"格的 10 分钟被占比例"（占用率）。v1.4 统一为占用率：<20% 不画、20–80% 斜半圆、≥80% 全圆；冲突格两进程均 ≥20% 时同一枚圆对角分半（主导右下、次者左上）取前二。阈值 token 改 0.2/0.8；`--grid-min-share` 在数据层（mock/Rust）镜像写死 0.2，渲染阈值仍走 token。
+- **悬停浮窗口径**：显示进程名 + 该时间格内占用起止 + 时长，区间钳制在格窗内、开口段钳到当下；删断点行（历史日显示"现在"的栈顶属时间穿越）。`GridCell` 改每格 `marks[]`（≤2），mock 与 Rust 同口径重写（原 mock 取"当天第一段"、Rust 取"覆盖格的段区间"，两实现不一致的暗债一并清偿）。
+- **进场锚点**：v1.1 的"锚日贴顶"改为"锚日大日期标底缘距窗口底 40px"（token `--day-enter-gap`）；底部垫高 240px → 同 token（旧垫高是贴顶阅读模型的遗产），末尾日单元去底边距——滚到尽头即今天的进场位置，一条规则管两头。进场公式由 `offsetTop` 差改 `getBoundingClientRect` 差（原公式带 81px 系统偏差）。
+- **滚动条**：日视角隐藏（`scrollbar-width:none` + `::-webkit-scrollbar{display:none}` 双保险，兼容老 WebView2）；导航路径=滚轮 + 月视角点日期直达 + 吸顶签回月。
