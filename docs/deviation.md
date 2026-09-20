@@ -206,3 +206,9 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 - **数据迁移（启动时、DB 打开前）**：仅走默认路径时生效（FERMATA_DB_PATH 优先、兼容 GIKA_DB_PATH 兜底，env 覆盖不触发迁移）。旧 `%APPDATA%\com.gika.dev\gika.db` 存在且新 `com.fermata.app\fermata.db` 不存在 → 复制（不移动）gika.db 及 -wal/-shm 边车到 fermata.db，写 `[rename]` 日志；旧目录原样保留（回滚零成本）。
 - **kernel.rs 日网格测试修复（顺带）**：主会话 v1.4 改 GridCell 为 marks[]（占用率取前二、对角分半）后测试未跟上；断言迁到 marks API（首枚=多数派、次席、空格 marks.is_empty），跨午夜用例锚到昨天——v1.4 的"占用止点钳到当下"会把锚在今天晚间的未来段钳没。
 - docs/screenshots/v12/restpop-bottom-right-position.txt 是更名前抓的窗口枚举证据（标题行含 gika），作为当时证据保留。
+
+### D50 · 日网格悬停改整格全量清单（feature/daygrid-hover-all，v1.4.1）
+- 命中区从半瓣圆点上移到整格 `.dg-cell`（有占用才出窗；幽灵点空格不出）；CellMarks 回归纯渲染。
+- `GridCell.occupants`（全部占用者按 ms 降序截前 4）+ `occupant_count`（总数）；20%/80% 阈值只管 marks 画不画，不管清单说不说；钳制区间沿用 v1.4 口径。mock 同步；q_plans 排序不受影响。
+- 多占用者格的场景测试构造教训：既有 grid 测试里乙的长段（10:15–23:50）会铺满中途所有格——新场景必须锚在其覆盖窗外（选了 08:00–08:10）；跨午夜的 fixture 锚点（now 相对量）在 00:30 前会落到昨天，悬停清单 fixture 固定锚昨天 12:00–12:04 保确定性。
+- verify-m3 的圆点基数类断言对"中途换 fixture 重载页面"敏感（基数随 now 漂移）——基数在换回主 fixture 后重取。

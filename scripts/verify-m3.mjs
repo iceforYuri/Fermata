@@ -145,7 +145,54 @@ await page.mouse.move(24, 100);
   ok("钻取零漂移（锚日 y 恒定）", y1 !== null && y1 === y2, `t60ms=${y1} t280ms=${y2}`);
 }
 
+// 7d. 整格 hover 全量清单（fixture=gridmulti：5 占用者挤昨天一格，含 <20%）
+{
+  const yd = new Date(Date.now() - 86400000);
+  const yStr = `${yd.getFullYear()}-${String(yd.getMonth() + 1).padStart(2, "0")}-${String(yd.getDate()).padStart(2, "0")}`;
+  await page.goto(`${BASE}/?fixture=gridmulti`);
+  await page.waitForSelector("[data-testid=tab-stats]");
+  await page.click("[data-testid=tab-stats]");
+  await page.waitForSelector("[data-testid=month-cal]");
+  await sleep(400);
+  await page.dblclick(`[data-testid=cal-cell][data-day="${yStr}"]`);
+  await page.waitForSelector("[data-testid=daygrid-scroll]");
+  await sleep(800);
+  // 整格命中：hover 格内偏离圆点的角（不碰 dg-dot 本体）
+  const cell = page.locator(`.day-unit[data-day="${yStr}"] .dg-cell:has([data-testid=dg-dot])`).first();
+  const cb = await cell.boundingBox();
+  await page.mouse.move(cb.x + 2, cb.y + 2);
+  await sleep(300);
+  const rows = await page.locator("[data-testid=dg-tip-row]").count();
+  const more = await page.locator("[data-testid=dg-tip-more]").textContent().catch(() => null);
+  const allText = (await page.locator("[data-testid=dg-tip]").textContent()) ?? "";
+  ok(
+    "整格 hover 出全量清单（前4+等N项）",
+    rows === 4 && !!more && more.includes("等 1 项") && allText.includes("格子占者甲"),
+    `rows=${rows} more=${more} tip=${allText.slice(0, 60)}`,
+  );
+  // 清单含 <20% 占用者（丁 1 分钟 = 10%，阈值只管画不画）；丁（灰点无色）在列
+  ok("清单含 <20% 占用者（阈值只管画）", allText.includes("格子占者丁"), allText.slice(0, 80));
+  // 幽灵点空格不出浮窗
+  await page.mouse.move(24, 100);
+  await sleep(250);
+  const emptyCell = page.locator(".dg-cell:not(:has([data-testid=dg-dot]))").first();
+  const eb = await emptyCell.boundingBox();
+  await page.mouse.move(eb.x + eb.width / 2, eb.y + eb.height / 2);
+  await sleep(250);
+  ok("空格（幽灵点邻域）不出浮窗", (await page.$("[data-testid=dg-tip]")) === null, "");
+  // 回主 fixture 继续后续测试
+  await page.goto(BASE);
+  await page.waitForSelector("[data-testid=tab-stats]");
+  await page.click("[data-testid=tab-stats]");
+  await page.waitForSelector("[data-testid=month-cal]");
+  await sleep(300);
+  await page.dblclick(`[data-testid=cal-cell][data-day="${todayStr()}"]`);
+  await page.waitForSelector("[data-testid=daygrid-scroll]");
+  await sleep(600);
+}
+
 // 8. 未计时完成不画圈：今天加计划并直接完成 → 圆圈数不变
+const dotsBefore8 = (await page.$$("[data-testid=dg-dot]")).length; // 7d 换过 fixture，基数在此重取
 await page.click(`.day-unit[data-day="${todayStr()}"] .day-big-label`);
 await page.waitForSelector("[data-testid=month-cal]");
 await page.click(`[data-testid=cal-cell][data-day="${todayStr()}"]`);
@@ -161,7 +208,7 @@ await page.dblclick(`[data-testid=cal-cell][data-day="${todayStr()}"]`);
 await page.waitForSelector("[data-testid=daygrid-scroll]");
 await sleep(800);
 const dotsAfter = (await page.$$("[data-testid=dg-dot]")).length;
-ok("未计时完成标记出现且不画圈", doneTag.includes("未计时完成") && dotsAfter === dotsToday, `${dotsToday}→${dotsAfter}`);
+ok("未计时完成标记出现且不画圈", doneTag.includes("未计时完成") && dotsAfter === dotsBefore8, `${dotsBefore8}→${dotsAfter}`);
 
 // 9. 日视角锚点=月历选中日（非强制今天）
 await page.click(`.day-unit[data-day="${todayStr()}"] .day-big-label`).catch(async () => {

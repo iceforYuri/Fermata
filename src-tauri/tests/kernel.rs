@@ -232,6 +232,34 @@ fn grid_cell_majority_ownership_and_untimed_completion() {
     assert_eq!(stats.total_ms, seg_sum, "大环总专注 == segments 闭合和");
     // 切换次数 = switch_in 计数（含跨午夜验收段的两次）= 6
     assert_eq!(stats.switch_count, 6);
+
+    // v1.4.1 整格全量清单：格 12（08:00–08:10，乙的长段 10:15 起、不覆盖）排 5 个占用者——
+    // 丁 5 分钟、戊 2 分钟、己 1.5 分钟、庚 1 分钟、辛 0.5 分钟（后三 <20%）
+    let mk = |name: &str| ops::process_create(&conn, t(0), name, None, Some(&day)).unwrap();
+    let (d4, e5, f6, g7, h8) = (mk("丁"), mk("戊"), mk("己"), mk("庚"), mk("辛"));
+    // 轮转切：丁[480,484) 戊[484,486) 己[486,487.5) 庚[487.5,488.5) 辛[488.5,489) 丁收[489,490)
+    ops::process_switch(&conn, t(480), d4, None).unwrap();
+    ops::process_switch(&conn, t(484), e5, None).unwrap();
+    ops::process_switch(&conn, t(486), f6, None).unwrap();
+    ops::process_switch(&conn, t(487) + 30_000, g7, None).unwrap();
+    ops::process_switch(&conn, t(488) + 30_000, h8, None).unwrap();
+    ops::process_switch(&conn, t(489), d4, None).unwrap();
+    ops::process_switch(&conn, t(490), a, None).unwrap(); // 收
+    let grid4 = queries::q_day_grid(&conn, &day).unwrap();
+    let cell12 = &grid4[12];
+    // 画布：≥20% 前二 = 丁(50%) 戊(20%)
+    assert_eq!(cell12.marks.len(), 2, "3+ 占用者仍只画两瓣");
+    assert_eq!(cell12.marks[0].process_id, d4);
+    assert_eq!(cell12.marks[1].process_id, e5);
+    // 清单：全部 5 个占用者，截前 4 + occupant_count=5；<20% 的己庚也在列
+    assert_eq!(cell12.occupant_count, 5, "格 12 共 5 个占用者");
+    assert_eq!(cell12.occupants.len(), 4, "清单截前 4");
+    let ids: Vec<i64> = cell12.occupants.iter().map(|o| o.process_id).collect();
+    assert_eq!(ids, vec![d4, e5, f6, g7], "按时长降序前 4（辛 0.5 分钟被截）");
+    assert!(cell12.occupants[2].share < 0.2, "己 15% 也列出（阈值只管画）");
+    // 钳制区间：丁两段并集 = [08:00, 08:04] ∪ [08:09, 08:10] → 钳制起止 08:00–08:10
+    assert_eq!(cell12.occupants[0].occ_start, t(480));
+    assert_eq!(cell12.occupants[0].occ_end, t(490));
 }
 
 // ================= v1.2 · 统一栈（ADR-0005） =================
