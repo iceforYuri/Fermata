@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { data, type BoardProcess } from "../api/data";
 import { act, markHex, setSliceOverride, sliceMs, useBoard } from "../store/board";
 import { completeWithUndo, togglePause } from "../store/actions";
@@ -13,6 +14,7 @@ import { TimeRing } from "./TimeRing";
 export function ActiveRow({ bp }: { bp: BoardProcess }) {
   const board = useBoard();
   const [sliceOpen, setSliceOpen] = useState(false);
+  const ringWrapRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!sliceOpen) return;
     const close = (e: KeyboardEvent) => e.key === "Escape" && setSliceOpen(false);
@@ -130,7 +132,7 @@ export function ActiveRow({ bp }: { bp: BoardProcess }) {
             </span>
           )}
         </div>
-        <div style={{ position: "relative" }}>
+        <div style={{ position: "relative" }} ref={ringWrapRef}>
           <div
             className="ring-click"
             data-testid="time-ring-btn"
@@ -145,28 +147,38 @@ export function ActiveRow({ bp }: { bp: BoardProcess }) {
               testid="time-ring"
             />
           </div>
-          {sliceOpen && (
-            <div className="slice-card" data-testid="slice-card">
-              {[25, 45, 60, 90].map((m) => (
-                <button
-                  key={m}
-                  className={`choice-chip${sliceMs(board) === m * 60_000 ? " active" : ""}`}
-                  data-testid={`slice-opt-${m}`}
-                  onClick={() => {
-                    // 只调本次：写事件 + 当前环重置满环继续
-                    void act(async () => {
-                      await data.sliceComplete(bp.process.id);
-                      await data.sliceOverride(bp.process.id, m);
-                    });
-                    setSliceOverride(bp.process.id, m);
-                    setSliceOpen(false);
-                  }}
-                >
-                  {m}m
-                </button>
-              ))}
-            </div>
-          )}
+          {sliceOpen &&
+            // portal 到 body：逃出 .row 的 overflow:hidden 裁切与老化行的层叠上下文（D42 规则）
+            createPortal(
+              <div
+                className="slice-card"
+                data-testid="slice-card"
+                style={(() => {
+                  const r = ringWrapRef.current?.getBoundingClientRect();
+                  return r ? { top: r.bottom + 8, right: window.innerWidth - r.right } : {};
+                })()}
+              >
+                {[25, 45, 60, 90].map((m) => (
+                  <button
+                    key={m}
+                    className={`choice-chip${sliceMs(board) === m * 60_000 ? " active" : ""}`}
+                    data-testid={`slice-opt-${m}`}
+                    onClick={() => {
+                      // 只调本次：写事件 + 当前环重置满环继续
+                      void act(async () => {
+                        await data.sliceComplete(bp.process.id);
+                        await data.sliceOverride(bp.process.id, m);
+                      });
+                      setSliceOverride(bp.process.id, m);
+                      setSliceOpen(false);
+                    }}
+                  >
+                    {m}m
+                  </button>
+                ))}
+              </div>,
+              document.body,
+            )}
         </div>
       </div>
     </div>

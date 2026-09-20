@@ -1764,10 +1764,8 @@ body:has(.lib-rail:hover) .lib-hint-arrow { animation: hint-breathe 2.4s ease-in
 .ring-click { cursor: pointer; border-radius: 50%; transition: filter var(--dur-fast); }
 .ring-click:hover { filter: brightness(1.08); }
 .slice-card {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 30;
+  position: fixed; /* portal 到 body：逃出 .row 的 overflow:hidden 与层叠上下文；top/right 由内联按环位计算 */
+  z-index: 60;
   display: flex;
   gap: 8px;
   padding: 10px 12px;
