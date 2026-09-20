@@ -59,11 +59,10 @@ const queuePids = await page.$$eval("[data-testid=suspended-row]", (rows) =>
 );
 ok("档案重开回队尾", queuePids[queuePids.length - 1] === reopenPid, `queue=[${queuePids}]`);
 
-// 回补：点队列首行 → 断点小卡 → Enter 确认切换
+// 回补：此时无活跃进程（上一步已完成入档）→ F3 守卫：不弹断点卡直接切换
 await page.click("[data-testid=suspended-row] .row-main");
-await page.waitForSelector("[data-testid=bp-card-input]");
-await page.press("[data-testid=bp-card-input]", "Enter");
 await page.waitForSelector("[data-testid=active-row]");
+ok("F3 无活跃进程不弹断点卡直切", (await page.$("[data-testid=bp-card]")) === null);
 
 // 5. 推拉面板开合（v1.1：左缘 rail）
 const railVisible = !!(await page.$("[data-testid=lib-rail]"));
@@ -170,6 +169,35 @@ ok(
   ok("拖到活跃位=切换", activeNow === pid, `active=${activeNow} 期望 ${pid}`);
 }
 
+// 8c. 塌陷补位（挤压修复）：拖第 2 行过第 3 行中点 → 第 3 行顶到第 2 行原位，第 4 行不动
+{
+  const pids = await page.$$eval("[data-testid=suspended-row]", (els) => els.map((e) => e.dataset.pid));
+  const tops0 = await page.$$eval("[data-testid=suspended-row]", (els) =>
+    els.map((e) => e.getBoundingClientRect().top),
+  );
+  const box = await page.locator(`[data-testid=suspended-row][data-pid="${pids[1]}"]`).boundingBox();
+  const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx, cy + 40, { steps: 8 }); // 过第 3 行中点 → insertAt=2
+  await sleep(450); // 弹簧到位
+  const top3 = await page.evaluate(
+    (pid) => document.querySelector(`[data-testid=suspended-row][data-pid="${pid}"]`).getBoundingClientRect().top,
+    pids[2],
+  );
+  ok("塌陷补位：第3行顶到第2行原位", Math.abs(top3 - tops0[1]) < 6, `row3=${top3.toFixed(1)} 期望≈${tops0[1].toFixed(1)}`);
+  const top4 = await page.evaluate(
+    (pid) => document.querySelector(`[data-testid=suspended-row][data-pid="${pid}"]`).getBoundingClientRect().top,
+    pids[3],
+  );
+  ok("挤压修复：第4行不被波及", Math.abs(top4 - tops0[3]) < 6, `row4=${top4.toFixed(1)} 期望≈${tops0[3].toFixed(1)}`);
+  ok("开缝虚影在缝位", (await page.$("[data-testid=drop-ghost]")) !== null, "");
+  await page.mouse.up();
+  await sleep(400);
+  const order8c = await page.$$eval("[data-testid=suspended-row]", (els) => els.map((e) => e.dataset.pid));
+  ok("落位=第2/3行互换", order8c[1] === pids[2] && order8c[2] === pids[1], `[${order8c.slice(0, 4)}]`);
+}
+
 // 9. 稿库拖入成进程
 await page.click("[data-testid=lib-rail]");
 await page.waitForSelector("[data-testid=plan-row]");
@@ -187,6 +215,60 @@ ok(
   planCount2 === planCount - 1 && qCount92 === qCount9 + 1,
   `plans ${planCount}→${planCount2}, queue ${qCount9}→${qCount92}`,
 );
+
+// 9b. 中列整列感应：稿库拖到中列空白处（队列尾下方）→ 出虚影，松手落挂起队尾
+// （headless Chromium 合成拖动的 dragover 命中测试不可靠——命中 track-page 而非深元素；
+//   虚影断言改用 bubbles 合成 DragEvent 直测中列 handler 几何；原生 drop 链路不动）
+{
+  const plan0 = page.locator("[data-testid=plan-row]").first();
+  const planTitle = (await plan0.locator(".plan-title").textContent()).trim();
+  const pb = await plan0.boundingBox();
+  const q = await page.locator("[data-testid=suspended-queue]").boundingBox();
+  const tx = q.x + q.width / 2, ty = q.y + q.height + 24; // 队列尾下方的中列空白
+  await page.mouse.move(pb.x + pb.width / 2, pb.y + pb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(pb.x + pb.width / 2 + 60, pb.y + pb.height / 2, { steps: 3 }); // 触发 dragstart
+  await page.mouse.move(tx, ty, { steps: 8 });
+  await page.evaluate(([x, y]) => {
+    const dt = new DataTransfer();
+    dt.setData("text/fermata-plan", "{}");
+    document.querySelector("[data-testid=board-page]").dispatchEvent(
+      new DragEvent("dragover", { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer: dt }),
+    );
+  }, [tx, ty]);
+  await sleep(300);
+  ok("中列空白处 dragover 出虚影", (await page.$("[data-testid=drop-ghost]")) !== null, "");
+  await page.mouse.up();
+  await sleep(500);
+  const titles = await page.$$eval("[data-testid=suspended-row] .suspended-title", (els) =>
+    els.map((e) => e.textContent),
+  );
+  ok("松手落挂起队尾", titles[titles.length - 1] === planTitle, `队尾=${titles[titles.length - 1]}`);
+}
+
+// 9c. 稿库拖到活跃位 → 虚影覆盖 + 断点卡归属旧活跃进程 → 确认激活
+{
+  const activeTitle = (await page.textContent("[data-testid=active-row] .active-title")).trim();
+  const plan0c = page.locator("[data-testid=plan-row]").first();
+  const planTitle = (await plan0c.locator(".plan-title").textContent()).trim();
+  const pb = await plan0c.boundingBox();
+  const ar = await page.locator("[data-testid=active-row]").boundingBox();
+  await page.mouse.move(pb.x + pb.width / 2, pb.y + pb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(pb.x + pb.width / 2 + 60, pb.y + pb.height / 2, { steps: 3 });
+  await page.mouse.move(ar.x + ar.width / 2, ar.y + ar.height / 2, { steps: 8 });
+  await sleep(300);
+  ok("拖到活跃位：虚影覆盖活跃行", (await page.$("[data-testid=active-drop-ghost]")) !== null, "");
+  await page.mouse.up();
+  await sleep(400);
+  const card = await page.$("[data-testid=bp-card]");
+  const ph = card ? await page.getAttribute("[data-testid=bp-card-input]", "placeholder") : "";
+  ok("断点卡归属旧进程", !!card && ph.includes(activeTitle), `placeholder=${ph}`);
+  await page.press("[data-testid=bp-card-input]", "Enter");
+  await sleep(500);
+  const nowTitle = (await page.textContent("[data-testid=active-row] .active-title")).trim();
+  ok("确认后稿库进程激活", nowTitle === planTitle, `active=${nowTitle} 期望 ${planTitle}`);
+}
 
 // 附2：顶栏胶囊 20 连击（真实鼠标点击，回归点击稳定性）
 {
@@ -261,10 +343,79 @@ ok(
   ok("切 tab 不重挂载（滚动位置保留）", kept === 240, `scrollTop=${kept}`);
 }
 
-// 附：空态可见
+// 附5：F1 无面板时切 tab 无延迟（<20ms 起滑，给 CDP 余量 60ms）
+{
+  await page.click("[data-testid=tab-board]");
+  await page.waitForSelector(".track-page.current [data-testid=board-page]");
+  await sleep(300);
+  // 页内 MutationObserver 计时（排除 CDP 轮询噪音）
+  await page.evaluate(() => {
+    const w = window;
+    w.__slideT = 0;
+    document.querySelector("[data-testid=tab-stats]").addEventListener("click", () => {
+      w.__clickT = performance.now(); // 从页内 click 事件起算（排除 Playwright 输入延迟）
+    }, true);
+    new MutationObserver(() => {
+      if (!w.__slideT) w.__slideT = performance.now();
+    }).observe(document.querySelector("[data-testid=track]"), { attributes: true });
+  });
+  await page.click("[data-testid=tab-stats]");
+  await page.waitForSelector(".track-page.current [data-testid=stats-page]");
+  const elapsed = await page.evaluate(() => {
+    const w = window;
+    return w.__slideT - w.__clickT;
+  });
+  ok("F1 无面板切页零延迟起滑", elapsed >= 0 && elapsed < 20, `${elapsed.toFixed(1)}ms`);
+  await page.click("[data-testid=tab-board]");
+  await page.waitForSelector(".track-page.current [data-testid=board-page]");
+}
+
+// 附6：F4 MRU——被切走落挂起队首
+{
+  const rows0 = await page.$$eval("[data-testid=suspended-row]", (els) => els.map((e) => e.dataset.pid));
+  const first = rows0[0];
+  // 点队首 → 断点卡 → 确认切换（它成为运行），原运行落队首
+  await page.click(`[data-testid=suspended-row][data-pid="${first}"] .row-main`);
+  await page.waitForSelector("[data-testid=bp-card-input]");
+  await page.press("[data-testid=bp-card-input]", "Enter");
+  await sleep(500);
+  const queue1 = await page.$$eval("[data-testid=suspended-row]", (els) => els.map((e) => e.dataset.pid));
+  const activeId = await page.getAttribute("[data-testid=active-row]", "data-pid");
+  const prevActive = queue1[0]; // 之前的活跃应落队首
+  ok("F4 被切走落挂起队首（MRU）", activeId === first, `active=${activeId}, 队首=${prevActive}`);
+}
+
+// 附7：时间环小卡（只调本次）
+{
+  await page.click("[data-testid=time-ring-btn]");
+  await page.waitForSelector("[data-testid=slice-card]");
+  await page.click("[data-testid=slice-opt-90]");
+  await sleep(500);
+  const ringLabel = await page.textContent("[data-testid=time-ring] .ring-label");
+  ok("时间环小卡：选 90m 后环读数=90", ringLabel === "90", `ring=${ringLabel}`);
+  await page.keyboard.press("Escape");
+}
+
+// 附：空态可见 + 空板拖入直接激活（无断点卡）
 await page.goto(`${BASE}/?fixture=empty`);
 await page.waitForSelector("[data-testid=empty-state]");
 ok("空态引导语", (await page.textContent("[data-testid=empty-state]")).includes("版面还空着"));
+// 稿库拖入空板 → 直接激活（F3：没有旧进程可留断点）
+await page.click("[data-testid=lib-rail]");
+await page.waitForSelector("[data-testid=plan-row]");
+const planTitleE = (await page.locator("[data-testid=plan-row]").first().locator(".plan-title").textContent()).trim();
+await page.dragAndDrop("[data-testid=plan-row] >> nth=0", "[data-testid=empty-state]");
+await sleep(500);
+const activeE = await page.$("[data-testid=active-row]");
+const activeTitleE = activeE
+  ? (await page.textContent("[data-testid=active-row] .active-title")).trim()
+  : null;
+const noCardE = (await page.$("[data-testid=bp-card]")) === null;
+ok(
+  "空板拖入直接激活（无断点卡）",
+  !!activeE && noCardE && activeTitleE === planTitleE,
+  `active=${activeTitleE} 期望 ${planTitleE} 无卡=${noCardE}`,
+);
 
 // 附：休息态渲染
 await page.goto(`${BASE}/?fixture=rest`);

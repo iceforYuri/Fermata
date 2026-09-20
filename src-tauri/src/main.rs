@@ -62,7 +62,7 @@ async fn poc_spawn_popup(app: AppHandle) -> Result<serde_json::Value, String> {
         "poc-popup",
         WebviewUrl::App("/#/overlay/poc-popup".into()),
     )
-    .title("gika 休止符")
+    .title("Fermata 休止符")
     .inner_size(420.0, 280.0)
     .decorations(false)
     .always_on_top(true)
@@ -118,6 +118,44 @@ async fn poc_spawn_popup(app: AppHandle) -> Result<serde_json::Value, String> {
     }))
 }
 
+/// 更名迁移：旧数据目录 %APPDATA%\com.gika.dev\gika.db 存在且新目录 fermata.db 不存在时，
+/// 复制（不移动）旧库到新目录（含 -wal/-shm 边车文件），全程写日志。
+fn migrate_legacy_db(new_dir: &std::path::Path) {
+    let new_db = new_dir.join("fermata.db");
+    if new_db.exists() {
+        return;
+    }
+    let Some(appdata) = std::env::var_os("APPDATA") else { return };
+    let old_dir = std::path::PathBuf::from(appdata).join("com.gika.dev");
+    let old_db = old_dir.join("gika.db");
+    if !old_db.exists() {
+        return;
+    }
+    if let Err(e) = fs::create_dir_all(new_dir) {
+        log_line(&format!("[rename] 创建新数据目录失败: {e}"));
+        return;
+    }
+    let mut copied = Vec::new();
+    for (src, dst) in [
+        (old_db.clone(), new_db.clone()),
+        (old_dir.join("gika.db-wal"), new_dir.join("fermata.db-wal")),
+        (old_dir.join("gika.db-shm"), new_dir.join("fermata.db-shm")),
+    ] {
+        if !src.exists() {
+            continue;
+        }
+        match fs::copy(&src, &dst) {
+            Ok(_) => copied.push(format!("{}", src.display())),
+            Err(e) => log_line(&format!("[rename] 复制 {:?} 失败: {e}", src)),
+        }
+    }
+    log_line(&format!(
+        "[rename] 旧库已复制到新目录（原样保留旧目录）: {:?} → {}",
+        copied,
+        new_dir.display()
+    ));
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(
@@ -125,99 +163,105 @@ fn main() {
                 .with_handler(|app, _shortcut, event| {
                     if event.state == ShortcutState::Pressed {
                         log_line("[m2] hotkey fired");
-                        gika_lib::sys::toggle_switcher(app);
+                        fermata_lib::sys::toggle_switcher(app);
                     }
                 })
                 .build(),
         )
-        .manage(gika_lib::sys::SysState {
+        .manage(fermata_lib::sys::SysState {
             time_scale: std::sync::Mutex::new(1.0),
             idling: std::sync::Mutex::new(false),
         })
         .invoke_handler(tauri::generate_handler![
             poc_spawn_popup,
-            gika_lib::commands::process_create,
-            gika_lib::commands::process_switch,
-            gika_lib::commands::process_complete,
-            gika_lib::commands::process_reopen,
-            gika_lib::commands::process_pause,
-            gika_lib::commands::process_resume,
-            gika_lib::commands::breakpoint_set,
-            gika_lib::commands::entry_delete,
-            gika_lib::commands::color_set,
-            gika_lib::commands::waiting_ai_set,
-            gika_lib::commands::step_add,
-            gika_lib::commands::step_check,
-            gika_lib::commands::steps_reorder,
-            gika_lib::commands::queue_reorder,
-            gika_lib::commands::plan_create,
-            gika_lib::commands::plan_update,
-            gika_lib::commands::plan_done,
-            gika_lib::commands::plan_delete,
-            gika_lib::commands::idle_start,
-            gika_lib::commands::idle_end,
-            gika_lib::commands::rest_trigger,
-            gika_lib::commands::rest_choice,
-            gika_lib::commands::rest_start,
-            gika_lib::commands::rest_end,
-            gika_lib::commands::slice_complete,
-            gika_lib::commands::slice_aborted,
-            gika_lib::commands::q_board,
-            gika_lib::commands::q_process_day_total,
-            gika_lib::commands::q_suspended_ms,
-            gika_lib::commands::q_slice_stats,
-            gika_lib::commands::q_continuous_work_ms,
-            gika_lib::commands::q_events,
-            gika_lib::commands::q_settings,
-            gika_lib::commands::q_palette,
-            gika_lib::commands::q_plans,
-            gika_lib::commands::q_segments,
-            gika_lib::commands::segment_note,
-            gika_lib::commands::process_rename,
-            gika_lib::commands::notes_set,
-            gika_lib::commands::setting_set,
-            gika_lib::commands::idle_confirm,
-            gika_lib::commands::q_rest_state,
-            gika_lib::commands::q_day_stats,
-            gika_lib::commands::q_month_calendar,
-            gika_lib::commands::q_year_overview,
-            gika_lib::commands::q_day_view,
-            gika_lib::commands::q_day_grid,
-            gika_lib::commands::q_first_day,
-            gika_lib::sys::summon,
-            gika_lib::sys::conceal,
-            gika_lib::sys::pin,
-            gika_lib::sys::focus_main,
-            gika_lib::sys::show_switcher,
-            gika_lib::sys::hide_switcher,
-            gika_lib::sys::show_restpop,
-            gika_lib::sys::hide_restpop,
-            gika_lib::sys::hotkey_apply,
-            gika_lib::sys::debug_trigger_hotkey,
-            gika_lib::sys::debug_set_time_scale,
-            gika_lib::sys::debug_get_time_scale,
-            gika_lib::sys::idle_current,
-            gika_lib::sys::debug_always_on_top,
-            gika_lib::commands::export_events,
-            gika_lib::sys::debug_window_visible,
+            fermata_lib::commands::process_create,
+            fermata_lib::commands::process_switch,
+            fermata_lib::commands::process_complete,
+            fermata_lib::commands::process_reopen,
+            fermata_lib::commands::process_pause,
+            fermata_lib::commands::process_resume,
+            fermata_lib::commands::breakpoint_set,
+            fermata_lib::commands::entry_delete,
+            fermata_lib::commands::color_set,
+            fermata_lib::commands::waiting_ai_set,
+            fermata_lib::commands::step_add,
+            fermata_lib::commands::step_check,
+            fermata_lib::commands::steps_reorder,
+            fermata_lib::commands::queue_reorder,
+            fermata_lib::commands::plan_create,
+            fermata_lib::commands::plan_update,
+            fermata_lib::commands::plan_done,
+            fermata_lib::commands::plan_delete,
+            fermata_lib::commands::idle_start,
+            fermata_lib::commands::idle_end,
+            fermata_lib::commands::rest_trigger,
+            fermata_lib::commands::rest_choice,
+            fermata_lib::commands::rest_start,
+            fermata_lib::commands::rest_end,
+            fermata_lib::commands::slice_complete,
+            fermata_lib::commands::slice_aborted,
+            fermata_lib::commands::slice_override,
+            fermata_lib::commands::q_board,
+            fermata_lib::commands::q_process_day_total,
+            fermata_lib::commands::q_suspended_ms,
+            fermata_lib::commands::q_slice_stats,
+            fermata_lib::commands::q_continuous_work_ms,
+            fermata_lib::commands::q_events,
+            fermata_lib::commands::q_settings,
+            fermata_lib::commands::q_palette,
+            fermata_lib::commands::q_plans,
+            fermata_lib::commands::q_segments,
+            fermata_lib::commands::segment_note,
+            fermata_lib::commands::process_rename,
+            fermata_lib::commands::notes_set,
+            fermata_lib::commands::setting_set,
+            fermata_lib::commands::idle_confirm,
+            fermata_lib::commands::q_rest_state,
+            fermata_lib::commands::q_day_stats,
+            fermata_lib::commands::q_month_calendar,
+            fermata_lib::commands::q_year_overview,
+            fermata_lib::commands::q_day_view,
+            fermata_lib::commands::q_day_grid,
+            fermata_lib::commands::q_first_day,
+            fermata_lib::sys::summon,
+            fermata_lib::sys::conceal,
+            fermata_lib::sys::pin,
+            fermata_lib::sys::focus_main,
+            fermata_lib::sys::show_switcher,
+            fermata_lib::sys::hide_switcher,
+            fermata_lib::sys::show_restpop,
+            fermata_lib::sys::hide_restpop,
+            fermata_lib::sys::hotkey_apply,
+            fermata_lib::sys::debug_trigger_hotkey,
+            fermata_lib::sys::debug_set_time_scale,
+            fermata_lib::sys::debug_get_time_scale,
+            fermata_lib::sys::idle_current,
+            fermata_lib::sys::debug_always_on_top,
+            fermata_lib::commands::export_events,
+            fermata_lib::sys::debug_window_visible,
             debug_focus_check,
         ])
         .setup(|app| {
             let _ = fs::create_dir_all(LOG_DIR);
-            log_line("[m2] gika dev 启动");
+            log_line("[m2] Fermata dev 启动");
 
-            let db_path = std::env::var("GIKA_DB_PATH")
+            // 更名迁移（gika → Fermata）：环境变量优先（FERMATA_DB_PATH，兼容旧 GIKA_DB_PATH）；
+            // 默认路径下若旧 com.gika.dev 库在而新库不在 → 复制（不移动）旧库到新目录
+            let db_path = std::env::var("FERMATA_DB_PATH")
+                .or_else(|_| std::env::var("GIKA_DB_PATH"))
                 .map(std::path::PathBuf::from)
                 .unwrap_or_else(|_| {
-                    app.path()
+                    let dir = app
+                        .path()
                         .app_data_dir()
-                        .unwrap_or_else(|_| std::path::PathBuf::from("."))
-                        .join("gika.db")
+                        .unwrap_or_else(|_| std::path::PathBuf::from("."));
+                    migrate_legacy_db(&dir);
+                    dir.join("fermata.db")
                 });
-            match gika_lib::db::open(&db_path) {
+            match fermata_lib::db::open(&db_path) {
                 Ok(conn) => {
                     log_line(&format!("[m2] db ready: {}", db_path.display()));
-                    app.manage(gika_lib::db::DbState(std::sync::Mutex::new(conn)));
+                    app.manage(fermata_lib::db::DbState(std::sync::Mutex::new(conn)));
                 }
                 Err(e) => {
                     log_line(&format!("[m2] db open FAILED: {e}"));
@@ -225,21 +269,21 @@ fn main() {
                 }
             }
 
-            gika_lib::sys::precreate_overlays(&app.handle())?;
+            fermata_lib::sys::precreate_overlays(&app.handle())?;
 
-            gika_lib::sys::spawn_idle_watchdog(app.handle().clone());
+            fermata_lib::sys::spawn_idle_watchdog(app.handle().clone());
 
             // 热键与置顶从 settings 读
             let (combo, top) = {
-                let st = app.state::<gika_lib::db::DbState>();
+                let st = app.state::<fermata_lib::db::DbState>();
                 let c = st.0.lock().map_err(|e| e.to_string())?;
                 (
-                    gika_lib::db::ops::setting_get(&c, "hotkey").unwrap_or_else(|| "Alt+Q".into()),
-                    gika_lib::db::ops::setting_get(&c, "always_on_top").unwrap_or_else(|| "0".into()),
+                    fermata_lib::db::ops::setting_get(&c, "hotkey").unwrap_or_else(|| "Alt+Q".into()),
+                    fermata_lib::db::ops::setting_get(&c, "always_on_top").unwrap_or_else(|| "0".into()),
                 )
             };
             log_line(&format!("[m2] hotkey from settings: {combo}"));
-            match gika_lib::sys::apply_hotkey(&app.handle(), &combo) {
+            match fermata_lib::sys::apply_hotkey(&app.handle(), &combo) {
                 Ok(()) => log_line("[m2] hotkey registered"),
                 Err(e) => log_line(&format!("[m2] hotkey register FAILED: {e}")),
             }
@@ -251,7 +295,7 @@ fn main() {
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("error while running gika");
+        .expect("error while running fermata");
 }
 
 /// 验收用：任意预建窗口的不抢焦点断言（PoC 原语A 的通用化）

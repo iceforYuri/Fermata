@@ -147,7 +147,7 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 ## 2026-09-19 · v1.2 设计修订与缺陷修复
 
 ### D36 · v1.2 修订总指针
-统一栈（ADR-0005：steps 表加 kind、breakpoint 字段退役为 note 条目、entry_delete、stack_top 派生）、无边界 morph 导航（reference/navigation.md 弹簧模型 response 0.42s / zeta 0.86）、拖拽激活（FLIP 挤位+落点虚影覆盖活跃位）、日网格时间段刻度与 45° 半圆（70%/15% 阈值入 tokens）、设置页左竖导航（窄窗阈值 900px）、rail 常驻"← 稿库"提示、休息页 Esc/Enter/继续小字/SVG▶。全部用户拍板，合同文档已同步。
+统一栈（ADR-0005：steps 表加 kind、breakpoint 字段退役为 note 条目、entry_delete、stack_top 派生）、无边界 morph 导航（弹簧模型 response 0.42s / zeta 0.86；参考组件文档后于 v1.0 因版权移除）、拖拽激活（FLIP 挤位+落点虚影覆盖活跃位）、日网格时间段刻度与 45° 半圆（70%/15% 阈值入 tokens）、设置页左竖导航（窄窗阈值 900px）、rail 常驻"← 稿库"提示、休息页 Esc/Enter/继续小字/SVG▶。全部用户拍板，合同文档已同步。
 
 ### D37 · v1.2 直修五缺陷的根因记录
 1. idle_end 无守卫曾重开手动 pause/休息中的计时——改 last_timer_closer 口径校验（仅 idle_start 停的才由 idle_end 重开）。
@@ -173,3 +173,36 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 
 ### D42 · 轨道 transform 内禁用 fixed 定位
 主三页搬进横向滑动轨道（D40）后，`.track` 的 `transform`/`will-change` 使其成为 fixed 后代的包含块：统计页停在 translateX(-33.3%) 时，页内 `position:fixed` 的日网格悬停浮窗被搬到视口外——"浮窗消失"。规则：**页面内所有 fixed 弹层一律 createPortal 到 document.body**（dg-tip 已改）。验收：scripts/check-dgtip-real.mjs 在真实 exe（CDP）里几何断言浮窗在视口内且贴近圆圈。mock 浏览器环境在钻取+懒加载装载期间几何测量不稳，验收以真实 exe 为准。
+
+### D42 · dev 分支定点修复口径（F1–F5）
+- F2 平台坑坐实：Tauri 默认 dragDropEnabled:true 会接管 WebView2 的 OLE 拖放句柄，页内 HTML5 DnD 全死；主窗加 false 后恢复（本项目无 OS 文件拖入监听，安全）。真实 exe CDP 实测：稿库条目拖入版面落库成功（事件流 process_create/plan_delete）。
+- F3 口径：断点卡的断点留给被切走的旧进程（04 明文）；无活跃进程时没有旧进程可留 → 直切不弹卡。
+- F4 MRU：被切走落挂起队首（其余后移），新建仍落队尾，档案重开仍落队尾（01 明文"回挂起队列尾部"）。
+- 测试残留的进程行已按进程本体从库中移除（事件日志不动，append-only 不破）。
+
+### D43 · v1.2.3 空态放置区 + 日网格18×6 + 时间片小卡 + 休止符右下角
+- 日网格改 18 列 × 6 行 = 108 格（每格 10 分钟、每列 1 小时），时窗 06:00–24:00；**0–6 点不画**（跨午夜段截断到 0 点止），为保守默认值，后续若用户要 24h 全窗再开设置项。
+- 空态放置区承接稿库拖入（text/gika-plan）：落挂起不激活，与"拖到版面=激活"区分。
+- 时间环点击调时间片小卡（25/45/60/90）：slice_override 只调**本次**时间片语义（写 slice_override 事件，环重置满环），不改进程默认片长。
+- 休止符弹窗挪主屏工作区右下角（距右/下 16px 逻辑）：修法=全链路物理像素——Tauri primary_monitor().work_area()（物理）+ 卡尺寸 420×300 逻辑 ×scale_factor + 无边框窗隐形 resize 边按对称折算。原 SystemParametersInfoW 实现把逻辑卡尺寸当物理用（125% 缩放下卡片右/下缘超出工作区 ~98px）。已删 windows-sys 的 SPI_GETWORKAREA 依赖。
+- 验收方法偏离：本机 CopyFromScreen 截屏抓不到 WebView2 窗口（DirectComposition 翻转链），浮层视觉证据 = CDP Page.captureScreenshot（内容）+ Win32 GetWindowRect 枚举（落点，存 restpop-bottom-right-position.txt）；不抢焦点回归 debug_focus_check pass。
+
+### D44 · v1.2.4 拖放统一插入预览（先塌陷后开缝）+ 中列整列感应
+- **挤压修复**：旧预览数学只把 insertAt 之后的行往下推、被拖行原槽不塌陷 → 视觉上"后面的行全部后移一格"。新模型=纯 transform 编舞：每行目标位 = 塌陷位 +（塌陷位 ≥ 插入位 ? 1 : 0），位移 =（目标位 − 原槽位）×74；被拖行跟手，原槽由后续行弹簧补位。等价"先塌陷后开缝"的逐帧净几何，无两趟 FLIP 记账。共享几何收敛在 `src/components/dnd.ts`（ROW_PITCH / queueInsertAt / isOverActive / SQUEEZE），进程行 pointer 拖拽与稿库 HTML5 拖入共用。
+- **中列整列感应**：稿库拖入的 dragover/drop 从挂起队列窄区提到 `.center-inner` 整列；拖出中列（relatedTarget 出列）或 Esc（原生）收缝。SuspendedRow 的窄感应区与 BoardPage 的 4px 折线条删除；EmptyState 不再自持 drop。
+- **语义统一**：稿库拖到活跃位且当前有活跃 → 先落队再弹断点卡（归属原活跃，Enter 确认/Esc 取消整个切换、新进程留在队列）；空板拖入改"直接激活"（推翻 D43 的"落挂起不激活"，用户拍板：空板没有旧进程可留断点，时间从松手开始计）；队列位 = 挂到该位。
+- **测试环境偏离**：headless Chromium 的 Playwright 合成 HTML5 拖动里，dragover 命中测试不可靠（命中 .track-page 而非深层行元素，深元素监听收不到），虚影断言改用 bubbles 合成 DragEvent 直测中列 handler 几何；原生 drop 链路（mouse.up）在 mock 与真实 exe 均正常。真实 exe 的 OLE 拖放由 CDP 实证覆盖。
+
+### D45 · v1.4 日视角五项定点修复（用户商讨定稿）
+- **上滑加载跳底根因**：prepend 的 scrollTop 手动补偿与 Chromium 原生 scroll anchoring 双补偿叠加，快速滚轮下被钳到滚动区最底（"回到当天"）。修法=`.daygrid-scroll` 加 `overflow-anchor: none`（原生锚定让位给手动补偿；慢/快滚轮 Playwright 双向复现对照）。
+- **share 口径修订（v1.2 文档语义 vs 实现歧义坐实）**：原实现算的是"格内各进程总占用中主导者占比"（支配率，单进程恒 1.0 → 永远全圆），规格本意是"格的 10 分钟被占比例"（占用率）。v1.4 统一为占用率：<20% 不画、20–80% 斜半圆、≥80% 全圆；冲突格两进程均 ≥20% 时同一枚圆对角分半（主导右下、次者左上）取前二。阈值 token 改 0.2/0.8；`--grid-min-share` 在数据层（mock/Rust）镜像写死 0.2，渲染阈值仍走 token。
+- **悬停浮窗口径**：显示进程名 + 该时间格内占用起止 + 时长，区间钳制在格窗内、开口段钳到当下；删断点行（历史日显示"现在"的栈顶属时间穿越）。`GridCell` 改每格 `marks[]`（≤2），mock 与 Rust 同口径重写（原 mock 取"当天第一段"、Rust 取"覆盖格的段区间"，两实现不一致的暗债一并清偿）。
+- **进场锚点**：v1.1 的"锚日贴顶"改为"锚日大日期标底缘距窗口底 40px"（token `--day-enter-gap`）；底部垫高 240px → 同 token（旧垫高是贴顶阅读模型的遗产），末尾日单元去底边距——滚到尽头即今天的进场位置，一条规则管两头。进场公式由 `offsetTop` 差改 `getBoundingClientRect` 差（原公式带 81px 系统偏差）。
+- **滚动条**：日视角隐藏（`scrollbar-width:none` + `::-webkit-scrollbar{display:none}` 双保险，兼容老 WebView2）；导航路径=滚轮 + 月视角点日期直达 + 吸顶签回月。
+
+### D45 · 产品更名 gika → Fermata（v1.0 更名批次）
+- 全量改名：crate/bin/lib（gika/gika_lib → fermata/fermata_lib）、productName=Fermata、identifier=com.fermata.app、窗口标题、事件名 gika-idle → fermata-idle、拖拽 MIME text/gika-plan → text/fermata-plan、环境变量 GIKA_* → FERMATA_*（DB_PATH/IDLE_SECS/AS_OF；TIME_SCALE 同规则）、GikaEvent 类型 → FermataEvent、种子/mock 演示进程名、scripts 与活文档（AGENTS/CONTEXT/README/01–06）。
+- **保留旧名的位置（刻意）**：docs/screenshots/ 下各阶段验收册与 poc-runtime.log（历史证据，记录的是当时真名）；deviation 历史条目；`F:/Code/20260917_gika` 目录本身；main.rs 迁移代码对旧路径的引用。（注：docs/gika.png、gika-day.png 两张历史参考图与 docs/reference/navigation.md 后在发布收口时按版权要求删除。）
+- **数据迁移（启动时、DB 打开前）**：仅走默认路径时生效（FERMATA_DB_PATH 优先、兼容 GIKA_DB_PATH 兜底，env 覆盖不触发迁移）。旧 `%APPDATA%\com.gika.dev\gika.db` 存在且新 `com.fermata.app\fermata.db` 不存在 → 复制（不移动）gika.db 及 -wal/-shm 边车到 fermata.db，写 `[rename]` 日志；旧目录原样保留（回滚零成本）。
+- **kernel.rs 日网格测试修复（顺带）**：主会话 v1.4 改 GridCell 为 marks[]（占用率取前二、对角分半）后测试未跟上；断言迁到 marks API（首枚=多数派、次席、空格 marks.is_empty），跨午夜用例锚到昨天——v1.4 的"占用止点钳到当下"会把锚在今天晚间的未来段钳没。
+- docs/screenshots/v12/restpop-bottom-right-position.txt 是更名前抓的窗口枚举证据（标题行含 gika），作为当时证据保留。

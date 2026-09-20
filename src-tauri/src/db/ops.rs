@@ -14,6 +14,21 @@ fn set_state(conn: &Connection, pid: i64, state: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// MRU：被切走的进程落挂起队列首位（其余后移）
+fn push_queue_head(conn: &Connection, pid: i64, board_date: &str) -> Result<(), String> {
+    conn.execute(
+        "UPDATE processes SET queue_position = queue_position + 1 WHERE board_date = ?1 AND queue_position IS NOT NULL",
+        rusqlite::params![board_date],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute(
+        "UPDATE processes SET queue_position = 1 WHERE id = ?1",
+        rusqlite::params![pid],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 fn push_queue_tail(conn: &Connection, pid: i64, board_date: &str) -> Result<(), String> {
     let max_pos: Option<i64> = conn
         .query_row(
@@ -101,7 +116,7 @@ pub fn process_switch(
         }
         set_state(conn, cur, "suspended")?;
         let day = get_process(conn, cur)?.board_date;
-        push_queue_tail(conn, cur, &day)?;
+        push_queue_head(conn, cur, &day)?; // MRU：切出落队首
         append_event(
             conn,
             ts,
@@ -678,5 +693,12 @@ pub fn idle_confirm(conn: &Connection, ts: i64, pid: i64, yes: bool) -> Result<(
         }
     }
     append_event(conn, ts, "idle_confirm", Some(pid), serde_json::json!({ "yes": yes }))?;
+    Ok(())
+}
+
+/// 本次时间片长度覆盖（只调本次；settings.slice_minutes 不动）
+pub fn slice_override(conn: &Connection, ts: i64, pid: i64, minutes: i64) -> Result<(), String> {
+    get_process(conn, pid)?;
+    append_event(conn, ts, "slice_override", Some(pid), serde_json::json!({ "minutes": minutes }))?;
     Ok(())
 }

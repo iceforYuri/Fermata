@@ -1,0 +1,10 @@
+# restpop 右下角落点证据（Win32 GetWindowRect，逻辑 px @125%）
+# 主屏工作区 1536x816；卡可视右缘=1527-9(隐形边)=1518 -> 距右 18px；卡可视底缘=804-8=796 -> 距底 20px（=16px 逻辑边距）
+# 注：本机 CopyFromScreen 抓不到 WebView2 窗（DirectComposition），内容截图走 CDP Page.captureScreenshot
+14617864 | gika ��ֹ�� | Tauri Window | rect=1093,496-1527,804 | vis=True
+19860200 | gika �л� | Tauri Window | rect=77,77-611,405 | vis=False
+330454 | gika | Tauri Window | rect=26,26-1240,834 | vis=True
+920732 |  | global_hotkey_app | rect=179,179-1331,771 | vis=False
+395966 |  | Tao Thread Event Target | rect=0,0-14,14 | vis=True
+461498 | Default IME | IME | rect=0,0-0,0 | vis=False
+330446 | MSCTFIME UI | MSCTFIME UI | rect=0,0-0,0 | vis=False

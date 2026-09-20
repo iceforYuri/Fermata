@@ -1,6 +1,6 @@
 import { setUi } from "../store/ui";
 
-/** 空态：排版好的引导语 + 两个入口 */
+/** 空态：排版好的引导语 + 两个入口。拖放感应在中列级（BoardPage），空板松手=直接激活。 */
 export function EmptyState() {
   return (
     <div className="empty-state" data-testid="empty-state">

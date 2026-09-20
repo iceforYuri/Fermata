@@ -1,4 +1,4 @@
-// M2-f 空闲回归确认：GIKA_IDLE_SECS=5 实例 + 独立空库
+// M2-f 空闲回归确认：FERMATA_IDLE_SECS=5 实例 + 独立空库
 // 确定性流程：先注入活动(非空闲) → 建进程切换 → 静置 7s → idle 起 → 注入活动 → 回归确认卡 → 答"是"回补
 import { chromium } from "playwright";
 import { execSync } from "node:child_process";
@@ -11,7 +11,7 @@ process.on("unhandledRejection", () => {});
 const page = browser
   .contexts()
   .flatMap((c) => c.pages())
-  .find((p) => p.url().includes("127.0.0.1:14200") && !p.url().includes("window="));
+  .find((p) => (p.url().includes("127.0.0.1:14200") || p.url() === "http://tauri.localhost/") && !p.url().includes("window="));
 if (!page) process.exit(1);
 page.on("console", (m) => m.text().includes("idle-dbg") && console.log(m.text()));
 const inv = (cmd, args = {}) =>

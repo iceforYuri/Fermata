@@ -1,0 +1,11 @@
+const res = await fetch('http://127.0.0.1:9223/json');
+const list = await res.json();
+const main = list.find(p => p.url === 'http://tauri.localhost/');
+const ws = new WebSocket(main.webSocketDebuggerUrl);
+let id = 0; const pending = new Map();
+ws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); } };
+const send = (method, params) => new Promise((resolve) => { const mid = ++id; pending.set(mid, resolve); ws.send(JSON.stringify({ id: mid, method, params })); });
+await new Promise(r => ws.onopen = r);
+const r = await send('Runtime.evaluate', { expression: `window.__TAURI_INTERNALS__.invoke('hide_restpop').then(()=>'ok').catch(e=>'err:'+e)`, awaitPromise: true, returnByValue: true });
+console.log('hide_restpop:', r.result && r.result.result ? r.result.result.value : r.result);
+ws.close(); process.exit(0);

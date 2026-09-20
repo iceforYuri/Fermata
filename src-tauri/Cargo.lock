@@ -838,6 +838,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "fermata"
+version = "1.0.0"
+dependencies = [
+ "chrono",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-global-shortcut",
+ "user-idle",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
 name = "field-offset"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1123,21 +1138,6 @@ dependencies = [
  "cfg-if",
  "libc",
  "r-efi 6.0.0",
-]
-
-[[package]]
-name = "gika"
-version = "1.0.0"
-dependencies = [
- "chrono",
- "rusqlite",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-global-shortcut",
- "user-idle",
- "windows-sys 0.59.0",
 ]
 
 [[package]]

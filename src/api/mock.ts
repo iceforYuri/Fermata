@@ -5,8 +5,9 @@
  */
 import type {
   BoardProcess,
+  CellMark,
   DataApi,
-  GikaEvent,
+  FermataEvent,
   PaletteEntry,
   Plan,
   Process,
@@ -29,7 +30,7 @@ interface MockState {
   steps: Step[];
   plans: Plan[];
   segs: Seg[];
-  events: GikaEvent[];
+  events: FermataEvent[];
   slices: Record<number, { complete: number; aborted: number }>;
   suspendedSince: Record<number, number | null>; // 当前挂起开口起点（含等AI前区间已在 agingBase 折现）
   agingBase: Record<number, number>; // 已闭合挂起区间累计 ms
@@ -144,7 +145,7 @@ function buildRich(): MockState {
   );
 
   // 运行中
-  const run = mk("改 gika 数据内核", "running", {
+  const run = mk("改 Fermata 数据内核", "running", {
     color_tag: 3,
     created_at: now - 6.6 * H,
     queue_position: null,
@@ -340,6 +341,14 @@ function queueTail(pid: number) {
   proc(pid).queue_position = max + 1;
 }
 
+/** MRU：切出落队首（其余后移） */
+function queueHead(pid: number) {
+  for (const p of state.processes) {
+    if (p.queue_position !== null) p.queue_position += 1;
+  }
+  proc(pid).queue_position = 1;
+}
+
 function suspend(pid: number, breakpoint?: string) {
   const p = proc(pid);
   closeSeg(pid);
@@ -349,7 +358,7 @@ function suspend(pid: number, breakpoint?: string) {
   }
   p.state = "suspended";
   p.prev_state = null;
-  queueTail(pid);
+  queueHead(pid);
   ev("switch_out", pid, { breakpoint, to: null });
   state.suspendedSince[pid] = Date.now();
 }
@@ -641,6 +650,9 @@ export const mockData: DataApi = {
     (state.slices[pid] ??= { complete: 0, aborted: 0 }).complete += 1;
     ev("slice_complete", pid);
   },
+  async sliceOverride(pid, minutes) {
+    ev("slice_override", pid, { minutes });
+  },
   async sliceAborted(pid, elapsedMs) {
     (state.slices[pid] ??= { complete: 0, aborted: 0 }).aborted += 1;
     ev("slice_aborted", pid, { elapsed_ms: elapsedMs });
@@ -826,26 +838,31 @@ export const mockData: DataApi = {
   },
 
   async qDayGrid(day) {
-    const [ds] = dayRangeMs(day);
-    const CELL = 900_000;
-    const cells: {
-      owner_process_id: number | null; color_tag: number | null; title: string | null;
-      seg_start: number | null; seg_end: number | null; breakpoint: string | null;
-      share: number; is_start: boolean; is_end: boolean;
-    }[] = Array.from({ length: 96 }, () => ({
-      owner_process_id: null, color_tag: null, title: null,
-      seg_start: null, seg_end: null, breakpoint: null,
-      share: 0, is_start: false, is_end: false,
+    // v1.4 口径（与 Rust q_day_grid 一致）：share=占用率（分母=格的 10 分钟）；
+    // <20% 不返回；≥20% 取前二（3 个以上只留前两名）；occ_start/occ_end 钳制在格窗内。
+    const MIN_SHARE = 0.2; // 镜像 token --grid-min-share（数据层侧写死，渲染阈值仍走 token）
+    const [d0] = dayRangeMs(day);
+    const ds = d0 + 6 * 3_600_000; // 时窗起点 06:00
+    const CELL = 600_000;
+    const cells: { cell: number; marks: CellMark[] }[] = Array.from({ length: 108 }, (_, i) => ({
+      cell: i,
+      marks: [],
     }));
-    const cellMs: Map<number, Map<number, number>> = new Map();
+    const now = Date.now();
+    // cell -> pid -> 累计占用 ms
+    const cellMs = new Map<number, Map<number, number>>();
     for (const g of state.segs) {
       if (dayOfTs(g.start) !== day) continue;
-      const e = g.end ?? Date.now();
-      const c0 = Math.max(0, Math.floor((g.start - ds) / CELL));
-      const c1 = Math.min(95, Math.floor((Math.max(e, g.start + 1) - 1 - ds) / CELL));
+      const e = Math.min(g.end ?? now, now);
+      // 截断到时窗内
+      const gs = Math.max(g.start, ds);
+      const ge = Math.min(e, ds + 18 * 3_600_000);
+      if (ge <= gs) continue;
+      const c0 = Math.min(107, Math.floor((gs - ds) / CELL));
+      const c1 = Math.min(107, Math.floor((ge - 1 - ds) / CELL));
       for (let c = c0; c <= c1; c++) {
         const cs = ds + c * CELL;
-        const ov = Math.max(0, Math.min(e, cs + CELL) - Math.max(g.start, cs));
+        const ov = Math.max(0, Math.min(ge, cs + CELL) - Math.max(gs, cs));
         if (ov <= 0) continue;
         if (!cellMs.has(c)) cellMs.set(c, new Map());
         const m = cellMs.get(c)!;
@@ -853,23 +870,51 @@ export const mockData: DataApi = {
       }
     }
     for (const [c, m] of cellMs) {
-      const top = [...m.entries()].sort((a, b) => b[1] - a[1])[0];
-      if (!top) continue;
-      const p = proc(top[0]);
-      const g = state.segs.find((x) => x.pid === top[0] && dayOfTs(x.start) === day);
-      const total = [...m.values()].reduce((a, b) => a + b, 0);
-      const share = total > 0 ? top[1] / total : 0;
-      if (share < 0.15) continue; // <15% 不显示
       const cs = ds + c * CELL;
-      cells[c] = {
-        owner_process_id: p.id, color_tag: p.color_tag, title: p.title,
-        seg_start: g?.start ?? null, seg_end: g?.end ?? null, breakpoint: stackTop(p.id)?.title ?? null,
-        share,
-        is_start: (g?.start ?? 0) >= cs && (g?.start ?? 0) < cs + CELL,
-        is_end: (g?.end ?? 0) > cs && (g?.end ?? 0) <= cs + CELL,
-      };
+      const ranked = [...m.entries()].sort((a, b) => b[1] - a[1]);
+      for (const [pid, ms] of ranked.slice(0, 2)) {
+        const share = ms / CELL;
+        if (share < MIN_SHARE) break; // 后面的更小，一并不取
+        const p = proc(pid);
+        // 该进程覆盖此格的段（取重叠最多的一条定起止方向）
+        let best: Seg | null = null;
+        let bestOv = 0;
+        for (const g of state.segs) {
+          if (g.pid !== pid || dayOfTs(g.start) !== day) continue;
+          const gs = Math.max(g.start, ds, cs);
+          const ge = Math.min(g.end ?? now, now, ds + 18 * 3_600_000, cs + CELL);
+          const ov = Math.max(0, ge - gs);
+          if (ov > bestOv) {
+            bestOv = ov;
+            best = g;
+          }
+        }
+        // 占用区间：该进程所有段与本格窗交集的并
+        let occStart = Infinity;
+        let occEnd = -Infinity;
+        for (const g of state.segs) {
+          if (g.pid !== pid || dayOfTs(g.start) !== day) continue;
+          const gs = Math.max(g.start, cs);
+          const ge = Math.min(g.end ?? now, now, cs + CELL);
+          if (ge > gs) {
+            occStart = Math.min(occStart, gs);
+            occEnd = Math.max(occEnd, ge);
+          }
+        }
+        if (!best || occEnd <= occStart) continue;
+        cells[c].marks.push({
+          process_id: pid,
+          color_tag: p.color_tag,
+          title: p.title,
+          occ_start: occStart,
+          occ_end: occEnd,
+          share,
+          is_start: best.start >= cs && best.start < cs + CELL,
+          is_end: (best.end ?? now) > cs && (best.end ?? now) <= cs + CELL,
+        });
+      }
     }
-    return cells.map((c, i) => ({ cell: i, ...c }));
+    return cells;
   },
 
   async qFirstDay() {

@@ -43,7 +43,7 @@ export const system = {
   idleCurrent: () => (isTauri ? invoke<boolean>("idle_current") : cmdMock(false)),
   /** 空闲事件流 */
   onIdleChange: (handler: (idling: boolean) => void): Promise<UnlistenFn> =>
-    isTauri ? listen<boolean>("gika-idle", (e) => handler(e.payload)) : noopListen(),
+    isTauri ? listen<boolean>("fermata-idle", (e) => handler(e.payload)) : noopListen(),
   /** 热键：后端注册/触发切换浮层；此事件供观测（hotkey-fired） */
   onHotkey: (handler: (combo: string) => void): Promise<UnlistenFn> =>
     isTauri ? listen<string>("hotkey-fired", (e) => handler(e.payload)) : noopListen(),

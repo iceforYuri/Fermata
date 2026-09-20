@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { data, type GridCell } from "../../api/data";
+import { data, type CellMark, type GridCell } from "../../api/data";
 import { markHex, useBoard } from "../../store/board";
 import { fmtClock, fmtDur } from "../../util";
 import { dayStr } from "./MonthCalendar";
@@ -10,10 +10,26 @@ function addDays(day: string, n: number): string {
   return dayStr(new Date(y, m - 1, d + n));
 }
 
+/** 全圆阈值（token --grid-half-threshold，token 静态、进程内缓存一次） */
+let _halfTh: number | null = null;
+function halfThreshold(): number {
+  if (_halfTh == null) {
+    _halfTh =
+      parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--grid-half-threshold")) || 0.8;
+  }
+  return _halfTh;
+}
+
+/** 进场底部间距（token --day-enter-gap） */
+function enterGap(): number {
+  return parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--day-enter-gap")) || 40;
+}
+
 /**
  * 日视角（v1.1）：纵向连续滚动，每天=日期头+96 格网格；按天懒加载（视口外只留壳）；
- * scroll-snap 按天吸附；吸顶日期头点击回月视角；上界=最早有记录日，下界=今天；
- * 静止 ~200ms 后锚点联动。
+ * 上界=最早有记录日，下界=今天；静止 ~200ms 后锚点联动。
+ * v1.4：进场锚点=锚日大日期标底缘距滚动区底 --day-enter-gap（40px）；
+ * 标记口径=占用率（<20% 不画、20–80% 半圆、≥80% 全圆、冲突对角分半取前二）。
  */
 export function DayGridView({
   day,
@@ -30,7 +46,7 @@ export function DayGridView({
 }) {
   const today = dayStr(new Date());
   const [firstDay, setFirstDay] = useState<string | null>(null);
-  const [hover, setHover] = useState<{ cell: GridCell; x: number; y: number } | null>(null);
+  const [hover, setHover] = useState<{ mark: CellMark; x: number; y: number } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastHeight = useRef(0);
@@ -63,19 +79,24 @@ export function DayGridView({
   }, [allDays, anchorIdx, startIdx]);
   const days = startIdx === null ? [] : allDays.slice(startIdx);
 
-  // 进场滚到锚点日（仅一次）：进场动画开始之前同步完成定位，杜绝中途二次定位
+  // 进场定位（仅一次）：锚日大日期标底缘 → 滚动区底上方 --day-enter-gap。
+  // 相对量（rect 差）写入，规避 offsetParent 歧义；进场动画开始前同步完成，杜绝中途二次定位。
   useLayoutEffect(() => {
     if (!days.length || startIdx === null) return;
     const root = scrollRef.current;
-    const el = root?.querySelector(`[data-day="${day}"]`);
-    if (root && el) {
-      root.scrollTop = (el as HTMLElement).offsetTop - root.offsetTop;
+    const label = root?.querySelector(`[data-day="${day}"] [data-testid=day-big-label]`);
+    if (root && label) {
+      const dy =
+        label.getBoundingClientRect().bottom - (root.getBoundingClientRect().bottom - enterGap());
+      root.scrollTop += dy;
     }
     if (enter && !ready) requestAnimationFrame(() => setReady(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startIdx !== null]);
 
-  // prepend 后同步补偿 scrollTop（useLayoutEffect：绘制前完成，零跳动）
+  // prepend 后同步补偿 scrollTop（useLayoutEffect：绘制前完成，零跳动）。
+  // 滚动容器的原生 scroll anchoring 已在 CSS 关掉（overflow-anchor:none），
+  // 否则浏览器再补一次 → 双补偿把视口顶到最底（快速滚轮下复现过）。
   useLayoutEffect(() => {
     const root = scrollRef.current;
     if (!root || startIdx === null) return;
@@ -136,7 +157,7 @@ export function DayGridView({
         />
       ))}
       {hover &&
-        hover.cell.title &&
+        hover.mark.title &&
         // 门户到 body：轨道 transform/will-change 会把 fixed 变成相对祖先定位
         createPortal(
           <div
@@ -144,15 +165,11 @@ export function DayGridView({
             data-testid="dg-tip"
             style={{ left: Math.min(hover.x, window.innerWidth - 260), top: hover.y - 8 }}
           >
-            <div className="dg-tip-title">{hover.cell.title}</div>
+            <div className="dg-tip-title">{hover.mark.title}</div>
             <div className="num dg-tip-time">
-              {hover.cell.seg_start && fmtClock(hover.cell.seg_start)}–
-              {hover.cell.seg_end && fmtClock(hover.cell.seg_end)}
-              {" · "}
-              {hover.cell.seg_start && hover.cell.seg_end &&
-                fmtDur(hover.cell.seg_end - hover.cell.seg_start)}
+              {fmtClock(hover.mark.occ_start)}–{fmtClock(hover.mark.occ_end)}
+              {` · ${fmtDur(hover.mark.occ_end - hover.mark.occ_start)}`}
             </div>
-            {hover.cell.breakpoint && <div className="dg-tip-bp">断点：{hover.cell.breakpoint}</div>}
           </div>,
           document.body,
         )}
@@ -160,36 +177,43 @@ export function DayGridView({
   );
 }
 
-/** 格内标记：主导占用 ≥70% 实点；<70% 45° 斜半圆（段起=色右下、段止=色左上；中段默认右下） */
-function CellMark({
+/** 格内标记（v1.4 占用率口径）：单枚 ≥80% 实心全圆；其余 45° 斜半圆
+ *  （段起=色右下、段止=色左上、中段默认右下）；两进程同格 ≥20% 对角分半（主导右下、次者左上）。 */
+function CellMarks({
+  day,
   cell,
-  color,
+  marks,
+  colorOf,
   onHover,
 }: {
-  cell: GridCell;
-  color: string;
-  onHover: (h: { cell: GridCell; x: number; y: number } | null) => void;
+  day: string;
+  cell: number;
+  marks: CellMark[];
+  colorOf: (tag: number | null) => string;
+  onHover: (h: { mark: CellMark; x: number; y: number } | null) => void;
 }) {
-  const halfThreshold = parseFloat(
-    getComputedStyle(document.documentElement).getPropertyValue("--grid-half-threshold") || "0.7",
-  );
-  const enter = (e: React.MouseEvent) => {
+  const enter = (m: CellMark) => (e: React.MouseEvent) => {
     const r = (e.target as HTMLElement).getBoundingClientRect();
-    onHover({ cell, x: r.left, y: r.top });
+    onHover({ mark: m, x: r.left, y: r.top });
   };
-  if (cell.share >= halfThreshold) {
+  if (marks.length === 1 && marks[0].share >= halfThreshold()) {
+    const m = marks[0];
     return (
       <span
         className="dg-dot"
         data-testid="dg-dot"
-        style={{ background: color }}
-        onMouseEnter={enter}
+        style={{ background: colorOf(m.color_tag) }}
+        onMouseEnter={enter(m)}
         onMouseLeave={() => onHover(null)}
       />
     );
   }
-  // 45° 斜半圆 26px：对角线切半；段起/中段=色在右下，段止=色在左上
-  const tri = cell.is_end ? "0 26 L26 0 L0 0" : "0 26 L26 0 L26 26";
+  // 半圆方向：冲突分半主导=右下/次者=左上；单枚段止=左上、其余右下
+  const tri = (m: CellMark, i: number) => {
+    if (marks.length === 2) return i === 0 ? "0 26 L26 0 L26 26" : "0 26 L26 0 L0 0";
+    return m.is_end ? "0 26 L26 0 L0 0" : "0 26 L26 0 L26 26";
+  };
+  const uid = `${day}-${cell}`;
   return (
     <svg
       className="dg-half"
@@ -197,15 +221,28 @@ function CellMark({
       width="26"
       height="26"
       viewBox="0 0 26 26"
-      onMouseEnter={enter}
-      onMouseLeave={() => onHover(null)}
     >
-      <circle cx="13" cy="13" r="11.6" fill="none" stroke={color} strokeWidth="1" opacity="0.45" />
-      <circle cx="13" cy="13" r="11.6" fill={color} clipPath={`url(#halfclip-${cell.cell})`} />
+      {marks.length === 1 && (
+        <circle cx="13" cy="13" r="11.6" fill="none" stroke={colorOf(marks[0].color_tag)} strokeWidth="1" opacity="0.45" />
+      )}
+      {marks.map((m, i) => (
+        <circle
+          key={m.process_id}
+          cx="13"
+          cy="13"
+          r="11.6"
+          fill={colorOf(m.color_tag)}
+          clipPath={`url(#halfclip-${uid}-${i})`}
+          onMouseEnter={enter(m)}
+          onMouseLeave={() => onHover(null)}
+        />
+      ))}
       <defs>
-        <clipPath id={`halfclip-${cell.cell}`}>
-          <path d={`M ${tri} Z`} />
-        </clipPath>
+        {marks.map((m, i) => (
+          <clipPath key={m.process_id} id={`halfclip-${uid}-${i}`}>
+            <path d={`M ${tri(m, i)} Z`} />
+          </clipPath>
+        ))}
       </defs>
     </svg>
   );
@@ -222,7 +259,7 @@ function DayUnit({
   today: string;
   scrollRoot: React.RefObject<HTMLDivElement | null>;
   onBackToMonth: () => void;
-  onHover: (h: { cell: GridCell; x: number; y: number } | null) => void;
+  onHover: (h: { mark: CellMark; x: number; y: number } | null) => void;
 }) {
   const board = useBoard();
   const [cells, setCells] = useState<GridCell[] | null>(null);
@@ -246,7 +283,7 @@ function DayUnit({
   }, [day, scrollRoot]);
 
   const isFuture = day > today;
-  const hasData = cells?.some((c) => c.owner_process_id !== null) ?? false;
+  const hasData = cells?.some((c) => c.marks.length > 0) ?? false;
   const dObj = new Date(`${day}T00:00:00`);
   const wk = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][dObj.getDay()];
   const [miniVisible, setMiniVisible] = useState(false);
@@ -268,6 +305,8 @@ function DayUnit({
     obs.observe(el);
     return () => obs.disconnect();
   }, [scrollRoot]);
+
+  const colorOf = (tag: number | null) => markHex(board, tag) ?? "var(--ring-neutral)";
 
   return (
     <div className="day-unit" data-day={day} ref={ref} data-testid="day-unit">
@@ -292,12 +331,8 @@ function DayUnit({
             <div className="daygrid-grid" data-testid="daygrid">
               {cells.map((c) => (
                 <div key={c.cell} className="dg-cell" data-cell={c.cell}>
-                  {c.owner_process_id !== null ? (
-                    <CellMark
-                      cell={c}
-                      color={markHex(board, c.color_tag) ?? "var(--ring-neutral)"}
-                      onHover={onHover}
-                    />
+                  {c.marks.length > 0 ? (
+                    <CellMarks day={day} cell={c.cell} marks={c.marks} colorOf={colorOf} onHover={onHover} />
                   ) : (
                     <span className="dg-empty-dot" />
                   )}
@@ -305,7 +340,7 @@ function DayUnit({
               ))}
             </div>
             <div className="daygrid-ticks" data-testid="daygrid-ticks-bottom">
-              {[["6", 3], ["12", 6], ["18", 9], ["24", 12]].map(([t, line]) => (
+              {[["6", 0], ["12", 6], ["18", 12], ["24", 18]].map(([t, line]) => (
                 <span key={t} className="num dg-tick" style={{ left: (line as number) * 36 }}>{t}</span>
               ))}
             </div>

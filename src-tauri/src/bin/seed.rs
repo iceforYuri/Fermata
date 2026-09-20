@@ -1,9 +1,9 @@
 //! 种子：一周示例数据。复用 db::ops（事件流与 segments 自动自洽）。
-//! 用法：GIKA_DB_PATH=可选覆盖路径 pnpm seed
+//! 用法：FERMATA_DB_PATH=可选覆盖路径 pnpm seed
 //! 注意：当天时间线按固定钟点写入；深夜运行会出现"未来"时刻，属预期（为 M1 截图备料）。
 
 use chrono::{Datelike, Duration, Local, TimeZone};
-use gika_lib::db::{self, ops};
+use fermata_lib::db::{self, ops};
 use rusqlite::Connection;
 
 /// 第 day_off 天（0=今天，-1=昨天…）的 h:mm → epoch ms
@@ -111,7 +111,7 @@ fn seed_deep(conn: &Connection) {
 
 fn main() {
     let deep = std::env::args().any(|a| a == "--deep");
-    let path = std::env::var("GIKA_DB_PATH").unwrap_or_else(|_| "./gika-seed.db".to_string());
+    let path = std::env::var("FERMATA_DB_PATH").unwrap_or_else(|_| "./fermata-seed.db".to_string());
     if std::path::Path::new(&path).exists() {
         std::fs::remove_file(&path).expect("删除旧种子库失败（可能被 tauri dev 占用）");
     }
@@ -209,7 +209,7 @@ fn main() {
     let morning = ops::process_create(&conn, at(0, 8, 55), "晨间规划：排今天的版面", None, Some(&d0)).unwrap();
     let review = ops::process_create(&conn, at(0, 9, 30), "审 PR #142：断点续传", Some(2), Some(&d0)).unwrap();
     let mails = ops::process_create(&conn, at(0, 10, 5), "回三封邮件", Some(5), Some(&d0)).unwrap();
-    let kernel = ops::process_create(&conn, at(0, 10, 22), "改 gika 数据内核", Some(3), Some(&d0)).unwrap();
+    let kernel = ops::process_create(&conn, at(0, 10, 22), "改 Fermata 数据内核", Some(3), Some(&d0)).unwrap();
 
     ops::process_switch(&conn, at(0, 9, 0), morning, None).unwrap();
     ops::process_complete(&conn, at(0, 9, 28), morning).unwrap();

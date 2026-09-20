@@ -21,6 +21,7 @@ interface BoardState {
   rest: RestState;
   pendingRest: { pid: number; source: "ring_full" | "continuous"; readingMinute: number } | null;
   continuousWorkMs: number;
+  sliceOverride: { pid: number; minutes: number } | null; // 本次会话时间片覆盖（只调本次）
   timeScale: number;
   fetchedAt: number;
   tick: number; // 1Hz
@@ -34,6 +35,7 @@ let state: BoardState = {
   rest: { resting: false, since: null, source: null, reading_ms: null, choice: null },
   pendingRest: null,
   continuousWorkMs: 0,
+  sliceOverride: null,
   timeScale: 1,
   fetchedAt: Date.now(),
   tick: 0,
@@ -173,5 +175,13 @@ export function markHex(s: BoardState, slot: number | null): string | null {
 }
 
 export function sliceMs(s: BoardState): number {
+  const running = s.board?.running?.process.id;
+  if (s.sliceOverride && running && s.sliceOverride.pid === running) {
+    return s.sliceOverride.minutes * 60_000;
+  }
   return (parseInt(s.settings.slice_minutes ?? "45", 10) || 45) * 60_000;
+}
+
+export function setSliceOverride(pid: number, minutes: number | null) {
+  set({ sliceOverride: minutes === null ? null : { pid, minutes } });
 }

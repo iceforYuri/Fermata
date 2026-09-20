@@ -42,7 +42,7 @@ export interface Plan {
   position: number | null;
 }
 
-export interface GikaEvent {
+export interface FermataEvent {
   id: number;
   ts: number;
   kind: string;
@@ -118,10 +118,20 @@ export interface DayView {
   day: string; done: DayViewProcess[]; ongoing: DayViewProcess[];
   plans: Plan[]; not_done: Plan[]; suspended_costs: SuspendedCost[];
 }
+/** 时间格内一枚可见标记（v1.4：占用率口径，share 分母=格的 10 分钟） */
+export interface CellMark {
+  process_id: number;
+  color_tag: number | null;
+  title: string;
+  occ_start: number; // 该进程在本时间格内的占用起点（钳制在格窗内）
+  occ_end: number;   // 占用止点（开口段钳到当下）
+  share: number;     // 占用率 0..1；<20% 的占用者不返回
+  is_start: boolean; // 该进程的段起点落此格（半圆朝向右下）
+  is_end: boolean;   // 段止点落此格（半圆朝向左上）
+}
 export interface GridCell {
-  cell: number; owner_process_id: number | null; color_tag: number | null;
-  title: string | null; seg_start: number | null; seg_end: number | null; breakpoint: string | null;
-  share: number; is_start: boolean; is_end: boolean;
+  cell: number;
+  marks: CellMark[]; // 最多两枚：≥20% 的占用者取前二（对角分半）
 }
 
 /** 数据内核接口：Tauri 与 mock 双实现 */
@@ -155,12 +165,13 @@ export interface DataApi {
   restEnd(pid?: number): Promise<void>;
   sliceComplete(pid: number): Promise<void>;
   sliceAborted(pid: number, elapsedMs: number): Promise<void>;
+  sliceOverride(pid: number, minutes: number): Promise<void>;
   qBoard(day: string): Promise<BoardDay>;
   qProcessDayTotal(pid: number, day: string): Promise<number>;
   qSuspendedMs(pid: number, day: string): Promise<number>;
   qSliceStats(pid: number, day: string): Promise<SliceStats>;
   qContinuousWorkMs(day: string): Promise<number>;
-  qEvents(day?: string): Promise<GikaEvent[]>;
+  qEvents(day?: string): Promise<FermataEvent[]>;
   qSettings(): Promise<[string, string][]>;
   qPalette(): Promise<PaletteEntry[]>;
   qPlans(): Promise<Plan[]>;

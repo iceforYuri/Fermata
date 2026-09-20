@@ -1,6 +1,7 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { data, type BoardProcess } from "../api/data";
-import { act, markHex, sliceMs, useBoard } from "../store/board";
+import { act, markHex, setSliceOverride, sliceMs, useBoard } from "../store/board";
 import { completeWithUndo, togglePause } from "../store/actions";
 import { openDetail } from "../store/ui";
 import { fmtDur } from "../util";
@@ -12,6 +13,22 @@ import { TimeRing } from "./TimeRing";
  */
 export function ActiveRow({ bp }: { bp: BoardProcess }) {
   const board = useBoard();
+  const [sliceOpen, setSliceOpen] = useState(false);
+  const ringWrapRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!sliceOpen) return;
+    const close = (e: KeyboardEvent) => e.key === "Escape" && setSliceOpen(false);
+    const clickOut = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest("[data-testid=time-ring-btn]") &&
+          !(e.target as HTMLElement).closest("[data-testid=slice-card]")) setSliceOpen(false);
+    };
+    window.addEventListener("keydown", close);
+    window.addEventListener("mousedown", clickOut);
+    return () => {
+      window.removeEventListener("keydown", close);
+      window.removeEventListener("mousedown", clickOut);
+    };
+  }, [sliceOpen]);
   const color = markHex(board, bp.process.color_tag);
 
   // 环精确化（了结 D13）：ring_elapsed_ms 后端锚定 switch_in/slice_complete，
@@ -115,14 +132,94 @@ export function ActiveRow({ bp }: { bp: BoardProcess }) {
             </span>
           )}
         </div>
-        <TimeRing
-          remainingMs={overtime && !paused ? total : paused ? Math.max(0, ringFrozen.current) : Math.max(0, Math.min(total, remaining))}
-          totalMs={total}
-          color={color}
-          dimmed={paused}
-          testid="time-ring"
-        />
+        <div style={{ position: "relative" }} ref={ringWrapRef}>
+          <div
+            className="ring-click"
+            data-testid="time-ring-btn"
+            title="调本次时间片"
+            onClick={() => setSliceOpen((v) => !v)}
+          >
+            <TimeRing
+              remainingMs={overtime && !paused ? total : paused ? Math.max(0, ringFrozen.current) : Math.max(0, Math.min(total, remaining))}
+              totalMs={total}
+              color={color}
+              dimmed={paused}
+              testid="time-ring"
+            />
+          </div>
+          {sliceOpen &&
+            // portal 到 body：逃出 .row 的 overflow:hidden 裁切与老化行的层叠上下文（D42 规则）
+            createPortal(
+              <div
+                className="slice-card"
+                data-testid="slice-card"
+                style={(() => {
+                  const r = ringWrapRef.current?.getBoundingClientRect();
+                  return r ? { top: r.bottom + 8, right: window.innerWidth - r.right } : {};
+                })()}
+              >
+                {[25, 45, 90].map((m) => (
+                  <button
+                    key={m}
+                    className={`choice-chip${sliceMs(board) === m * 60_000 ? " active" : ""}`}
+                    data-testid={`slice-opt-${m}`}
+                    onClick={() => {
+                      // 只调本次：写事件 + 当前环重置满环继续
+                      void act(async () => {
+                        await data.sliceComplete(bp.process.id);
+                        await data.sliceOverride(bp.process.id, m);
+                      });
+                      setSliceOverride(bp.process.id, m);
+                      setSliceOpen(false);
+                    }}
+                  >
+                    {m}m
+                  </button>
+                ))}
+                <SliceCustom
+                  onCommit={(m) => {
+                    void act(async () => {
+                      await data.sliceComplete(bp.process.id);
+                      await data.sliceOverride(bp.process.id, m);
+                    });
+                    setSliceOverride(bp.process.id, m);
+                    setSliceOpen(false);
+                  }}
+                />
+              </div>,
+              document.body,
+            )}
+        </div>
       </div>
     </div>
+  );
+}
+
+/** 自定义时间片分钟数：chip 大小的行内输入（1px 下划线为唯一编辑指示；Enter 提交，Esc 还原） */
+function SliceCustom({ onCommit }: { onCommit: (minutes: number) => void }) {
+  const [val, setVal] = useState("");
+  const commit = () => {
+    const n = Math.round(Number(val));
+    if (Number.isFinite(n) && n >= 1) onCommit(Math.min(480, n));
+  };
+  return (
+    <span className="choice-chip slice-custom">
+      <input
+        data-testid="slice-custom"
+        value={val}
+        placeholder="自定义"
+        inputMode="numeric"
+        className="num"
+        onChange={(e) => setVal(e.target.value.replace(/[^0-9]/g, ""))}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") {
+            setVal("");
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+      />
+      <span className="slice-custom-unit">m</span>
+    </span>
   );
 }

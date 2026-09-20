@@ -869,41 +869,32 @@ pub fn q_day_view(conn: &Connection, day: &str) -> Result<DayView, String> {
 }
 
 #[derive(Serialize)]
-pub struct GridCell {
-    pub cell: i64, // 0..95，列主序（i = col*8 + row，每格 15 分钟）
-    pub owner_process_id: Option<i64>,
+pub struct CellMark {
+    pub process_id: i64,
     pub color_tag: Option<i64>,
-    pub title: Option<String>,
-    pub seg_start: Option<i64>,
-    pub seg_end: Option<i64>,
-    pub breakpoint: Option<String>,
-    pub share: f64,      // 主导占用者占格比例（0..1）
-    pub is_start: bool,  // 段起点落此格（半圆朝向右下）
-    pub is_end: bool,    // 段止点落此格（半朝向左上）
+    pub title: String,
+    pub occ_start: i64, // 本时间格内的占用起点（钳制在格窗内）
+    pub occ_end: i64,   // 占用止点（开口段钳到当下）
+    pub share: f64,     // 占用率 0..1（分母=格的 10 分钟）
+    pub is_start: bool, // 段起点落此格（半圆朝向右下）
+    pub is_end: bool,   // 段止点落此格（半圆朝向左上）
 }
 
-impl GridCell {
-    fn empty(cell: i64) -> Self {
-        GridCell {
-            cell,
-            owner_process_id: None,
-            color_tag: None,
-            title: None,
-            seg_start: None,
-            seg_end: None,
-            breakpoint: None,
-            share: 0.0,
-            is_start: false,
-            is_end: false,
-        }
-    }
+#[derive(Serialize)]
+pub struct GridCell {
+    pub cell: i64, // 0..107，列主序（i = col*6 + row，每格 10 分钟）
+    pub marks: Vec<CellMark>, // 最多两枚：≥20% 的占用者取前二（对角分半）
 }
 
-/// 96 格日网格：一段进程从起点格沿阅读方向连续填充；一格多进程归占时最多者
+/// 108 格日网格（v1.4：share=占用率，分母=格的 10 分钟；<20% 不返回、取前二）；
+/// occ_start/occ_end 钳制在格窗内（与 mock 同口径）；一段进程沿阅读方向连续填充；时窗外不画
 pub fn q_day_grid(conn: &Connection, day: &str) -> Result<Vec<GridCell>, String> {
-    let (start, _) = day_range(day)?;
+    const CELL_MS: i64 = 600_000;
+    const MIN_SHARE: f64 = 0.2; // 镜像 token --grid-min-share（渲染阈值仍走 token）
+    let (day_start, _) = day_range(day)?;
+    let win = day_start + 6 * 3_600_000; // 时窗起点 06:00
+    let win_end = win + 18 * 3_600_000;
     let now = now_ms();
-    let mut cells_ms: Vec<Vec<(i64, i64, i64, i64)>> = vec![vec![]; 96]; // cell -> (pid, ms, seg_start, seg_end)
     let mut stmt = conn
         .prepare(
             "SELECT s.process_id, s.started_at, COALESCE(s.ended_at, ?2)
@@ -918,59 +909,77 @@ pub fn q_day_grid(conn: &Connection, day: &str) -> Result<Vec<GridCell>, String>
         .filter_map(|r| r.ok())
         .collect::<Vec<_>>();
 
+    // cell -> pid -> 聚合（累计占用 / 占用区间并集 / 重叠最多段）
+    struct Acc {
+        ms: i64,
+        occ_s: i64,
+        occ_e: i64,
+        best_s: i64,
+        best_e: i64,
+        best_ov: i64,
+    }
+    let mut cells: Vec<std::collections::HashMap<i64, Acc>> = (0..108)
+        .map(|_| std::collections::HashMap::new())
+        .collect();
+
     for (pid, seg_s, seg_e) in &segs {
-        let a = (*seg_s - start).max(0);
-        let b = (*seg_e - start).max(0);
-        let c0 = (a / 900_000).min(95) as usize;
-        let c1 = ((b.max(a + 1) - 1) / 900_000).min(95) as usize;
+        // 截断到时窗内：06:00 前/24:00 后的部分不画；开口段钳到当下
+        let gs = (*seg_s).max(win);
+        let ge = (*seg_e).min(now).min(win_end);
+        if ge <= gs {
+            continue;
+        }
+        let c0 = ((gs - win) / CELL_MS).min(107) as usize;
+        let c1 = ((ge - 1 - win) / CELL_MS).min(107) as usize;
         for c in c0..=c1 {
-            let cell_s = start + c as i64 * 900_000;
-            let overlap = (std::cmp::min(*seg_e, cell_s + 900_000) - std::cmp::max(*seg_s, cell_s)).max(0);
-            if overlap > 0 {
-                cells_ms[c].push((*pid, overlap, *seg_s, *seg_e));
+            let cell_s = win + c as i64 * CELL_MS;
+            let s = gs.max(cell_s);
+            let e = ge.min(cell_s + CELL_MS);
+            if e <= s {
+                continue;
+            }
+            let ov = e - s;
+            let a = cells[c]
+                .entry(*pid)
+                .or_insert(Acc { ms: 0, occ_s: s, occ_e: e, best_s: *seg_s, best_e: *seg_e, best_ov: 0 });
+            a.ms += ov;
+            a.occ_s = a.occ_s.min(s);
+            a.occ_e = a.occ_e.max(e);
+            if ov > a.best_ov {
+                a.best_ov = ov;
+                a.best_s = *seg_s;
+                a.best_e = *seg_e;
             }
         }
     }
 
-    let mut out = vec![];
-    for (i, owners) in cells_ms.iter().enumerate() {
-        let mut agg: std::collections::HashMap<i64, (i64, i64, i64)> = std::collections::HashMap::new();
-        for &(pid, ms, ss, se) in owners {
-            let e = agg.entry(pid).or_insert((0, ss, se));
-            e.0 += ms;
-            e.1 = e.1.min(ss);
-            e.2 = e.2.max(se);
-        }
-        let top = agg.into_iter().max_by_key(|(_, v)| v.0);
-        let cell_total: i64 = owners.iter().map(|o| o.1).sum();
-        let cell = match top {
-            Some((pid, (ms, ss, se))) => {
-                let share = if cell_total > 0 { ms as f64 / cell_total as f64 } else { 0.0 };
-                if share < 0.15 {
-                    // 占比 <15% 的占用者不显示
-                    GridCell::empty(i as i64)
-                } else {
-                    let p = get_process(conn, pid)?;
-                    let steps = steps_of(conn, pid)?;
-                    let top_title = steps.iter().find(|st| st.kind == "note" || !st.done).map(|st| st.title.clone());
-                    let cell_start = start + i as i64 * 900_000;
-                    GridCell {
-                        cell: i as i64,
-                        owner_process_id: Some(pid),
-                        color_tag: p.color_tag,
-                        title: Some(p.title),
-                        seg_start: Some(ss),
-                        seg_end: Some(se),
-                        breakpoint: top_title,
-                        share,
-                        is_start: (ss >= cell_start && ss < cell_start + 900_000),
-                        is_end: (se > cell_start && se <= cell_start + 900_000),
-                    }
-                }
+    let mut out = Vec::with_capacity(108);
+    for (i, m) in cells.iter().enumerate() {
+        let cell_s = win + i as i64 * CELL_MS;
+        let mut ranked: Vec<(&i64, &Acc)> = m.iter().collect();
+        ranked.sort_by(|a, b| b.1.ms.cmp(&a.1.ms));
+        let mut marks = Vec::new();
+        for (pid, a) in ranked.into_iter().take(2) {
+            let share = a.ms as f64 / CELL_MS as f64;
+            if share < MIN_SHARE {
+                break; // 后面的更小，一并不取
             }
-            None => GridCell::empty(i as i64),
-        };
-        out.push(cell);
+            let p = get_process(conn, *pid)?;
+            marks.push(CellMark {
+                process_id: *pid,
+                color_tag: p.color_tag,
+                title: p.title,
+                occ_start: a.occ_s,
+                occ_end: a.occ_e,
+                share,
+                is_start: a.best_s >= cell_s && a.best_s < cell_s + CELL_MS,
+                is_end: a.best_e > cell_s && a.best_e <= cell_s + CELL_MS,
+            });
+        }
+        out.push(GridCell {
+            cell: i as i64,
+            marks,
+        });
     }
     Ok(out)
 }

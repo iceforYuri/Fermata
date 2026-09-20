@@ -33,9 +33,9 @@ const glyph = await page.evaluate(() => {
   cv.width = 400; cv.height = 60;
   const ctx = cv.getContext("2d");
   ctx.font = '15px MiSans';
-  const a = ctx.measureText("改 gika 数据内核 0123456789").width;
+  const a = ctx.measureText("改 Fermata 数据内核 0123456789").width;
   ctx.font = '15px "Microsoft YaHei UI"';
-  const b = ctx.measureText("改 gika 数据内核 0123456789").width;
+  const b = ctx.measureText("改 Fermata 数据内核 0123456789").width;
   return { misans: a, yahei: b };
 });
 console.log(`[font] 字形度量 MiSans=${glyph.misans.toFixed(1)} YaHei=${glyph.yahei.toFixed(1)} 差异=${Math.abs(glyph.misans - glyph.yahei) > 0.5}`);

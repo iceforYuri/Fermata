@@ -1,4 +1,4 @@
-/* gika M1 · 进程页样式（tokens 之外的布局层）
+/* Fermata M1 · 进程页样式（tokens 之外的布局层）
  * 纪律：无渐变按钮、无 emoji 图标、无 pill、阴影极克制、1px 细节。
  */
 
@@ -589,12 +589,6 @@
 .plan-row.dragging {
   opacity: 0.6;
 }
-.board-drop-hint {
-  outline: 1px dashed var(--ink-faint);
-  outline-offset: -6px;
-  border-radius: var(--card-radius);
-}
-
 /* ================= 右栏 · 详情 ================= */
 .detail-panel {
   flex: none;
@@ -1164,7 +1158,10 @@ body:has(.overlay-card) {
   overflow-y: auto;
   width: 100%;
   padding: 14px 0 80px;
+  /* v1.2.4 扩展：月/年视角同样隐藏原生滚动条（滚轮导航），与日视角一致 */
+  scrollbar-width: none;
 }
+.stats-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .stats-measure {
   width: clamp(480px, 45%, 720px);
   margin: 0 auto;
@@ -1302,7 +1299,7 @@ body:has(.overlay-card) {
 .daygrid-empty { color: var(--ink-ghost); font-size: var(--fs-body); padding: 60px 0; }
 .daygrid-grid {
   display: grid;
-  grid-template-rows: repeat(8, 50px);
+  grid-template-rows: repeat(6, 64px);
   grid-auto-flow: column;
   grid-auto-columns: 36px;
 }
@@ -1315,7 +1312,7 @@ body:has(.overlay-card) {
 .daygrid-ticks {
   position: relative;
   height: 15px;
-  width: 432px;
+  width: 648px;
   margin: 2px 0;
 }
 .dg-tick {
@@ -1463,6 +1460,15 @@ body:has(.overlay-card) {
 }
 .set-exported { font-size: var(--fs-micro); color: var(--ink-faint); padding-left: 168px; }
 
+/* 构建戳：设置页页脚，核对该程序对应的构建 */
+.build-stamp {
+  margin-top: 36px;
+  font-size: var(--fs-micro);
+  color: var(--ink-ghost);
+  text-align: center;
+  user-select: text;
+}
+
 /* 字号阶梯 */
 [data-font="compact"] { --fs-display: 26px; --fs-body: 14px; --fs-small: 12px; --fs-micro: 11.5px; }
 [data-font="loose"] { --fs-display: 30px; --fs-body: 16px; --fs-small: 13.5px; --fs-micro: 12.5px; }
@@ -1557,13 +1563,19 @@ body:has(.overlay-card) {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  /* v1.2：自由滚动，去 mandatory 吸附；底部垫高让最后一天可读满 */
-  padding-bottom: 240px;
+  /* v1.4：关掉浏览器原生 scroll anchoring——prepend 补偿由代码自己做，
+     双补偿叠加会把视口顶到最底（快速滚轮下已复现） */
+  overflow-anchor: none;
+  /* v1.4：底部垫高=进场锚点同一条规则——滚到尽头即今天的进场位置 */
+  padding-bottom: var(--day-enter-gap);
   width: 100%;
+  /* v1.4：隐藏滚动条（滚轮+月视角直达导航）；双保险兼容老 WebView2 */
+  scrollbar-width: none;
   /* 滚动内容顶/底缘淡出遮罩 */
   mask-image: linear-gradient(to bottom, transparent, black 28px, black calc(100% - 28px), transparent);
   -webkit-mask-image: linear-gradient(to bottom, transparent, black 28px, black calc(100% - 28px), transparent);
 }
+.daygrid-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .day-unit {
   min-height: 500px;
   display: flex;
@@ -1574,6 +1586,8 @@ body:has(.overlay-card) {
   margin-bottom: 72px; /* 日间隔加大 */
   position: relative;
 }
+/* 末尾日不再需要日间隔：底部只剩 --day-enter-gap 的垫高 */
+.day-unit:last-child { margin-bottom: 0; }
 /* 极简吸顶小日期签：大日期标滚出顶沿时出现 */
 .day-mini-head {
   position: sticky;
@@ -1592,15 +1606,19 @@ body:has(.overlay-card) {
 .day-mini-head.on { opacity: 1; pointer-events: auto; }
 /* 大日期标：统计图正下方右侧 "23 mon"（容器宽=网格宽，右缘对齐） */
 .daygrid-body {
-  width: 432px; /* 12 列 × 36px */
+  width: 648px; /* 18 列 × 36px */
   align-self: center;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  /* v1.4：壳（未加载/留白/未来日）与数据日等高（网格384+刻19+标28+缝20+余量），
+     大日期标 margin-top:auto 钉底——进场锚点测壳即测真，prepend 补偿零漂移 */
+  min-height: 474px;
 }
 .daygrid-body .daygrid-empty { text-align: center; }
 .day-big-label {
   align-self: flex-end;
+  margin-top: auto; /* v1.4：钉到 body 底，壳态与数据态同位 */
   display: flex;
   align-items: baseline;
   gap: 6px;
@@ -1642,10 +1660,12 @@ body:has(.overlay-card) {
   display: flex;
   align-items: center;
   height: 36px;              /* 命中区 ≥36px */
+  width: 36px;               /* 初态紧凑：弹簧首帧铺位前的 CSS 兜底（内联宽度随即接管） */
   min-width: 36px;
   padding: 0 6px;            /* 项距用 padding，无 gap 死区 */
   color: var(--ink-soft);
   cursor: pointer;
+  overflow: hidden;          /* 收起态不露出隐形 label */
 }
 .nav-pill {
   position: absolute;
@@ -1673,6 +1693,7 @@ body:has(.overlay-card) {
   color: var(--ink);
   font-weight: 600;
   padding-left: 2px;
+  opacity: 0; /* 透明度由弹簧每帧直写；默认隐去防首帧闪现 */
 }
 .morph-tab.active { color: var(--ink); }
 .morph-tab.active .nav-pill { --pill-a: 10%; } /* 静止态封顶 10%；弹簧进行中由内联接管 */
@@ -1715,19 +1736,63 @@ body:has(.overlay-card) {
   user-select: none;
 }
 
-/* v1.2.2 稿库提示：版面左侧空白区常驻装饰层 */
+/* 稿库提示：rail 与中列之间的空白带垂直居中（视口左区，不随内容偏移） */
 .lib-hint {
-  position: absolute;
-  left: -178px;
-  top: 40%;
+  position: fixed;
+  z-index: 8;
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: var(--fs-micro);
+  gap: 10px;
   color: var(--ink-faint);
   opacity: 0.35;
   pointer-events: none; /* 装饰层不挡点击 */
-  white-space: nowrap;
+  text-align: left;
 }
-body:has(.lib-rail:hover) .lib-hint { display: none; } /* hover rail 即隐 */
+.lib-hint-text { font-size: var(--fs-micro); line-height: 1.5; }
+.lib-hint-text > div:first-child { font-size: var(--fs-small); color: var(--ink-soft); }
+.lib-hint-sub { color: var(--ink-faint); }
+/* 呼吸式左指：~2.4s 循环位移 4px，进页播 3 轮后静止 */
+.lib-hint-arrow { animation: hint-breathe 2.4s ease-in-out 3; }
+body:has(.lib-rail:hover) .lib-hint-arrow { animation: hint-breathe 2.4s ease-in-out infinite; } /* hover rail 再微动 */
+@keyframes hint-breathe {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(-4px); }
+}
 .center-inner { position: relative; }
+
+/* v1.3 时间环小卡（实心暖卡，非玻璃） */
+.ring-click { cursor: pointer; border-radius: 50%; transition: filter var(--dur-fast); }
+.ring-click:hover { filter: brightness(1.08); }
+.slice-card {
+  position: fixed; /* portal 到 body：逃出 .row 的 overflow:hidden 与层叠上下文；top/right 由内联按环位计算 */
+  z-index: 60;
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--paper-deep);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(38, 34, 30, 0.14);
+  animation: bp-card-in var(--dur) var(--ease-out);
+}
+
+/* restpop 从右下沿轻微滑入 */
+.restpop-enter { animation: restpop-in 200ms var(--ease-out); }
+@keyframes restpop-in { from { opacity: 0.6; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* 时间环小卡：自定义分钟输入 */
+.slice-custom { display: inline-flex; align-items: baseline; gap: 2px; }
+.slice-custom input {
+  width: 3.6em; /* 恰容"自定义"三汉字；输入数字时同样居中 */
+  background: none;
+  border: none;
+  border-bottom: 1px solid transparent;
+  font: inherit;
+  color: inherit;
+  text-align: center;
+  outline: none;
+  padding: 0;
+}
+.slice-custom input::placeholder { color: var(--ink-ghost); }
+.slice-custom input:focus { border-bottom-color: var(--ink); } /* 1px 下划线唯一编辑指示 */
+.slice-custom-unit { color: var(--ink-faint); }
