@@ -104,19 +104,25 @@ await inv(mainPage, "debug_trigger_hotkey");
 await sleep(300);
 const swShown = await swVisible();
 await sw.waitForSelector("[data-testid=switcher-input]");
+await sw.waitForSelector("[data-testid=switcher-row]"); // 等列表数据到位再动键盘
+await sleep(200);
 await sw.keyboard.press("ArrowDown"); // 等AI 组排前 [丁,乙,丙]，↓ 一次到 乙
+await sleep(150);
+const selTxt = await sw.$eval("[data-testid=switcher-row].selected", (e) => e.textContent).catch(() => "");
 await sw.keyboard.press("Enter");
 await sw.waitForSelector("[data-testid=switcher-bp-input]");
+await sleep(200); // 等 bp 输入框 focus 落定
 await sw.keyboard.type("写到状态机");
 await sw.keyboard.press("Enter");
 await sleep(700);
 const switchMs = Date.now() - ta0;
 const boardNow = await inv(mainPage, "q_board", { day });
-const bpOfJia = boardNow.suspended.find((x) => x.process.title === "M2甲·写代码")?.process.breakpoint;
+const bpOfJia = boardNow.suspended.find((x) => x.process.title === "M2甲·写代码")?.stack_top?.title;
+const activeAfterA = await activeTitle();
 ok(
   "a) 热键→浮层→↓→Enter→断点→Enter 全程键盘切换",
-  swShown && (await activeTitle()) === "M2乙·读论文" && bpOfJia === "写到状态机" && !(await swVisible()),
-  `耗时 ${switchMs}ms（预算 2000ms），断点=${bpOfJia}`,
+  swShown && selTxt.includes("M2乙·读论文") && activeAfterA === "M2乙·读论文" && bpOfJia === "写到状态机" && !(await swVisible()),
+  `耗时 ${switchMs}ms（预算 2000ms），断点=${bpOfJia}，选中=${selTxt.trim().slice(0, 12)}，active=${activeAfterA}`,
 );
 execSync(`powershell -NoProfile -ExecutionPolicy Bypass -File scripts/capture-screen.ps1 -out "${OUT}/wv2-main-switcher.png"`);
 console.log("[截图] 主窗+浮层同框 wv2-main-switcher.png（注：此时浮层已收起，补拍见下）");
