@@ -756,6 +756,9 @@
 .inline-display {
   cursor: text;
 }
+.inline-display.disabled {
+  cursor: default;
+}
 
 /* ================= 完成档案浮层（页内玻璃，合规：只盖自家内容） ================= */
 .archive-backdrop {
@@ -1285,10 +1288,51 @@ body:has(.overlay-card) {
   font-size: var(--fs-body);
 }
 .dv-plan-title { flex: 1; min-width: 0; }
-.dv-plan.done .dv-plan-title { text-decoration: line-through; color: var(--ink-faint); }
 .dv-reopen { opacity: 0; transition: opacity var(--dur-fast); }
 .dv-plan:hover .dv-reopen { opacity: 1; }
 .dv-tag { font-size: var(--fs-micro); color: var(--ink-faint); }
+
+/* ============ 计划行动效：划线画出/收回 · 删除沉降 · 开缝接纳 ============ */
+/* 划线：伪元素 scaleX 0→1 从左画出（160ms ease-out）；.done/.completing 戴上，摘掉即收回 */
+.dv-plan-title, .plan-title { position: relative; transition: color var(--dur) var(--ease-out); }
+.dv-plan-title::after, .plan-title::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 54%;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 160ms var(--ease-out);
+  pointer-events: none;
+}
+.dv-plan.done .dv-plan-title,
+.plan-row.completing .plan-title { color: var(--ink-faint); }
+.dv-plan.done .dv-plan-title::after,
+.plan-row.completing .plan-title::after { transform: scaleX(1); }
+
+/* 删除/离场：沉降收起（高度由 JS 量定后 →0，淡出同步），后续行随布局自然补位 */
+.plan-row.leaving, .dv-plan.leaving {
+  opacity: 0;
+  overflow: hidden;
+  padding-top: 0;
+  padding-bottom: 0;
+  pointer-events: none;
+  transition:
+    height 200ms var(--ease-out),
+    opacity 200ms var(--ease-out),
+    padding 200ms var(--ease-out);
+}
+.plan-row.completing { pointer-events: none; }
+
+/* 开缝接纳：新行从 0 高弹开（弹簧与拖拽让位同族） */
+@keyframes row-enter {
+  from { height: 0; opacity: 0; }
+}
+.plan-row.entering {
+  animation: row-enter 220ms cubic-bezier(0.34, 1.36, 0.64, 1);
+  overflow: hidden;
+}
 .plan-ops-inline { display: flex; gap: 8px; }
 .plan-ops-inline button { color: var(--ink-soft); }
 .plan-ops-inline button:hover { color: var(--ink); }

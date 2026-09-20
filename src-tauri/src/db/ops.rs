@@ -478,9 +478,14 @@ pub fn plan_update(
 }
 
 pub fn plan_done(conn: &Connection, ts: i64, id: i64) -> Result<(), String> {
+    // 记下稠密名次（1-based，非稀疏 position 值）到 prev_position，回退插回原位用
     let n = conn
         .execute(
-            "UPDATE plans SET state = 'completed', completed_at = ?2 WHERE id = ?1 AND state = 'pool'",
+            "UPDATE plans SET
+               prev_position = (SELECT COUNT(*) FROM plans p2
+                                 WHERE p2.state = 'pool' AND p2.position < COALESCE(plans.position, 0)) + 1,
+               state = 'completed', completed_at = ?2
+             WHERE id = ?1 AND state = 'pool'",
             rusqlite::params![id, ts],
         )
         .map_err(|e| e.to_string())?;
@@ -505,20 +510,50 @@ pub fn plan_delete(conn: &Connection, ts: i64, id: i64) -> Result<(), String> {
     Ok(())
 }
 
-/// 完成 → 放回稿库：completed → pool，completed_at 清空，position 落队尾
+/// 完成 → 放回稿库：completed → pool，completed_at 清空，插回 min(prev_position, 队列长度)
+/// 原位（期间新增/删除导致越界则夹紧），其余行让位；prev_position 为 NULL（存量）→ 落队尾。
+/// 插入按密化重排：pool 行按 position 排序，目标位及之后顺移一位。
 pub fn plan_reopen(conn: &Connection, ts: i64, id: i64) -> Result<(), String> {
-    let max_pos: Option<i64> = conn
-        .query_row("SELECT MAX(position) FROM plans", [], |r| r.get(0))
-        .map_err(|e| e.to_string())?;
-    let n = conn
-        .execute(
-            "UPDATE plans SET state = 'pool', completed_at = NULL, position = ?2 WHERE id = ?1 AND state = 'completed'",
-            rusqlite::params![id, max_pos.unwrap_or(0) + 1],
+    let prev: Option<i64> = conn
+        .query_row(
+            "SELECT prev_position FROM plans WHERE id = ?1 AND state = 'completed'",
+            rusqlite::params![id],
+            |r| r.get(0),
+        )
+        .map_err(|e| match e {
+            rusqlite::Error::QueryReturnedNoRows => format!("计划 {id} 不在完成态，不能放回稿库"),
+            other => other.to_string(),
+        })?;
+    let pool: Vec<i64> = {
+        let mut stmt = conn
+            .prepare("SELECT id FROM plans WHERE state = 'pool' ORDER BY position, id")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| r.get(0))
+            .map_err(|e| e.to_string())?
+            .filter_map(|r| r.ok())
+            .collect();
+        rows
+    };
+    let len = pool.len() as i64;
+    // 1-based 目标位 = min(prev, len)，转 0-based 下标；prev NULL → 队尾
+    let idx0 = match prev {
+        Some(p) => ((p.min(len) - 1).max(0)) as usize,
+        None => pool.len(),
+    };
+    for (i, pid) in pool.iter().enumerate() {
+        let pos = if i < idx0 { i + 1 } else { i + 2 } as i64;
+        conn.execute(
+            "UPDATE plans SET position = ?2 WHERE id = ?1",
+            rusqlite::params![pid, pos],
         )
         .map_err(|e| e.to_string())?;
-    if n == 0 {
-        return Err(format!("计划 {id} 不在完成态，不能放回稿库"));
     }
+    conn.execute(
+        "UPDATE plans SET state = 'pool', completed_at = NULL, position = ?2 WHERE id = ?1",
+        rusqlite::params![id, idx0 as i64 + 1],
+    )
+    .map_err(|e| e.to_string())?;
     append_event(conn, ts, "plan_reopen", None, json!({ "plan_id": id }))?;
     Ok(())
 }

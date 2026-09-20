@@ -3,6 +3,7 @@ import { data, type DayView } from "../../api/data";
 import { act, markHex, useBoard } from "../../store/board";
 import { fmtDur } from "../../util";
 import { InlineEdit } from "../../components/InlineEdit";
+import { animateRowLeave } from "../../components/rowAnim";
 
 /**
  * 当天视图（清单视角）：已做 / 进行中 / 未做 / 计划编辑 / 挂起成本。
@@ -67,18 +68,16 @@ export function DayViewSection({ day }: { day: string }) {
             data-testid="dv-plan-row"
             data-state={p.state}
           >
-            {p.state === "pool" ? (
-              <InlineEdit
-                value={p.title}
-                className="dv-plan-title"
-                testid="dv-plan-title"
-                onCommit={(v) => {
-                  if (v) void act(() => data.planUpdate(p.id, { title: v }));
-                }}
-              />
-            ) : (
-              <span className="dv-plan-title">{p.title}</span>
-            )}
+            {/* 完成态禁编辑但保持同一 InlineEdit 节点：划线/降淡过渡才连续 */}
+            <InlineEdit
+              value={p.title}
+              className="dv-plan-title"
+              testid="dv-plan-title"
+              disabled={p.state !== "pool"}
+              onCommit={(v) => {
+                if (v) void act(() => data.planUpdate(p.id, { title: v }));
+              }}
+            />
             {p.state === "completed" && <span className="dv-tag">未计时完成</span>}
             {p.state === "completed" && (
               <span className="plan-ops-inline">
@@ -95,7 +94,17 @@ export function DayViewSection({ day }: { day: string }) {
             {p.state === "pool" && (
               <span className="plan-ops-inline">
                 <button data-testid="dv-plan-done" onClick={() => void act(() => data.planDone(p.id))}>✓</button>
-                <button data-testid="dv-plan-del" onClick={() => void act(() => data.planDelete(p.id))}>✕</button>
+                <button
+                  data-testid="dv-plan-del"
+                  onClick={(e) =>
+                    animateRowLeave(
+                      (e.currentTarget as HTMLElement).closest(".dv-plan"),
+                      () => void act(() => data.planDelete(p.id)),
+                    )
+                  }
+                >
+                  ✕
+                </button>
               </span>
             )}
           </div>

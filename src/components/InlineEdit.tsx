@@ -13,6 +13,7 @@ export function InlineEdit({
   multiline = false,
   testid,
   onEditingChange,
+  disabled = false,
 }: {
   value: string;
   onCommit: (v: string) => void;
@@ -22,6 +23,7 @@ export function InlineEdit({
   multiline?: boolean;
   testid?: string;
   onEditingChange?: (editing: boolean) => void;
+  disabled?: boolean; // 禁用=纯展示（完成态等），保持同一 DOM 节点以便状态翻转时过渡连续
 }) {
   const [editing, setEditingState] = useState(false);
   const setEditing = (v: boolean) => {
@@ -52,9 +54,11 @@ export function InlineEdit({
   if (!editing) {
     return (
       <span
-        className={`inline-display ${className}`}
+        className={`inline-display${disabled ? " disabled" : ""} ${className}`}
         data-testid={testid}
-        onClick={() => setEditing(true)}
+        onClick={() => {
+          if (!disabled) setEditing(true);
+        }}
       >
         {value || <span style={{ opacity: 0.35 }}>{placeholder}</span>}
       </span>

@@ -213,3 +213,9 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 - **plan_reopen**：completed → pool，completed_at 清空，position 落队尾，写 `plan_reopen` 事件；非完成态守卫报错。UI=完成行 hover 出 ↩「放回稿库」，过去的日子同样可回退（当天视图按日渲染，无时限）。
 - **标题双态编辑**：复用 InlineEdit，落两处（当天视图计划区 + 稿库）；仅 pool 态可编辑（完成态标题不可点编）。稿库行编辑态禁拖（draggable 随编辑态切换，防文本选择被拖动手势劫持）。
 - **顺手修存量延迟**：DayViewSection 的 qDayView 依赖只有 [day, board.tick]（1Hz），计划操作后视图最长滞后 1s——deps 补 board.plans，操作即反映。
+
+### D46 · 计划回退原位 + 行级动效（fix/plan-ops 第二轮）
+- **回退原位**：migration v4 给 plans 加 `prev_position`。plan_done 记的是**稠密名次**（1-based，pool 内 COUNT 前排+1），不是稀疏 position 值——否则删除挖洞后原位语义失真。plan_reopen 插回 min(prev_position, 当前 pool 长度) 并密化让位（目标位及之后顺移）；prev NULL（存量数据）落队尾。mock 同口径。
+- **动效语言**（不新增曲线/时长）：完成=伪元素划线 scaleX 0→1 从左画出（160ms ease-out）+ 标题降淡（color var(--dur)）；删除=沉降收起（量高→0 + 淡出 200ms ease-out，JS 延迟 240ms 才真正删数据）；稿库完成=划线后接沉降（行离 pool 列表）；稿库新行（回退/新建）=高度 0→44 弹簧开缝（220ms，与 dnd.SQUEEZE 同 cubic-bezier(0.34,1.36,0.64,1)），初次装载不播。共用助手 `src/components/rowAnim.ts`。
+- **InlineEdit 加 disabled**：完成态标题仍挂同一 DOM 节点（组件类型不变），划线/颜色过渡才连续——此前完成瞬间 React 换节点导致划线跳变无动画。disabled 态 cursor:default 不可点编。
+- 截图中间帧手法：Playwright 截图快于真实动画，用注入 `transition-duration: 3200ms !important`（含 ::before/::after，`*` 不匹配伪元素）减速 20 倍截半途帧。

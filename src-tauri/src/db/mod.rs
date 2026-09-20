@@ -233,6 +233,17 @@ fn migrate(conn: &Connection) -> Result<(), String> {
         )
         .map_err(|e| e.to_string())?;
     }
+
+    // v4（fix/plan-ops）：plans.prev_position —— plan_done 记位，plan_reopen 插回原位
+    if applied < 4 {
+        conn.execute_batch("ALTER TABLE plans ADD COLUMN prev_position INTEGER;")
+            .map_err(|e| format!("迁移 v4 失败: {e}"))?;
+        conn.execute(
+            "INSERT INTO schema_migrations (version, applied_at) VALUES (4, ?1)",
+            rusqlite::params![now_ms()],
+        )
+        .map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 

@@ -192,30 +192,59 @@ ok("未计时完成标记出现且不画圈", doneTag.includes("未计时完成"
   const renamed = (await page.locator("[data-testid=dv-plan-row][data-state=pool]", { hasText: "改名后的计划" }).count()) === 1;
   ok("计划编辑 Enter 提交", renamed, "");
 
-  // ③ 完成态：标题划线+变淡
+  // ③ 完成态划线=伪元素画出（非 text-decoration）：::after 存在且 scaleX→1，标题降淡
   const doneRow = page.locator("[data-testid=dv-plan-row][data-state=completed]", { hasText: "未计时完成验收项" });
-  const deco = await doneRow.locator(".dv-plan-title").evaluate((el) => {
+  const strike = await doneRow.locator(".dv-plan-title").evaluate((el) => {
     const cs = getComputedStyle(el);
-    return { line: cs.textDecorationLine, faint: cs.color };
+    const af = getComputedStyle(el, "::after");
+    return { line: cs.textDecorationLine, color: cs.color, tf: af.transform, h: af.height };
   });
-  ok("完成态标题划线", deco.line.includes("line-through"), `deco=${deco.line}`);
+  const scaleBack = strike.tf !== "none" && Math.abs((parseFloat(strike.tf.match(/matrix\(([^,]+)/)?.[1]) || 0) - 1) < 0.01;
+  ok(
+    "完成态标题划线（伪元素画出）",
+    !strike.line.includes("line-through") && scaleBack && strike.h === "1px",
+    `deco=${strike.line} tf=${strike.tf} h=${strike.h}`,
+  );
 
-  // ④ ↩ 放回稿库：completed → pool
-  await doneRow.hover();
-  await doneRow.locator("[data-testid=dv-plan-reopen]").click();
-  await sleep(400);
-  const backToPool = (await page.locator("[data-testid=dv-plan-row][data-state=pool]", { hasText: "未计时完成验收项" }).count()) === 1;
-  ok("↩ 放回稿库（回 pool）", backToPool, "");
+  // ④ ↩ 放回稿库 + 落位：三条新计划，完成中间那条再回退 → 回原下标
+  for (const t of ["落位甲", "落位乙", "落位丙"]) {
+    await page.fill("[data-testid=dv-plan-input]", t);
+    await page.press("[data-testid=dv-plan-input]", "Enter");
+    await sleep(250);
+  }
+  const poolTitles = () =>
+    page.$$eval("[data-testid=dv-plan-row][data-state=pool] .dv-plan-title, [data-testid=dv-plan-row][data-state=pool] [data-testid=dv-plan-title]", (els) =>
+      els.map((e) => e.textContent.trim()),
+    );
+  const before = await poolTitles();
+  const idxB = before.indexOf("落位乙");
+  const rowB = page.locator("[data-testid=dv-plan-row]", { hasText: "落位乙" });
+  await rowB.locator("[data-testid=dv-plan-done]").click();
+  await sleep(500);
+  const mid = await poolTitles();
+  const doneB = page.locator("[data-testid=dv-plan-row][data-state=completed]", { hasText: "落位乙" });
+  await doneB.hover();
+  await doneB.locator("[data-testid=dv-plan-reopen]").click();
+  await sleep(500);
+  const after = await poolTitles();
+  ok(
+    "↩ 放回稿库（回 pool 且落原位）",
+    !mid.includes("落位乙") && after.indexOf("落位乙") === idxB && after.length === before.length,
+    `前 ${idxB} → 后 ${after.indexOf("落位乙")}`,
+  );
 
-  // ⑤ 删除即消失
+  // ⑤ 删除沉降：点 ✕ 后行仍在（.leaving 收起中），~240ms 后消失
   await page.fill("[data-testid=dv-plan-input]", "要消失的计划");
   await page.press("[data-testid=dv-plan-input]", "Enter");
   await sleep(400);
   const delRow = page.locator("[data-testid=dv-plan-row]", { hasText: "要消失的计划" });
   await delRow.locator("[data-testid=dv-plan-del]").click();
-  await sleep(400);
+  await sleep(60);
+  const midCount = await page.locator("[data-testid=dv-plan-row]", { hasText: "要消失的计划" }).count();
+  const leaving = await page.locator("[data-testid=dv-plan-row].leaving", { hasText: "要消失的计划" }).count();
+  await sleep(600);
   const gone = (await page.locator("[data-testid=dv-plan-row]", { hasText: "要消失的计划" }).count()) === 0;
-  ok("删除即消失", gone, "");
+  ok("删除沉降（先收后删）", midCount === 1 && leaving === 1 && gone, `mid=${midCount} leaving=${leaving} gone=${gone}`);
 }
 
 // 9. 日视角锚点=月历选中日（非强制今天）

@@ -605,6 +605,9 @@ export const mockData: DataApi = {
   async planDone(id) {
     const pl = state.plans.find((x) => x.id === id && x.state === "pool");
     if (!pl) throw new Error("计划不在稿库");
+    // 记稠密名次（1-based），回退插回原位用
+    pl.prev_position =
+      state.plans.filter((x) => x.state === "pool" && (x.position ?? 0) < (pl.position ?? 0)).length + 1;
     pl.state = "completed";
     pl.completed_at = Date.now();
     ev("plan_done", null, { plan_id: id });
@@ -620,9 +623,20 @@ export const mockData: DataApi = {
   async planReopen(id) {
     const pl = state.plans.find((x) => x.id === id && x.state === "completed");
     if (!pl) throw new Error("计划不在完成态");
+    // 插回 min(prev_position, 队列长度) 原位，密化让位；无 prev_position（存量）→ 队尾
+    const pool = state.plans
+      .filter((x) => x.state === "pool")
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.id - b.id);
+    const len = pool.length;
+    const idx0 = pl.prev_position != null
+      ? Math.max(0, Math.min(pl.prev_position, len) - 1)
+      : len;
+    pool.forEach((x, i) => {
+      x.position = i < idx0 ? i + 1 : i + 2;
+    });
     pl.state = "pool";
     pl.completed_at = null;
-    pl.position = Math.max(0, ...state.plans.map((x) => x.position ?? 0)) + 1; // 落队尾
+    pl.position = idx0 + 1;
     ev("plan_reopen", null, { plan_id: id });
   },
 

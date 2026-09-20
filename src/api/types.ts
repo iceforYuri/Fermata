@@ -40,6 +40,7 @@ export interface Plan {
   created_at: number;
   completed_at: number | null;
   position: number | null;
+  prev_position?: number | null; // plan_done 记位，plan_reopen 插回原位用
 }
 
 export interface FermataEvent {
