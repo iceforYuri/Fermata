@@ -8,7 +8,7 @@ const ok = (name, pass, extra = "") => {
   console.log(`${pass ? "✓" : "✗ FAIL"} ${name}${extra ? " — " + extra : ""}`);
 };
 
-const browser = await chromium.connectOverCDP("http://localhost:9222");
+const browser = await chromium.connectOverCDP(`http://localhost:${process.env.CDP_PORT ?? 9222}`);
 const all = browser.contexts().flatMap((c) => c.pages());
 const main = all.find((p) => (p.url().includes("14200") || p.url() === "http://tauri.localhost/") && !p.url().includes("window="));
 const sw = all.find((p) => p.url().includes("window=switcher"));

@@ -13,7 +13,7 @@ const ok = (name, pass, extra = "") => {
   console.log(`${pass ? "✓" : "✗ FAIL"} ${name}${extra ? " — " + extra : ""}`);
 };
 
-const browser = await chromium.connectOverCDP("http://localhost:9222");
+const browser = await chromium.connectOverCDP(`http://localhost:${process.env.CDP_PORT ?? 9222}`);
 const all = browser.contexts().flatMap((c) => c.pages());
 const byHash = (frag) => all.find((p) => p.url().includes(frag));
 const main = byHash("127.0.0.1:14200/") ?? all.find((p) => p.url() === "http://tauri.localhost/");

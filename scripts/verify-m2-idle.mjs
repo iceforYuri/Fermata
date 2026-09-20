@@ -6,7 +6,7 @@ import { execSync } from "node:child_process";
 const nudge = () =>
   execSync("powershell -NoProfile -ExecutionPolicy Bypass -File scripts/inject-ctrl.ps1");
 
-const browser = await chromium.connectOverCDP("http://localhost:9222");
+const browser = await chromium.connectOverCDP(`http://localhost:${process.env.CDP_PORT ?? 9222}`);
 process.on("unhandledRejection", () => {});
 const page = browser
   .contexts()
