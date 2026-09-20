@@ -3,10 +3,11 @@ import { data, type BoardProcess } from "../api/data";
 import { act, markHex, useBoard } from "../store/board";
 import { completeWithUndo } from "../store/actions";
 import { agingOpacity, fmtDur } from "../util";
+import { ROW_PITCH, SQUEEZE, isOverActive, queueInsertAt } from "./dnd";
 
 /**
  * 挂起行 64px：标题 15 / 导语小字（栈顶条目）/ 老化"挂 23m" /
- * 对数渐褪，hover 复活手型；点击=断点小卡切换；拖动=排序（4px 阈值+弹性挤位+落点虚影）；
+ * 对数渐褪，hover 复活手型；点击=断点小卡切换；拖动=排序（先塌陷后开缝+落点虚影）；
  * 拖过折线到活跃位=切换（虚影覆盖活跃位）。
  */
 export function SuspendedRow({
@@ -63,30 +64,30 @@ export function SuspendedRow({
   );
 }
 
-const ROW_PITCH = 74; // 64px 行高 + 10px 间距
-const SQUEEZE = "transform 220ms cubic-bezier(0.34, 1.36, 0.64, 1)"; // 弹簧挤位
-
-/** 挂起队列：点击切换、拖动排序（虚影+挤位）、拖过折线到活跃位=切换 */
+/**
+ * 挂起队列：点击切换、拖动排序（虚影+塌陷补位）、拖过折线到活跃位=切换。
+ * 稿库 HTML5 拖入的缝/虚影也在此渲染（libPreview 由 BoardPage 中列级感应换算）。
+ */
 export function SuspendedQueue({
   rows,
   day,
   onRequestSwitch,
-  onDragOverActive, // 拖到活跃位松手
+  onDragOverActive,
+  libPreview,
 }: {
   rows: BoardProcess[];
   day: string;
   onRequestSwitch: (pid: number, rect: DOMRect) => void;
   onDragOverActive: (active: boolean) => void;
+  libPreview: { insertAt: number } | null;
 }) {
   const board = useBoard();
   const [drag, setDrag] = useState<{ pid: number; dy: number; insertAt: number; overActive: boolean } | null>(null);
-  const [dropHint, setDropHint] = useState(false);
 
   const onRowPointerDown = (e: React.PointerEvent, pid: number) => {
     if ((e.target as HTMLElement).closest(".spine")) return;
     const startY = e.clientY;
-    const origIdx = rows.findIndex((r) => r.process.id === pid);
-    let cur = { pid, dy: 0, insertAt: origIdx, overActive: false };
+    let cur = { pid, dy: 0, insertAt: 0, overActive: false };
     let moved = false;
 
     const move = (ev: PointerEvent) => {
@@ -96,13 +97,10 @@ export function SuspendedQueue({
       const queueEl = document.querySelector("[data-testid='suspended-queue']");
       const activeEl = document.querySelector("[data-testid='active-row']");
       const qTop = queueEl?.getBoundingClientRect().top ?? 0;
-      const foldY = activeEl ? activeEl.getBoundingClientRect().bottom : qTop;
-      const overActive = ev.clientY < foldY - 8; // 折线上方 = 活跃位
-      const ids = rows.map((r) => r.process.id).filter((id) => id !== pid);
-      // 插入位：以队列首行 top 为原点按行距换算
-      let insertAt = Math.round((ev.clientY - qTop) / ROW_PITCH);
-      insertAt = Math.max(0, Math.min(ids.length, insertAt));
-      insertAt = insertAt > origIdx ? insertAt - 1 : insertAt;
+      const overActive = isOverActive(ev.clientY, activeEl ? activeEl.getBoundingClientRect().bottom : null);
+      // 塌陷空间（去掉被拖行）里的插入位
+      const slotCount = rows.length - 1;
+      const insertAt = queueInsertAt(ev.clientY, qTop, slotCount);
       cur = { pid, dy, insertAt, overActive };
       setDrag({ ...cur });
       onDragOverActive(overActive);
@@ -131,32 +129,18 @@ export function SuspendedQueue({
     window.addEventListener("pointerup", up);
   };
 
+  // 统一插入预览：pointer 拖拽优先，其次稿库拖入；overActive 时队列不开缝
+  const previewAt = drag && !drag.overActive ? drag.insertAt : !drag && libPreview ? libPreview.insertAt : null;
+  const origIdxOf = (pid: number) => rows.findIndex((r) => r.process.id === pid);
+  const dragOrigIdx = drag ? origIdxOf(drag.pid) : -1;
+  // 塌陷空间下标：被拖行之后的行为 origIdx-1，其余为 origIdx
+  const collapsedIdxOf = (origIdx: number) => (drag && origIdx > dragOrigIdx ? origIdx - 1 : origIdx);
+
   return (
-    <div
-      data-testid="suspended-queue"
-      className={dropHint ? "board-drop-hint" : ""}
-      style={{ position: "relative" }}
-      onDragOver={(e) => {
-        if (e.dataTransfer.types.includes("text/gika-plan")) {
-          e.preventDefault();
-          setDropHint(true);
-        }
-      }}
-      onDragLeave={() => setDropHint(false)}
-      onDrop={(e) => {
-        setDropHint(false);
-        const raw = e.dataTransfer.getData("text/gika-plan");
-        if (!raw) return;
-        const plan = JSON.parse(raw) as { id: number; title: string };
-        void act(async () => {
-          await data.processCreate(plan.title, undefined, day);
-          await data.planDelete(plan.id);
-        });
-      }}
-    >
-      {rows.map((bp) => {
+    <div data-testid="suspended-queue" style={{ position: "relative" }}>
+      {rows.map((bp, origIdx) => {
         if (drag && bp.process.id === drag.pid) {
-          // 被拖行：跟随指针（transform-only）
+          // 被拖行：跟随指针（transform-only），原槽由后续行补位
           return (
             <div key={bp.process.id} style={{ position: "relative", zIndex: 5 }}>
               <div
@@ -174,27 +158,24 @@ export function SuspendedQueue({
             </div>
           );
         }
-        // 弹性挤位：虚影插入位之后的行下移一格
-        let shift = 0;
-        if (drag && !drag.overActive) {
-          const ids = rows.map((r) => r.process.id).filter((id) => id !== drag.pid);
-          const myIdxInIds = ids.indexOf(bp.process.id);
-          if (myIdxInIds >= drag.insertAt) shift = ROW_PITCH;
-        }
+        // 目标位 = 塌陷位 +（>= 插入位则让到缝后）；位移 = 目标位 - 原槽位
+        const collapsedIdx = collapsedIdxOf(origIdx);
+        const targetIdx = collapsedIdx + (previewAt !== null && collapsedIdx >= previewAt ? 1 : 0);
+        const shift = (targetIdx - origIdx) * ROW_PITCH;
         return (
           <div
             key={bp.process.id}
             style={{
               transform: shift ? `translateY(${shift}px)` : undefined,
-              transition: drag ? SQUEEZE : undefined,
+              transition: drag || libPreview ? SQUEEZE : undefined,
             }}
           >
             <SuspendedRow bp={bp} onDragStart={onRowPointerDown} />
           </div>
         );
       })}
-      {/* 落点虚影：半透明轮廓卡 */}
-      {drag && !drag.overActive && (
+      {/* 落点虚影：撑开的缝里的半透明轮廓卡 */}
+      {previewAt !== null && (
         <div
           className="row drop-ghost"
           data-testid="drop-ghost"
@@ -202,7 +183,7 @@ export function SuspendedQueue({
             position: "absolute",
             left: 0,
             right: 0,
-            top: drag.insertAt * ROW_PITCH + (drag.insertAt > rows.findIndex((r) => r.process.id === drag.pid) ? -0 : 0),
+            top: previewAt * ROW_PITCH,
             height: 64,
           }}
         />

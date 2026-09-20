@@ -169,6 +169,35 @@ ok(
   ok("拖到活跃位=切换", activeNow === pid, `active=${activeNow} 期望 ${pid}`);
 }
 
+// 8c. 塌陷补位（挤压修复）：拖第 2 行过第 3 行中点 → 第 3 行顶到第 2 行原位，第 4 行不动
+{
+  const pids = await page.$$eval("[data-testid=suspended-row]", (els) => els.map((e) => e.dataset.pid));
+  const tops0 = await page.$$eval("[data-testid=suspended-row]", (els) =>
+    els.map((e) => e.getBoundingClientRect().top),
+  );
+  const box = await page.locator(`[data-testid=suspended-row][data-pid="${pids[1]}"]`).boundingBox();
+  const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx, cy + 40, { steps: 8 }); // 过第 3 行中点 → insertAt=2
+  await sleep(450); // 弹簧到位
+  const top3 = await page.evaluate(
+    (pid) => document.querySelector(`[data-testid=suspended-row][data-pid="${pid}"]`).getBoundingClientRect().top,
+    pids[2],
+  );
+  ok("塌陷补位：第3行顶到第2行原位", Math.abs(top3 - tops0[1]) < 6, `row3=${top3.toFixed(1)} 期望≈${tops0[1].toFixed(1)}`);
+  const top4 = await page.evaluate(
+    (pid) => document.querySelector(`[data-testid=suspended-row][data-pid="${pid}"]`).getBoundingClientRect().top,
+    pids[3],
+  );
+  ok("挤压修复：第4行不被波及", Math.abs(top4 - tops0[3]) < 6, `row4=${top4.toFixed(1)} 期望≈${tops0[3].toFixed(1)}`);
+  ok("开缝虚影在缝位", (await page.$("[data-testid=drop-ghost]")) !== null, "");
+  await page.mouse.up();
+  await sleep(400);
+  const order8c = await page.$$eval("[data-testid=suspended-row]", (els) => els.map((e) => e.dataset.pid));
+  ok("落位=第2/3行互换", order8c[1] === pids[2] && order8c[2] === pids[1], `[${order8c.slice(0, 4)}]`);
+}
+
 // 9. 稿库拖入成进程
 await page.click("[data-testid=lib-rail]");
 await page.waitForSelector("[data-testid=plan-row]");
@@ -186,6 +215,60 @@ ok(
   planCount2 === planCount - 1 && qCount92 === qCount9 + 1,
   `plans ${planCount}→${planCount2}, queue ${qCount9}→${qCount92}`,
 );
+
+// 9b. 中列整列感应：稿库拖到中列空白处（队列尾下方）→ 出虚影，松手落挂起队尾
+// （headless Chromium 合成拖动的 dragover 命中测试不可靠——命中 track-page 而非深元素；
+//   虚影断言改用 bubbles 合成 DragEvent 直测中列 handler 几何；原生 drop 链路不动）
+{
+  const plan0 = page.locator("[data-testid=plan-row]").first();
+  const planTitle = (await plan0.locator(".plan-title").textContent()).trim();
+  const pb = await plan0.boundingBox();
+  const q = await page.locator("[data-testid=suspended-queue]").boundingBox();
+  const tx = q.x + q.width / 2, ty = q.y + q.height + 24; // 队列尾下方的中列空白
+  await page.mouse.move(pb.x + pb.width / 2, pb.y + pb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(pb.x + pb.width / 2 + 60, pb.y + pb.height / 2, { steps: 3 }); // 触发 dragstart
+  await page.mouse.move(tx, ty, { steps: 8 });
+  await page.evaluate(([x, y]) => {
+    const dt = new DataTransfer();
+    dt.setData("text/gika-plan", "{}");
+    document.querySelector("[data-testid=board-page]").dispatchEvent(
+      new DragEvent("dragover", { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer: dt }),
+    );
+  }, [tx, ty]);
+  await sleep(300);
+  ok("中列空白处 dragover 出虚影", (await page.$("[data-testid=drop-ghost]")) !== null, "");
+  await page.mouse.up();
+  await sleep(500);
+  const titles = await page.$$eval("[data-testid=suspended-row] .suspended-title", (els) =>
+    els.map((e) => e.textContent),
+  );
+  ok("松手落挂起队尾", titles[titles.length - 1] === planTitle, `队尾=${titles[titles.length - 1]}`);
+}
+
+// 9c. 稿库拖到活跃位 → 虚影覆盖 + 断点卡归属旧活跃进程 → 确认激活
+{
+  const activeTitle = (await page.textContent("[data-testid=active-row] .active-title")).trim();
+  const plan0c = page.locator("[data-testid=plan-row]").first();
+  const planTitle = (await plan0c.locator(".plan-title").textContent()).trim();
+  const pb = await plan0c.boundingBox();
+  const ar = await page.locator("[data-testid=active-row]").boundingBox();
+  await page.mouse.move(pb.x + pb.width / 2, pb.y + pb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(pb.x + pb.width / 2 + 60, pb.y + pb.height / 2, { steps: 3 });
+  await page.mouse.move(ar.x + ar.width / 2, ar.y + ar.height / 2, { steps: 8 });
+  await sleep(300);
+  ok("拖到活跃位：虚影覆盖活跃行", (await page.$("[data-testid=active-drop-ghost]")) !== null, "");
+  await page.mouse.up();
+  await sleep(400);
+  const card = await page.$("[data-testid=bp-card]");
+  const ph = card ? await page.getAttribute("[data-testid=bp-card-input]", "placeholder") : "";
+  ok("断点卡归属旧进程", !!card && ph.includes(activeTitle), `placeholder=${ph}`);
+  await page.press("[data-testid=bp-card-input]", "Enter");
+  await sleep(500);
+  const nowTitle = (await page.textContent("[data-testid=active-row] .active-title")).trim();
+  ok("确认后稿库进程激活", nowTitle === planTitle, `active=${nowTitle} 期望 ${planTitle}`);
+}
 
 // 附2：顶栏胶囊 20 连击（真实鼠标点击，回归点击稳定性）
 {
@@ -313,19 +396,26 @@ ok(
   await page.keyboard.press("Escape");
 }
 
-// 附：空态可见 + 空态拖入成进程（落挂起不激活）
+// 附：空态可见 + 空板拖入直接激活（无断点卡）
 await page.goto(`${BASE}/?fixture=empty`);
 await page.waitForSelector("[data-testid=empty-state]");
 ok("空态引导语", (await page.textContent("[data-testid=empty-state]")).includes("版面还空着"));
-// 稿库拖入空板
+// 稿库拖入空板 → 直接激活（F3：没有旧进程可留断点）
 await page.click("[data-testid=lib-rail]");
 await page.waitForSelector("[data-testid=plan-row]");
-const plans0 = await page.$$eval("[data-testid=plan-row]", (r) => r.length);
+const planTitleE = (await page.locator("[data-testid=plan-row]").first().locator(".plan-title").textContent()).trim();
 await page.dragAndDrop("[data-testid=plan-row] >> nth=0", "[data-testid=empty-state]");
 await sleep(500);
-const susp = await page.$$eval("[data-testid=suspended-row]", (r) => r.length);
-const noActive = (await page.$("[data-testid=active-row]")) === null;
-ok("空态拖入成进程（落挂起不激活）", susp === 1 && noActive, `suspended=${susp} active=${!noActive}`);
+const activeE = await page.$("[data-testid=active-row]");
+const activeTitleE = activeE
+  ? (await page.textContent("[data-testid=active-row] .active-title")).trim()
+  : null;
+const noCardE = (await page.$("[data-testid=bp-card]")) === null;
+ok(
+  "空板拖入直接激活（无断点卡）",
+  !!activeE && noCardE && activeTitleE === planTitleE,
+  `active=${activeTitleE} 期望 ${planTitleE} 无卡=${noCardE}`,
+);
 
 // 附：休息态渲染
 await page.goto(`${BASE}/?fixture=rest`);

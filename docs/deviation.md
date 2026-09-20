@@ -186,3 +186,9 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 - 时间环点击调时间片小卡（25/45/60/90）：slice_override 只调**本次**时间片语义（写 slice_override 事件，环重置满环），不改进程默认片长。
 - 休止符弹窗挪主屏工作区右下角（距右/下 16px 逻辑）：修法=全链路物理像素——Tauri primary_monitor().work_area()（物理）+ 卡尺寸 420×300 逻辑 ×scale_factor + 无边框窗隐形 resize 边按对称折算。原 SystemParametersInfoW 实现把逻辑卡尺寸当物理用（125% 缩放下卡片右/下缘超出工作区 ~98px）。已删 windows-sys 的 SPI_GETWORKAREA 依赖。
 - 验收方法偏离：本机 CopyFromScreen 截屏抓不到 WebView2 窗口（DirectComposition 翻转链），浮层视觉证据 = CDP Page.captureScreenshot（内容）+ Win32 GetWindowRect 枚举（落点，存 restpop-bottom-right-position.txt）；不抢焦点回归 debug_focus_check pass。
+
+### D44 · v1.2.4 拖放统一插入预览（先塌陷后开缝）+ 中列整列感应
+- **挤压修复**：旧预览数学只把 insertAt 之后的行往下推、被拖行原槽不塌陷 → 视觉上"后面的行全部后移一格"。新模型=纯 transform 编舞：每行目标位 = 塌陷位 +（塌陷位 ≥ 插入位 ? 1 : 0），位移 =（目标位 − 原槽位）×74；被拖行跟手，原槽由后续行弹簧补位。等价"先塌陷后开缝"的逐帧净几何，无两趟 FLIP 记账。共享几何收敛在 `src/components/dnd.ts`（ROW_PITCH / queueInsertAt / isOverActive / SQUEEZE），进程行 pointer 拖拽与稿库 HTML5 拖入共用。
+- **中列整列感应**：稿库拖入的 dragover/drop 从挂起队列窄区提到 `.center-inner` 整列；拖出中列（relatedTarget 出列）或 Esc（原生）收缝。SuspendedRow 的窄感应区与 BoardPage 的 4px 折线条删除；EmptyState 不再自持 drop。
+- **语义统一**：稿库拖到活跃位且当前有活跃 → 先落队再弹断点卡（归属原活跃，Enter 确认/Esc 取消整个切换、新进程留在队列）；空板拖入改"直接激活"（推翻 D43 的"落挂起不激活"，用户拍板：空板没有旧进程可留断点，时间从松手开始计）；队列位 = 挂到该位。
+- **测试环境偏离**：headless Chromium 的 Playwright 合成 HTML5 拖动里，dragover 命中测试不可靠（命中 .track-page 而非深层行元素，深元素监听收不到），虚影断言改用 bubbles 合成 DragEvent 直测中列 handler 几何；原生 drop 链路（mouse.up）在 mock 与真实 exe 均正常。真实 exe 的 OLE 拖放由 CDP 实证覆盖。

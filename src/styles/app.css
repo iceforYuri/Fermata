@@ -589,12 +589,6 @@
 .plan-row.dragging {
   opacity: 0.6;
 }
-.board-drop-hint {
-  outline: 1px dashed var(--ink-faint);
-  outline-offset: -6px;
-  border-radius: var(--card-radius);
-}
-
 /* ================= 右栏 · 详情 ================= */
 .detail-panel {
   flex: none;
