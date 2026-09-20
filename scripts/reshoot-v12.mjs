@@ -33,9 +33,12 @@ await page.screenshot({ path: `${OUT}/nav-morph-board.png` });
   ok("顶栏 y=43 无线", row.size <= 2, `行内异色数=${row.size}`);
 }
 
-// 2. 日网格刻度上下两行（DOM + 像素）
+// 2. 日网格刻度仅下行（DOM + 像素）
 await page.click("[data-testid=tab-stats]");
 await page.waitForSelector("[data-testid=month-cal]");
+// 等轨道滑停 + 清零横卷残留（Playwright 自动 scrollIntoView 会把 center-col 横卷）
+await sleep(500); // 轨道滑动 240ms + 余量
+await page.evaluate(() => { document.querySelector(".center-col").scrollLeft = 0; });
 const d = new Date();
 const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 await page.dblclick(`[data-testid=cal-cell][data-day="${ds}"]`);

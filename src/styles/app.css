@@ -1592,7 +1592,7 @@ body:has(.overlay-card) {
 .day-mini-head.on { opacity: 1; pointer-events: auto; }
 /* 大日期标：统计图正下方右侧 "23 mon"（容器宽=网格宽，右缘对齐） */
 .daygrid-body {
-  width: 432px; /* 12 列 × 36px */
+  width: 648px; /* 18 列 × 36px */
   align-self: center;
   display: flex;
   flex-direction: column;
