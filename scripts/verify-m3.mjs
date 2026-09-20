@@ -265,28 +265,26 @@ ok("未计时完成标记出现且不画圈", doneTag.includes("未计时完成"
     () => document.querySelector("[data-testid=dv-plans] .detail-label").getBoundingClientRect().top,
   );
 
-  // 勾选完成 → 未做行沉降（幽灵行）+ 锚点钉住
+  // 勾选完成 → 未做行当帧挂沉降幽灵（不等 refetch）+ 锚点钉住
   const prow = page.locator("[data-testid=dv-plan-row]", { hasText: "动效联动计划" });
   await prow.locator("[data-testid=dv-plan-done]").click();
-  await sleep(120);
-  const leaving = await page.locator("[data-testid=dv-notdone-leaving]").count();
+  const leaving = await page.locator("[data-testid=dv-notdone-leaving]").count(); // 当帧断言
   await sleep(600);
   const leavingGone = (await page.locator("[data-testid=dv-notdone-leaving]").count()) === 0;
   const headTop1 = await page.evaluate(
     () => document.querySelector("[data-testid=dv-plans] .detail-label").getBoundingClientRect().top,
   );
-  ok("勾选完成：未做行沉降过渡", leaving === 1 && leavingGone, `leaving=${leaving} gone=${leavingGone}`);
+  ok("勾选完成：未做行当帧沉降（乐观同步）", leaving === 1 && leavingGone, `leaving=${leaving} gone=${leavingGone}`);
   ok("计划区头锚点纹丝不动（±2px）", Math.abs(headTop1 - headTop0) <= 2, `Δ=${(headTop1 - headTop0).toFixed(1)}px`);
 
-  // 回退 → 未做行弹性进入 + 回到未做区
+  // 回退 → 未做行当帧开缝（乐观占位）+ 落到原位
   const doneRow2 = page.locator("[data-testid=dv-plan-row][data-state=completed]", { hasText: "动效联动计划" });
   await doneRow2.hover();
   await doneRow2.locator("[data-testid=dv-plan-reopen]").click();
-  await sleep(120);
-  const entering = await page.locator("[data-testid=dv-notdone-entering]").count();
+  const entering = await page.locator("[data-testid=dv-notdone-entering]").count(); // 当帧断言
   await sleep(600);
   const backIn = await page.locator("[data-testid=dv-notdone-row]", { hasText: "动效联动计划" }).count();
-  ok("回退：未做行弹性开缝接纳", entering === 1 && backIn === 1, `entering=${entering} back=${backIn}`);
+  ok("回退：未做行当帧开缝接纳", entering === 1 && backIn === 1, `entering=${entering} back=${backIn}`);
 }
 
 // 9. 日视角锚点=月历选中日（非强制今天）

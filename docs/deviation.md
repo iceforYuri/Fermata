@@ -230,3 +230,9 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 - **分数位插入**：废除 plan_reopen 的 pool 密化重写（重写会让 pool 行与完成行保留的旧 position 撞值，`ORDER BY position, id` 撞出 id 序、视觉跳变）。改邻居中值插入：目标位 = （上邻居 + 下邻居）/2，无上邻 = 下邻 − 1，无下邻 = 上邻 + 1，空表 = 1。SQLite INTEGER 亲和列无损存 REAL（2.5 这类）；Rust `Plan.position` 改 `Option<f64>`，plan_create 的 MAX 按 f64 读；mock 同口径。prev_position 仍是稠密名次语义（只用来算目标位）。cargo test 加"往返 4 次相对顺序不变 + 他人 position 不被重写"。
 - **钉锚收窄**：rAF 钉窗 600ms → **340ms**（= 刷新延迟 ~80ms + 沉降 200 / 开缝 220），且只在量到位移的帧写 scrollTop（不脏不写）；连续操作新钉替换旧钉（pinGen）。✕ 删除的钉窗从数据提交回调起算（行沉降在计划区内、不动区头；未做区幽灵沉降发生在 +240ms 提交后）。
 - **帧耗证据**（scripts/measure-pin-frames.mjs，PerformanceObserver longtask + rAF 帧间隔，mock/headless Chromium）：修复前 `{"longTasks":[],"frames":90,"maxFrameMs":16.8,"p95":16.7,"over33":0}`，修复后同值——mock 环境帧耗本就在帧预算内，用户感知到的卡是真机 WebView2 上 600ms 每帧强制同步布局与高度动画同帧互踩的结构性问题；收窄+按需写消除该结构条件。真机复测脚本已入库。
+
+### D49 · 未做区动效乐观同步（fix/plan-ops 第五轮）
+- **根因**：点 ✓ 时计划区划线当帧起跑，未做区幽灵沉降却挂在 qDayView refetch 的 diff 上（store-changed → 取数 ~80ms → setView → diff effect 才挂 leaving），三条时间线脱链 → 视觉上是两段动画。
+- **修法（乐观同步）**：✓/✕/↙ handler 同一拍做三件事——调命令（照旧）+ 立即挂未做区 leaving/entering（乐观，标题/高度/邻位当帧从 DOM 量取）+ pinAnchor。↩ 的开缝占位行插在 min(prev_position, len) 名次处（与后端同口径）。diff effect 和解：已在 leavingRows 的 id 不重挂；乐观进入行在 refetch 确认后卸壳（optimisticEnter 清 id，enteringIds 播完自卸）。busyPlans 防抖：同 id 在飞再点忽略。
+- 钉锚窗口 340ms 起点=点击帧，三者同窗完成。
+- **帧耗对照**（measure-pin-frames.mjs，headless mock）：修复前（diff 驱动）`longTasks:0, maxFrame 16.8ms, p95 16.7`；修复后 `longTasks:0, maxFrame 16.8ms, p95 16.8`——结构指标本就不超帧，本轮修的是**时序脱链**（视觉两段动画），不是帧预算。真机手感由用户验收。
