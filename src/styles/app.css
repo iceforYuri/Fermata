@@ -1783,13 +1783,13 @@ body:has(.lib-rail:hover) .lib-hint-arrow { animation: hint-breathe 2.4s ease-in
 /* 时间环小卡：自定义分钟输入 */
 .slice-custom { display: inline-flex; align-items: baseline; gap: 2px; }
 .slice-custom input {
-  width: 4.2ch;
+  width: 3.6em; /* 恰容"自定义"三汉字；输入数字时同样居中 */
   background: none;
   border: none;
   border-bottom: 1px solid transparent;
   font: inherit;
   color: inherit;
-  text-align: right;
+  text-align: center;
   outline: none;
   padding: 0;
 }
