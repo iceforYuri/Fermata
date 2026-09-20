@@ -147,7 +147,7 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 ## 2026-09-19 · v1.2 设计修订与缺陷修复
 
 ### D36 · v1.2 修订总指针
-统一栈（ADR-0005：steps 表加 kind、breakpoint 字段退役为 note 条目、entry_delete、stack_top 派生）、无边界 morph 导航（reference/navigation.md 弹簧模型 response 0.42s / zeta 0.86）、拖拽激活（FLIP 挤位+落点虚影覆盖活跃位）、日网格时间段刻度与 45° 半圆（70%/15% 阈值入 tokens）、设置页左竖导航（窄窗阈值 900px）、rail 常驻"← 稿库"提示、休息页 Esc/Enter/继续小字/SVG▶。全部用户拍板，合同文档已同步。
+统一栈（ADR-0005：steps 表加 kind、breakpoint 字段退役为 note 条目、entry_delete、stack_top 派生）、无边界 morph 导航（弹簧模型 response 0.42s / zeta 0.86；参考组件文档后于 v1.0 因版权移除）、拖拽激活（FLIP 挤位+落点虚影覆盖活跃位）、日网格时间段刻度与 45° 半圆（70%/15% 阈值入 tokens）、设置页左竖导航（窄窗阈值 900px）、rail 常驻"← 稿库"提示、休息页 Esc/Enter/继续小字/SVG▶。全部用户拍板，合同文档已同步。
 
 ### D37 · v1.2 直修五缺陷的根因记录
 1. idle_end 无守卫曾重开手动 pause/休息中的计时——改 last_timer_closer 口径校验（仅 idle_start 停的才由 idle_end 重开）。

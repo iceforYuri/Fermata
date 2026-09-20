@@ -28,7 +28,7 @@ Fermata 是一个 Windows 桌面效率工具：把一天排成一页版面，管
 4. `docs/04-系统层.md` —— 切换浮层 / 休止符弹窗 / 休息页
 5. `docs/03-设置页.md` —— 分组与默认值
 6. `docs/adr/0003-技术栈-tauri-react.md` + `docs/05-技术调研.md` —— 技术决策与兜底条款
-7. `docs/gika.png`、`docs/gika-day.png` —— 原始参考图
+7. 原始参考图（第三方 Gika 应用截图）已因版权移除；现行面貌以 `docs/screenshots/release/` 为准
 
 ## 技术纪律
 

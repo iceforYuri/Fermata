@@ -3,7 +3,7 @@ import { system } from "../api/system";
 import { getUi, setUi, useUi, type Tab } from "../store/ui";
 import { useResting } from "../store/board";
 
-/* 弹簧参数：参照 docs/reference/navigation.md（response 0.42s, zeta 0.86） */
+/* 弹簧参数：response 0.42s, zeta 0.86（原参考组件文档已因版权移除） */
 const OMEGA = (2 * Math.PI) / 0.42;
 const K = OMEGA * OMEGA;
 const C = 2 * 0.86 * OMEGA;
