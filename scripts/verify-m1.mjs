@@ -231,7 +231,7 @@ ok(
   await page.mouse.move(tx, ty, { steps: 8 });
   await page.evaluate(([x, y]) => {
     const dt = new DataTransfer();
-    dt.setData("text/gika-plan", "{}");
+    dt.setData("text/fermata-plan", "{}");
     document.querySelector("[data-testid=board-page]").dispatchEvent(
       new DragEvent("dragover", { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer: dt }),
     );

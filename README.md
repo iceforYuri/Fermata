@@ -1,4 +1,4 @@
-# gika
+# Fermata
 
 把一天排成一页版面，管理并行工作的挂起与恢复，度量专注时间。Windows 桌面效率工具（Tauri 2 + React + TypeScript + SQLite）。
 
@@ -21,12 +21,12 @@ pnpm tauri dev
 种子演示数据（一周密集 + 可选 120 天稀疏）：
 
 ```bash
-pnpm seed        # 写入 ./src-tauri/gika-seed.db
+pnpm seed        # 写入 ./src-tauri/fermata-seed.db
 pnpm seed:deep   # 加铺过去 ~120 天
-pnpm tauri dev   # 用种子库：GIKA_DB_PATH=...\src-tauri\gika-seed.db
+pnpm tauri dev   # 用种子库：FERMATA_DB_PATH=...\src-tauriermata-seed.db
 ```
 
-默认运行库在 `%APPDATA%/com.gika.dev/gika.db`；`GIKA_DB_PATH` 可覆盖。
+默认运行库在 `%APPDATA%/com.fermata.app/fermata.db`；`FERMATA_DB_PATH` 可覆盖。（v1.0 更名迁移：旧 `com.gika.dev/gika.db` 存在且新库不存在时自动复制过来，旧目录原样保留）
 
 ## 截图 / 验证脚本
 
@@ -39,7 +39,7 @@ node scripts/verify-m4.mjs    # 设置页双态断言
 # 真实窗口（WebView2 CDP）：
 # WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222 pnpm tauri dev
 node scripts/verify-m2.mjs        # 系统层六项
-node scripts/verify-m2-idle.mjs   # 空闲回归（需 GIKA_IDLE_SECS=5 实例）
+node scripts/verify-m2-idle.mjs   # 空闲回归（需 FERMATA_IDLE_SECS=5 实例）
 node scripts/verify-m4-real.mjs   # 设置真实链路
 ```
 
@@ -49,7 +49,7 @@ node scripts/verify-m4-real.mjs   # 设置真实链路
 pnpm tauri build
 ```
 
-产物：`src-tauri/target/release/bundle/nsis/gika_1.0.0_x64-setup.exe`（NSIS 安装包，含 WebView2 引导）。
+产物：`src-tauri/target/release/bundle/nsis/fermata_1.0.0_x64-setup.exe`（NSIS 安装包，含 WebView2 引导）。
 
 ## 仓库结构
 

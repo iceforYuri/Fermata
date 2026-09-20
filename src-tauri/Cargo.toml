@@ -1,17 +1,17 @@
 [package]
-name = "gika"
+name = "fermata"
 version = "1.0.0"
-description = "gika —— 日常版面与任务调度"
+description = "Fermata —— 日常版面与任务调度"
 edition = "2021"
 rust-version = "1.77.2"
-default-run = "gika"
+default-run = "fermata"
 
 [lib]
-name = "gika_lib"
+name = "fermata_lib"
 path = "src/lib.rs"
 
 [[bin]]
-name = "gika"
+name = "fermata"
 path = "src/main.rs"
 
 [[bin]]

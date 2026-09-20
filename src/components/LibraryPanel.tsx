@@ -28,7 +28,7 @@ export function LibraryPanel() {
           data-testid="plan-row"
           draggable
           onDragStart={(e) => {
-            e.dataTransfer.setData("text/gika-plan", JSON.stringify({ id: p.id, title: p.title }));
+            e.dataTransfer.setData("text/fermata-plan", JSON.stringify({ id: p.id, title: p.title }));
             e.dataTransfer.effectAllowed = "move";
           }}
         >

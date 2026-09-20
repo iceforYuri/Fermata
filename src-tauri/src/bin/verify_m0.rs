@@ -1,7 +1,7 @@
 //! M0 验收：对种子库执行"四问"查询并打印结果。
-//! 用法：GIKA_DB_PATH=可选 pnpm verify:m0
+//! 用法：FERMATA_DB_PATH=可选 pnpm verify:m0
 
-use gika_lib::db::{self, queries};
+use fermata_lib::db::{self, queries};
 
 fn fmt_ms(ms: i64) -> String {
     let min = ms / 60_000;
@@ -9,11 +9,11 @@ fn fmt_ms(ms: i64) -> String {
 }
 
 fn main() {
-    let path = std::env::var("GIKA_DB_PATH").unwrap_or_else(|_| "./gika-seed.db".to_string());
+    let path = std::env::var("FERMATA_DB_PATH").unwrap_or_else(|_| "./fermata-seed.db".to_string());
     let conn = db::open(std::path::Path::new(&path)).expect("打开库失败");
     let today = db::today_local();
-    // 种子按固定钟点写入；as-of 可由 GIKA_AS_OF(epoch ms) 注入，默认真实 now
-    let as_of: i64 = std::env::var("GIKA_AS_OF")
+    // 种子按固定钟点写入；as-of 可由 FERMATA_AS_OF(epoch ms) 注入，默认真实 now
+    let as_of: i64 = std::env::var("FERMATA_AS_OF")
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or_else(db::now_ms);

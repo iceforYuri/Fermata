@@ -1,7 +1,7 @@
-# Focus gika window, then inject plain key 'A' (VK 0x41) via keybd_event
+# Focus Fermata window, then inject plain key 'A' (VK 0x41) via keybd_event
 $w = New-Object -ComObject wscript.shell
-$ok = $w.AppActivate("gika")
-Write-Output "AppActivate(gika) = $ok"
+$ok = $w.AppActivate("Fermata")
+Write-Output "AppActivate(Fermata) = $ok"
 Start-Sleep -Milliseconds 600
 Add-Type -TypeDefinition @"
 using System;

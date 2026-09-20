@@ -5,5 +5,5 @@ src-tauri/target/
 .DS_Store
 playwright-report/
 test-results/
-src-tauri/gika-seed.db
-src-tauri/gika-*.db
+src-tauri/fermata-seed.db
+src-tauri/fermata-*.db

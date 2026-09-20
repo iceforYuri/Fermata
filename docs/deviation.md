@@ -199,3 +199,10 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 - **悬停浮窗口径**：显示进程名 + 该时间格内占用起止 + 时长，区间钳制在格窗内、开口段钳到当下；删断点行（历史日显示"现在"的栈顶属时间穿越）。`GridCell` 改每格 `marks[]`（≤2），mock 与 Rust 同口径重写（原 mock 取"当天第一段"、Rust 取"覆盖格的段区间"，两实现不一致的暗债一并清偿）。
 - **进场锚点**：v1.1 的"锚日贴顶"改为"锚日大日期标底缘距窗口底 40px"（token `--day-enter-gap`）；底部垫高 240px → 同 token（旧垫高是贴顶阅读模型的遗产），末尾日单元去底边距——滚到尽头即今天的进场位置，一条规则管两头。进场公式由 `offsetTop` 差改 `getBoundingClientRect` 差（原公式带 81px 系统偏差）。
 - **滚动条**：日视角隐藏（`scrollbar-width:none` + `::-webkit-scrollbar{display:none}` 双保险，兼容老 WebView2）；导航路径=滚轮 + 月视角点日期直达 + 吸顶签回月。
+
+### D45 · 产品更名 gika → Fermata（v1.0 更名批次）
+- 全量改名：crate/bin/lib（gika/gika_lib → fermata/fermata_lib）、productName=Fermata、identifier=com.fermata.app、窗口标题、事件名 gika-idle → fermata-idle、拖拽 MIME text/gika-plan → text/fermata-plan、环境变量 GIKA_* → FERMATA_*（DB_PATH/IDLE_SECS/AS_OF；TIME_SCALE 同规则）、GikaEvent 类型 → FermataEvent、种子/mock 演示进程名、scripts 与活文档（AGENTS/CONTEXT/README/01–06）。
+- **保留旧名的位置（刻意）**：docs/gika.png、docs/gika-day.png（历史参考图文件名）；docs/screenshots/ 下各阶段验收册与 poc-runtime.log（历史证据，记录的是当时真名）；deviation 历史条目；`F:/Code/20260917_gika` 目录本身；main.rs 迁移代码对旧路径的引用。
+- **数据迁移（启动时、DB 打开前）**：仅走默认路径时生效（FERMATA_DB_PATH 优先、兼容 GIKA_DB_PATH 兜底，env 覆盖不触发迁移）。旧 `%APPDATA%\com.gika.dev\gika.db` 存在且新 `com.fermata.app\fermata.db` 不存在 → 复制（不移动）gika.db 及 -wal/-shm 边车到 fermata.db，写 `[rename]` 日志；旧目录原样保留（回滚零成本）。
+- **kernel.rs 日网格测试修复（顺带）**：主会话 v1.4 改 GridCell 为 marks[]（占用率取前二、对角分半）后测试未跟上；断言迁到 marks API（首枚=多数派、次席、空格 marks.is_empty），跨午夜用例锚到昨天——v1.4 的"占用止点钳到当下"会把锚在今天晚间的未来段钳没。
+- docs/screenshots/v12/restpop-bottom-right-position.txt 是更名前抓的窗口枚举证据（标题行含 gika），作为当时证据保留。

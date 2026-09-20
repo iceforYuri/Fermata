@@ -17,7 +17,7 @@ export default function HomePage() {
 
   return (
     <main className="home">
-      <h1>gika</h1>
+      <h1>Fermata</h1>
       <p className="sub">PoC · 三原语验证骨架（进程页尚未排期）</p>
       <nav>
         <a href="#/">#/ —— 进程页（M1）</a>
