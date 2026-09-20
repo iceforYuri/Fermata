@@ -206,3 +206,6 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 - **数据迁移（启动时、DB 打开前）**：仅走默认路径时生效（FERMATA_DB_PATH 优先、兼容 GIKA_DB_PATH 兜底，env 覆盖不触发迁移）。旧 `%APPDATA%\com.gika.dev\gika.db` 存在且新 `com.fermata.app\fermata.db` 不存在 → 复制（不移动）gika.db 及 -wal/-shm 边车到 fermata.db，写 `[rename]` 日志；旧目录原样保留（回滚零成本）。
 - **kernel.rs 日网格测试修复（顺带）**：主会话 v1.4 改 GridCell 为 marks[]（占用率取前二、对角分半）后测试未跟上；断言迁到 marks API（首枚=多数派、次席、空格 marks.is_empty），跨午夜用例锚到昨天——v1.4 的"占用止点钳到当下"会把锚在今天晚间的未来段钳没。
 - docs/screenshots/v12/restpop-bottom-right-position.txt 是更名前抓的窗口枚举证据（标题行含 gika），作为当时证据保留。
+
+### D46 · 导航命中区结构修复（fix/nav-hit-test）
+排查起因：用户报"悬停不变手型 + 点击不稳定"。证据链：CDP 合成点击 20/20 正常；真实 OS 输入坐标映射精确（mousemove 所见即所得）但合成 click 被本机安全软件过滤（PoC 已留证），无法完全复现真人路径。两个结构性隐患按"宁可错杀"修复：①拖拽区与导航几何交叠（实测 23/141px）→ 拖拽区改绝对定位让出导航足印（144px 居中），零交叠断言入 check-nav-hitzone；②morph 动画中 tab 整体横向滑动，按下与抬起间按钮可能移出光标下 → 收进固定槽位（48px/槽），按钮绕槽心伸缩、中心全程不动（0/60/120/240ms 四帧采样零漂移）。另：input-probe（Rust，scripts/input-probe）为本机合成输入的可靠探针（DPI 感知 + SetCursorPos 读回验证）。
