@@ -23,6 +23,12 @@
 - 移除第三方 Gika 应用参考截图（docs/gika.png、docs/gika-day.png）与 21st.dev 组件文档（docs/reference/navigation.md，目录已空删）
 - 引用点全部改写为纯文字说明，无死链；docs/ 与 README 无其他第三方内容残留（MiSans 字体许可文件随包）
 
+## 纯净发布版
+
+- 安装包/bundle 不含任何 *.db 或种子数据（tauri.conf.json 无 resources 字段；NSIS 内字符串扫描 0 命中）；target/release 残留的 gika-seed.db 与旧名安装包已清
+- 代码无"空库自动播种"路径：seed 只能手动 `pnpm seed`；app 启动只开库+迁移（palette 默认值属产品配置，非演示数据）
+- 纯净首启实证（FERMATA_DB_PATH 指全新空路径跑 release exe，CDP 实拍）：`fresh-board.png`（空版面+稿库提示）、`fresh-stats.png`（统计空态）、`fresh-settings.png`（设置页）；空库校验 running/suspended/completed/plans 全 0；本机真实库（com.fermata.app，197 进程）未动
+
 ## 截图清单（本目录，全部 Fermata 现行形态）
 
 mock 双主题（light 无后缀 / dark 带 -dark）：

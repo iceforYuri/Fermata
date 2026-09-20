@@ -10,7 +10,7 @@ const ok = (name, pass, extra = "") => {
 
 const browser = await chromium.connectOverCDP("http://localhost:9222");
 const all = browser.contexts().flatMap((c) => c.pages());
-const main = all.find((p) => p.url().includes("14200") && !p.url().includes("window="));
+const main = all.find((p) => (p.url().includes("14200") || p.url() === "http://tauri.localhost/") && !p.url().includes("window="));
 const sw = all.find((p) => p.url().includes("window=switcher"));
 if (!main || !sw) process.exit(1);
 const inv = (page, cmd, args = {}) =>

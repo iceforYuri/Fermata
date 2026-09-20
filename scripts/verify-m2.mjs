@@ -16,7 +16,7 @@ const ok = (name, pass, extra = "") => {
 const browser = await chromium.connectOverCDP("http://localhost:9222");
 const all = browser.contexts().flatMap((c) => c.pages());
 const byHash = (frag) => all.find((p) => p.url().includes(frag));
-const main = byHash("127.0.0.1:14200/");
+const main = byHash("127.0.0.1:14200/") ?? all.find((p) => p.url() === "http://tauri.localhost/");
 const switcher = byHash("window=switcher");
 const restpop = byHash("window=restpop");
 if (!main || !switcher || !restpop) {
@@ -24,7 +24,7 @@ if (!main || !switcher || !restpop) {
   process.exit(1);
 }
 // main 也匹配了 switcher URL 前缀，修正：主窗=不含 window= 的
-const mainPage = all.find((p) => p.url().includes("127.0.0.1:14200") && !p.url().includes("window="));
+const mainPage = all.find((p) => (p.url().includes("127.0.0.1:14200") || p.url() === "http://tauri.localhost/") && !p.url().includes("window="));
 const sw = switcher;
 const rp = restpop;
 

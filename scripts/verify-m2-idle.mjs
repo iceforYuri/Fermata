@@ -11,7 +11,7 @@ process.on("unhandledRejection", () => {});
 const page = browser
   .contexts()
   .flatMap((c) => c.pages())
-  .find((p) => p.url().includes("127.0.0.1:14200") && !p.url().includes("window="));
+  .find((p) => (p.url().includes("127.0.0.1:14200") || p.url() === "http://tauri.localhost/") && !p.url().includes("window="));
 if (!page) process.exit(1);
 page.on("console", (m) => m.text().includes("idle-dbg") && console.log(m.text()));
 const inv = (cmd, args = {}) =>
