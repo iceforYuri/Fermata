@@ -138,6 +138,8 @@ export const TitleBar = memo(function TitleBar() {
     };
     // tab 变化：重定目标并确保循环在转（无清理竞态——卸载才取消，且取消即归零）
     springs.current.forEach((s, i) => (s.target = TABS[i].key === tabRef.current ? 1 : 0));
+    // 首帧立即按当前进度铺形态：初始即收敛时循环根本不会跑，不铺则按钮停在 auto 宽度（全部摊开）
+    springs.current.forEach((s, i) => renderRef.current(i, s.p));
     if (!raf.current) raf.current = requestAnimationFrame(tick);
   }, [tab]);
 

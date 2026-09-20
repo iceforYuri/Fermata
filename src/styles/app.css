@@ -1660,10 +1660,12 @@ body:has(.overlay-card) {
   display: flex;
   align-items: center;
   height: 36px;              /* 命中区 ≥36px */
+  width: 36px;               /* 初态紧凑：弹簧首帧铺位前的 CSS 兜底（内联宽度随即接管） */
   min-width: 36px;
   padding: 0 6px;            /* 项距用 padding，无 gap 死区 */
   color: var(--ink-soft);
   cursor: pointer;
+  overflow: hidden;          /* 收起态不露出隐形 label */
 }
 .nav-pill {
   position: absolute;
