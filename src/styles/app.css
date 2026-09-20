@@ -1158,7 +1158,10 @@ body:has(.overlay-card) {
   overflow-y: auto;
   width: 100%;
   padding: 14px 0 80px;
+  /* v1.2.4 扩展：月/年视角同样隐藏原生滚动条（滚轮导航），与日视角一致 */
+  scrollbar-width: none;
 }
+.stats-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .stats-measure {
   width: clamp(480px, 45%, 720px);
   margin: 0 auto;
