@@ -617,6 +617,15 @@ export const mockData: DataApi = {
     ev("plan_delete", null, { plan_id: id });
   },
 
+  async planReopen(id) {
+    const pl = state.plans.find((x) => x.id === id && x.state === "completed");
+    if (!pl) throw new Error("计划不在完成态");
+    pl.state = "pool";
+    pl.completed_at = null;
+    pl.position = Math.max(0, ...state.plans.map((x) => x.position ?? 0)) + 1; // 落队尾
+    ev("plan_reopen", null, { plan_id: id });
+  },
+
   async idleStart(pid) {
     if (pid) closeSeg(pid);
     ev("idle_start", pid ?? null);
@@ -819,7 +828,7 @@ export const mockData: DataApi = {
       steps_total: state.steps.filter((x) => x.process_id === p.id).length,
       breakpoint: stackTop(p.id)?.title ?? null,
     });
-    const plans = state.plans.filter((p) => p.scheduled_date === day);
+    const plans = state.plans.filter((p) => p.scheduled_date === day && p.state !== "deleted");
     return {
       day,
       done: rows.filter((p) => p.state === "completed").map(toDvp),

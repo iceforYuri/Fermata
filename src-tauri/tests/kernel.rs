@@ -337,3 +337,50 @@ fn switched_out_lands_queue_head() {
     assert!(pd.queue_position.unwrap() > pc.queue_position.unwrap(), "新建仍落队尾");
     assert!(pc.queue_position.unwrap() > pa.queue_position.unwrap());
 }
+
+// ================= fix/plan-ops：计划四修 =================
+
+#[test]
+fn plan_reopen_and_day_view_filters_deleted() {
+    let conn = db::open_in_memory().unwrap();
+    let t0 = 1_800_000_000_000i64;
+    let day = db::day_of(t0);
+
+    let p1 = ops::plan_create(&conn, t0, "待改计划", Some(30), Some(&day)).unwrap();
+    let p2 = ops::plan_create(&conn, t0 + 1, "要删计划", None, Some(&day)).unwrap();
+
+    // 删除即消失：deleted 不出现在 q_day_view
+    ops::plan_delete(&conn, t0 + 2, p2).unwrap();
+    let dv = queries::q_day_view(&conn, &day).unwrap();
+    assert!(
+        dv.plans.iter().all(|p| p.id != p2),
+        "deleted 计划不得出现在 q_day_view"
+    );
+    assert!(dv.plans.iter().any(|p| p.id == p1), "pool 计划仍在");
+
+    // 完成 → 放回稿库：回 pool、completed_at 清空、position 落队尾
+    ops::plan_done(&conn, t0 + 3, p1).unwrap();
+    let dv = queries::q_day_view(&conn, &day).unwrap();
+    assert!(dv.not_done.iter().all(|p| p.id != p1), "完成态不在未做清单");
+    let max_pos_before: i64 = conn
+        .query_row("SELECT COALESCE(MAX(position),0) FROM plans", [], |r| r.get(0))
+        .unwrap();
+    ops::plan_reopen(&conn, t0 + 4, p1).unwrap();
+    let (state, completed_at, pos): (String, Option<i64>, i64) = conn
+        .query_row(
+            "SELECT state, completed_at, position FROM plans WHERE id = ?1",
+            rusqlite::params![p1],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .unwrap();
+    assert_eq!(state, "pool", "reopen 回 pool");
+    assert_eq!(completed_at, None, "completed_at 清空");
+    assert!(pos > max_pos_before, "position 落队尾");
+    let dv = queries::q_day_view(&conn, &day).unwrap();
+    assert!(dv.not_done.iter().any(|p| p.id == p1), "回退后回未做清单");
+
+    // 守卫：非完成态不能回退；事件已记
+    assert!(ops::plan_reopen(&conn, t0 + 5, p1).is_err(), "pool 态不能再 reopen");
+    let evts = queries::q_events(&conn, None).unwrap();
+    assert!(evts.iter().any(|e| e.kind == "plan_reopen"), "写 plan_reopen 事件");
+}

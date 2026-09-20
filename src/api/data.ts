@@ -31,6 +31,7 @@ const tauriData: DataApi = {
   planUpdate: (id, patch) => invoke("plan_update", { id, ...patch }),
   planDone: (id) => invoke("plan_done", { id }),
   planDelete: (id) => invoke("plan_delete", { id }),
+  planReopen: (id) => invoke("plan_reopen", { id }),
   idleStart: (runningPid) => invoke("idle_start", { runningPid }),
   idleEnd: (runningPid) => invoke("idle_end", { runningPid }),
   restTrigger: (pid, source, readingMs) => invoke("rest_trigger", { pid, source, readingMs }),

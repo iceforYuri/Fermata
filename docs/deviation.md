@@ -206,3 +206,10 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 - **数据迁移（启动时、DB 打开前）**：仅走默认路径时生效（FERMATA_DB_PATH 优先、兼容 GIKA_DB_PATH 兜底，env 覆盖不触发迁移）。旧 `%APPDATA%\com.gika.dev\gika.db` 存在且新 `com.fermata.app\fermata.db` 不存在 → 复制（不移动）gika.db 及 -wal/-shm 边车到 fermata.db，写 `[rename]` 日志；旧目录原样保留（回滚零成本）。
 - **kernel.rs 日网格测试修复（顺带）**：主会话 v1.4 改 GridCell 为 marks[]（占用率取前二、对角分半）后测试未跟上；断言迁到 marks API（首枚=多数派、次席、空格 marks.is_empty），跨午夜用例锚到昨天——v1.4 的"占用止点钳到当下"会把锚在今天晚间的未来段钳没。
 - docs/screenshots/v12/restpop-bottom-right-position.txt 是更名前抓的窗口枚举证据（标题行含 gika），作为当时证据保留。
+
+### D45 · 计划四修（fix/plan-ops）
+- **删除即消失**：q_day_view 的 plans 查询补 `state != 'deleted'`（mock 同步）——此前删除的计划照常在当天视图渲染。
+- **完成态降级**：当天视图计划区完成行标题划线+变淡（与步骤勾选同语言），"未计时完成"标签保留。
+- **plan_reopen**：completed → pool，completed_at 清空，position 落队尾，写 `plan_reopen` 事件；非完成态守卫报错。UI=完成行 hover 出 ↩「放回稿库」，过去的日子同样可回退（当天视图按日渲染，无时限）。
+- **标题双态编辑**：复用 InlineEdit，落两处（当天视图计划区 + 稿库）；仅 pool 态可编辑（完成态标题不可点编）。稿库行编辑态禁拖（draggable 随编辑态切换，防文本选择被拖动手势劫持）。
+- **顺手修存量延迟**：DayViewSection 的 qDayView 依赖只有 [day, board.tick]（1Hz），计划操作后视图最长滞后 1s——deps 补 board.plans，操作即反映。

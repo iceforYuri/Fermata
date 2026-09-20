@@ -163,6 +163,61 @@ await sleep(800);
 const dotsAfter = (await page.$$("[data-testid=dg-dot]")).length;
 ok("未计时完成标记出现且不画圈", doneTag.includes("未计时完成") && dotsAfter === dotsToday, `${dotsToday}→${dotsAfter}`);
 
+// 8b. 计划四修：编辑提交/Esc、完成划线、↩放回稿库、删除即消失
+{
+  // 重回当天视图
+  await page.click(`.day-unit[data-day="${todayStr()}"] .day-big-label`);
+  await page.waitForSelector("[data-testid=month-cal]");
+  await page.click(`[data-testid=cal-cell][data-day="${todayStr()}"]`);
+  await page.waitForSelector("[data-testid=dayview]");
+  await sleep(300);
+
+  // ① pool 态标题双态编辑：Esc 还原
+  const poolRow = page.locator("[data-testid=dv-plan-row][data-state=pool]").first();
+  const oldTitle = (await poolRow.locator(".dv-plan-title").textContent()).trim();
+  await poolRow.locator("[data-testid=dv-plan-title]").click();
+  await poolRow.locator("[data-testid=dv-plan-title-editing]").waitFor();
+  await poolRow.locator("[data-testid=dv-plan-title-editing]").fill("不应出现的名字");
+  await page.keyboard.press("Escape");
+  await sleep(300);
+  const afterEsc = (await poolRow.locator(".dv-plan-title").textContent()).trim();
+  ok("计划编辑 Esc 还原", afterEsc === oldTitle, `esc=${afterEsc} 期望 ${oldTitle}`);
+
+  // ② Enter 提交改名
+  await poolRow.locator("[data-testid=dv-plan-title]").click();
+  await poolRow.locator("[data-testid=dv-plan-title-editing]").waitFor();
+  await poolRow.locator("[data-testid=dv-plan-title-editing]").fill("改名后的计划");
+  await page.keyboard.press("Enter");
+  await sleep(400);
+  const renamed = (await page.locator("[data-testid=dv-plan-row][data-state=pool]", { hasText: "改名后的计划" }).count()) === 1;
+  ok("计划编辑 Enter 提交", renamed, "");
+
+  // ③ 完成态：标题划线+变淡
+  const doneRow = page.locator("[data-testid=dv-plan-row][data-state=completed]", { hasText: "未计时完成验收项" });
+  const deco = await doneRow.locator(".dv-plan-title").evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { line: cs.textDecorationLine, faint: cs.color };
+  });
+  ok("完成态标题划线", deco.line.includes("line-through"), `deco=${deco.line}`);
+
+  // ④ ↩ 放回稿库：completed → pool
+  await doneRow.hover();
+  await doneRow.locator("[data-testid=dv-plan-reopen]").click();
+  await sleep(400);
+  const backToPool = (await page.locator("[data-testid=dv-plan-row][data-state=pool]", { hasText: "未计时完成验收项" }).count()) === 1;
+  ok("↩ 放回稿库（回 pool）", backToPool, "");
+
+  // ⑤ 删除即消失
+  await page.fill("[data-testid=dv-plan-input]", "要消失的计划");
+  await page.press("[data-testid=dv-plan-input]", "Enter");
+  await sleep(400);
+  const delRow = page.locator("[data-testid=dv-plan-row]", { hasText: "要消失的计划" });
+  await delRow.locator("[data-testid=dv-plan-del]").click();
+  await sleep(400);
+  const gone = (await page.locator("[data-testid=dv-plan-row]", { hasText: "要消失的计划" }).count()) === 0;
+  ok("删除即消失", gone, "");
+}
+
 // 9. 日视角锚点=月历选中日（非强制今天）
 await page.click(`.day-unit[data-day="${todayStr()}"] .day-big-label`).catch(async () => {
   await page.click("[data-testid=daygrid-date]").catch(() => {});

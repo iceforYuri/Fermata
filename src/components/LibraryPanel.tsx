@@ -1,14 +1,17 @@
+import { useState } from "react";
 import { data, type Plan } from "../api/data";
 import { act, todayStr, useBoard } from "../store/board";
 import { useUi } from "../store/ui";
+import { InlineEdit } from "./InlineEdit";
 
 /**
  * 左栏 · 稿库：300px 固定宽，今日剩余/明日草稿两组；
- * 条目 44px，hover 浮现 ✕/✓；拖入中列即成进程（拖到折线区=直接激活）。
+ * 条目 44px，hover 浮现 ✕/✓；标题点击原地双态编辑（编辑态禁拖）；拖入中列即成进程。
  */
 export function LibraryPanel() {
   const { leftOpen } = useUi();
   const { plans } = useBoard();
+  const [editingId, setEditingId] = useState<number | null>(null);
   const today = todayStr();
   const todayPlans = plans.filter((p) => !p.scheduled_date || p.scheduled_date <= today);
   const futurePlans = plans.filter((p) => p.scheduled_date && p.scheduled_date > today);
@@ -26,13 +29,21 @@ export function LibraryPanel() {
           key={p.id}
           className="plan-row"
           data-testid="plan-row"
-          draggable
+          draggable={editingId !== p.id}
           onDragStart={(e) => {
             e.dataTransfer.setData("text/fermata-plan", JSON.stringify({ id: p.id, title: p.title }));
             e.dataTransfer.effectAllowed = "move";
           }}
         >
-          <span className="plan-title">{p.title}</span>
+          <InlineEdit
+            value={p.title}
+            className="plan-title"
+            testid="plan-title"
+            onEditingChange={(ed) => setEditingId(ed ? p.id : null)}
+            onCommit={(v) => {
+              if (v) void act(() => data.planUpdate(p.id, { title: v }));
+            }}
+          />
           {p.est_minutes !== null && <span className="plan-est num">预计 {p.est_minutes}m</span>}
           <span className="plan-ops">
             <button

@@ -786,7 +786,7 @@ pub fn q_day_view(conn: &Connection, day: &str) -> Result<DayView, String> {
     }
 
     let mut stmt = conn
-        .prepare("SELECT * FROM plans WHERE scheduled_date = ?1 ORDER BY position, id")
+        .prepare("SELECT * FROM plans WHERE scheduled_date = ?1 AND state != 'deleted' ORDER BY position, id")
         .map_err(|e| e.to_string())?;
     let plans: Vec<Plan> = stmt
         .query_map(rusqlite::params![day], |r| {

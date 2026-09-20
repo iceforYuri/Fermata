@@ -505,6 +505,24 @@ pub fn plan_delete(conn: &Connection, ts: i64, id: i64) -> Result<(), String> {
     Ok(())
 }
 
+/// 完成 → 放回稿库：completed → pool，completed_at 清空，position 落队尾
+pub fn plan_reopen(conn: &Connection, ts: i64, id: i64) -> Result<(), String> {
+    let max_pos: Option<i64> = conn
+        .query_row("SELECT MAX(position) FROM plans", [], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    let n = conn
+        .execute(
+            "UPDATE plans SET state = 'pool', completed_at = NULL, position = ?2 WHERE id = ?1 AND state = 'completed'",
+            rusqlite::params![id, max_pos.unwrap_or(0) + 1],
+        )
+        .map_err(|e| e.to_string())?;
+    if n == 0 {
+        return Err(format!("计划 {id} 不在完成态，不能放回稿库"));
+    }
+    append_event(conn, ts, "plan_reopen", None, json!({ "plan_id": id }))?;
+    Ok(())
+}
+
 // ---------- 系统层事件（M2 调用；种子同样经此写入以保 segments 自洽） ----------
 
 /// 环走满：仅记事件（时间环归 M2，segments 不动）

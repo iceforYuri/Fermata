@@ -192,6 +192,7 @@ fn main() {
             fermata_lib::commands::plan_update,
             fermata_lib::commands::plan_done,
             fermata_lib::commands::plan_delete,
+            fermata_lib::commands::plan_reopen,
             fermata_lib::commands::idle_start,
             fermata_lib::commands::idle_end,
             fermata_lib::commands::rest_trigger,

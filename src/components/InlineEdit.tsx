@@ -12,6 +12,7 @@ export function InlineEdit({
   editColor,
   multiline = false,
   testid,
+  onEditingChange,
 }: {
   value: string;
   onCommit: (v: string) => void;
@@ -20,8 +21,13 @@ export function InlineEdit({
   editColor?: string | null;
   multiline?: boolean;
   testid?: string;
+  onEditingChange?: (editing: boolean) => void;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditingState] = useState(false);
+  const setEditing = (v: boolean) => {
+    setEditingState(v);
+    onEditingChange?.(v);
+  };
   const [draft, setDraft] = useState(value);
   const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
 

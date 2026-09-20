@@ -157,6 +157,7 @@ export interface DataApi {
   ): Promise<void>;
   planDone(id: number): Promise<void>;
   planDelete(id: number): Promise<void>;
+  planReopen(id: number): Promise<void>;
   idleStart(runningPid?: number): Promise<void>;
   idleEnd(runningPid?: number): Promise<void>;
   restTrigger(pid: number | null, source: "ring_full" | "continuous", readingMs: number): Promise<void>;

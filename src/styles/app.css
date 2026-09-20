@@ -1285,6 +1285,9 @@ body:has(.overlay-card) {
   font-size: var(--fs-body);
 }
 .dv-plan-title { flex: 1; min-width: 0; }
+.dv-plan.done .dv-plan-title { text-decoration: line-through; color: var(--ink-faint); }
+.dv-reopen { opacity: 0; transition: opacity var(--dur-fast); }
+.dv-plan:hover .dv-reopen { opacity: 1; }
 .dv-tag { font-size: var(--fs-micro); color: var(--ink-faint); }
 .plan-ops-inline { display: flex; gap: 8px; }
 .plan-ops-inline button { color: var(--ink-soft); }

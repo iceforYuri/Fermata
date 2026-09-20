@@ -270,6 +270,29 @@ ok(
   ok("确认后稿库进程激活", nowTitle === planTitle, `active=${nowTitle} 期望 ${planTitle}`);
 }
 
+// 9d. 稿库标题双态编辑：Esc 还原 / Enter 提交
+{
+  const row0 = page.locator("[data-testid=plan-row]").first();
+  const oldTitle = (await row0.locator(".plan-title").textContent()).trim();
+  await row0.locator("[data-testid=plan-title]").click();
+  await row0.locator("[data-testid=plan-title-editing]").waitFor();
+  await row0.locator("[data-testid=plan-title-editing]").fill("不应出现的名字");
+  await page.keyboard.press("Escape");
+  await sleep(300);
+  const afterEsc = (await row0.locator(".plan-title").textContent()).trim();
+  await row0.locator("[data-testid=plan-title]").click();
+  await row0.locator("[data-testid=plan-title-editing]").waitFor();
+  await row0.locator("[data-testid=plan-title-editing]").fill("改名稿库条目");
+  await page.keyboard.press("Enter");
+  await sleep(400);
+  const afterCommit = (await row0.locator(".plan-title").textContent()).trim();
+  ok(
+    "稿库编辑 Esc 还原 + Enter 提交",
+    afterEsc === oldTitle && afterCommit === "改名稿库条目",
+    `esc=${afterEsc} commit=${afterCommit} 原名=${oldTitle}`,
+  );
+}
+
 // 附2：顶栏胶囊 20 连击（真实鼠标点击，回归点击稳定性）
 {
   let hits = 0;

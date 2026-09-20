@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { data, type DayView } from "../../api/data";
 import { act, markHex, useBoard } from "../../store/board";
 import { fmtDur } from "../../util";
+import { InlineEdit } from "../../components/InlineEdit";
 
 /**
  * 当天视图（清单视角）：已做 / 进行中 / 未做 / 计划编辑 / 挂起成本。
@@ -13,7 +14,7 @@ export function DayViewSection({ day }: { day: string }) {
   const [newPlan, setNewPlan] = useState("");
   useEffect(() => {
     void data.qDayView(day).then(setView);
-  }, [day, board.tick]);
+  }, [day, board.tick, board.plans]); // board.plans：计划变更立即反映，不等 1Hz tick
   if (!view) return null;
 
   return (
@@ -60,9 +61,37 @@ export function DayViewSection({ day }: { day: string }) {
       <section className="dv-section" data-testid="dv-plans">
         <div className="detail-label">计划（该天）</div>
         {view.plans.map((p) => (
-          <div className="dv-plan" key={p.id} data-testid="dv-plan-row" data-state={p.state}>
-            <span className="dv-plan-title">{p.title}</span>
+          <div
+            className={`dv-plan${p.state === "completed" ? " done" : ""}`}
+            key={p.id}
+            data-testid="dv-plan-row"
+            data-state={p.state}
+          >
+            {p.state === "pool" ? (
+              <InlineEdit
+                value={p.title}
+                className="dv-plan-title"
+                testid="dv-plan-title"
+                onCommit={(v) => {
+                  if (v) void act(() => data.planUpdate(p.id, { title: v }));
+                }}
+              />
+            ) : (
+              <span className="dv-plan-title">{p.title}</span>
+            )}
             {p.state === "completed" && <span className="dv-tag">未计时完成</span>}
+            {p.state === "completed" && (
+              <span className="plan-ops-inline">
+                <button
+                  className="dv-reopen"
+                  title="放回稿库"
+                  data-testid="dv-plan-reopen"
+                  onClick={() => void act(() => data.planReopen(p.id))}
+                >
+                  ↩
+                </button>
+              </span>
+            )}
             {p.state === "pool" && (
               <span className="plan-ops-inline">
                 <button data-testid="dv-plan-done" onClick={() => void act(() => data.planDone(p.id))}>✓</button>
