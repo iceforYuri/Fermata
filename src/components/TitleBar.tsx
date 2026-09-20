@@ -85,39 +85,17 @@ export const TitleBar = memo(function TitleBar() {
     }
   };
 
-  // 弹簧渲染循环
-  useEffect(() => {
-    springs.current.forEach((s, i) => (s.target = TABS[i].key === tab ? 1 : 0));
-    if (raf.current) return;
-    const tick = (t: number) => {
-      const dt = Math.min((lastT.current ? t - lastT.current : 16.7) / 1000, 0.032);
-      lastT.current = t;
-      let active = false;
-      springs.current.forEach((s, i) => {
-        if (s.p === s.target && s.v === 0) return;
-        s.v += (-K * (s.p - s.target) - C * s.v) * dt;
-        s.p += s.v * dt;
-        if (Math.abs(s.p - s.target) < 0.001 && Math.abs(s.v) < 0.005) {
-          s.p = s.target;
-          s.v = 0;
-        } else {
-          active = true;
-        }
-        renderItem(i, s.p);
-      });
-      raf.current = active ? requestAnimationFrame(tick) : 0;
-    };
-    raf.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf.current);
-  }, [tab]);
+  // 弹簧渲染循环（常驻单循环 + ref 读最新 tab；label 透明度只由弹簧写，React 不插手）
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
 
-  function renderItem(i: number, pRaw: number) {
+  const renderItem = (i: number, pRaw: number) => {
     const el = itemsRef.current[i];
     if (!el) return;
     const p = Math.max(-0.08, Math.min(1.12, pRaw));
     const t = Math.max(0, Math.min(1, pRaw));
     const pillW = parseFloat(el.dataset.pillW ?? "64");
-    const isActive = TABS[i].key === tab;
+    const isActive = TABS[i].key === tabRef.current;
     el.style.width = `${lerp(36, pillW, p)}px`;
     const pill = el.querySelector<HTMLElement>(".nav-pill");
     if (pill) {
@@ -134,7 +112,42 @@ export const TitleBar = memo(function TitleBar() {
     if (label) {
       label.style.opacity = String(smooth((t - 0.5) / 0.45));
     }
-  }
+  };
+  const renderRef = useRef(renderItem);
+  renderRef.current = renderItem;
+
+  useEffect(() => {
+    const tick = (t: number) => {
+      const dt = Math.min((lastT.current ? t - lastT.current : 16.7) / 1000, 0.032);
+      lastT.current = t;
+      let active = false;
+      springs.current.forEach((s, i) => {
+        if (s.p === s.target && s.v === 0) return;
+        s.v += (-K * (s.p - s.target) - C * s.v) * dt;
+        s.p += s.v * dt;
+        if (Math.abs(s.p - s.target) < 0.001 && Math.abs(s.v) < 0.005) {
+          s.p = s.target;
+          s.v = 0;
+        } else {
+          active = true;
+        }
+        renderRef.current(i, s.p);
+      });
+      // 收敛即停：raf 归零；下次 tab 变化由下方 effect 重启
+      raf.current = active ? requestAnimationFrame(tick) : 0;
+    };
+    // tab 变化：重定目标并确保循环在转（无清理竞态——卸载才取消，且取消即归零）
+    springs.current.forEach((s, i) => (s.target = TABS[i].key === tabRef.current ? 1 : 0));
+    if (!raf.current) raf.current = requestAnimationFrame(tick);
+  }, [tab]);
+
+  // 卸载清理：取消且归零（关键：不归零会让残留 id 骗过重启检查，弹簧永久死亡）
+  useEffect(() => {
+    return () => {
+      if (raf.current) cancelAnimationFrame(raf.current);
+      raf.current = 0;
+    };
+  }, []);
 
   return (
     <div className="titlebar borderless">
@@ -153,9 +166,7 @@ export const TitleBar = memo(function TitleBar() {
           >
             <span className="nav-pill" />
             <span className="nav-icon">{t.icon}</span>
-            <span className="nav-label" style={{ opacity: tab === t.key ? 1 : 0 }}>
-              {t.label}
-            </span>
+            <span className="nav-label">{t.label}</span>
             {t.key === "board" && resting && tab !== "board" && <RestMark />}
           </button>
         ))}

@@ -1682,6 +1682,7 @@ body:has(.overlay-card) {
   color: var(--ink);
   font-weight: 600;
   padding-left: 2px;
+  opacity: 0; /* 透明度由弹簧每帧直写；默认隐去防首帧闪现 */
 }
 .morph-tab.active { color: var(--ink); }
 .morph-tab.active .nav-pill { --pill-a: 10%; } /* 静止态封顶 10%；弹簧进行中由内联接管 */
