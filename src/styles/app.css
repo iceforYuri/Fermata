@@ -16,10 +16,13 @@
 }
 /* v1.1：拖拽区只剩两侧留白，导航不被覆盖（点击稳定性根治） */
 .titlebar .drag-side {
-  flex: 1;
-  height: 100%;
+  position: absolute;      /* 拖拽区与导航永不交叠：绝对定位让出导航足印（144px 居中） */
+  top: 0;
+  bottom: 0;
   -webkit-app-region: drag;
 }
+.titlebar .drag-side.left  { left: 0; right: calc(50% + 72px); }
+.titlebar .drag-side.right { left: calc(50% + 72px); right: 132px; } /* 132px = 三枚窗控 */
 .titlebar .tabs {
   position: relative;
   display: flex;
@@ -1654,9 +1657,19 @@ body:has(.overlay-card) {
   display: flex;
   align-items: center;
   height: 100%;
+  width: 144px;              /* 3 个固定槽位 × 48px：导航足印恒定，拖拽区让位 */
+}
+.morph-slot {
+  position: relative;
+  width: 48px;
+  height: 36px;
+  flex: none;
 }
 .morph-tab {
-  position: relative;
+  position: absolute;        /* 槽位中心锚定：morph 只改变宽，中心永不滑动（点击不追着跑） */
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
   height: 36px;              /* 命中区 ≥36px */
@@ -1675,7 +1688,7 @@ body:has(.overlay-card) {
   transition: none;
 }
 .morph-tab:not(.active):hover .nav-pill { --pill-a: 5%; } /* 微光晕 */
-.morph-tab:active { transform: translateY(1px); }          /* 按压下沉 */
+.morph-tab:active { transform: translate(-50%, -50%) translateY(1px); } /* 按压下沉（保住槽位居中变换） */
 .nav-icon {
   position: relative;
   display: grid;
