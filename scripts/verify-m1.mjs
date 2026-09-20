@@ -389,10 +389,10 @@ ok(
 {
   await page.click("[data-testid=time-ring-btn]");
   await page.waitForSelector("[data-testid=slice-card]");
-  await page.click("[data-testid=slice-opt-60]");
+  await page.click("[data-testid=slice-opt-90]");
   await sleep(500);
   const ringLabel = await page.textContent("[data-testid=time-ring] .ring-label");
-  ok("时间环小卡：选 60m 后环读数=60", ringLabel === "60", `ring=${ringLabel}`);
+  ok("时间环小卡：选 90m 后环读数=90", ringLabel === "90", `ring=${ringLabel}`);
   await page.keyboard.press("Escape");
 }
 
