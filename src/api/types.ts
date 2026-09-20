@@ -129,9 +129,19 @@ export interface CellMark {
   is_start: boolean; // 该进程的段起点落此格（半圆朝向右下）
   is_end: boolean;   // 段止点落此格（半圆朝向左上）
 }
+export interface GridOccupant {
+  process_id: number;
+  color_tag: number | null;
+  title: string;
+  occ_start: number; // 格内钳制占用起点
+  occ_end: number;   // 占用止点（开口段钳到当下）
+  share: number;     // 占用率 0..1（不过滤，<20% 也列出）
+}
 export interface GridCell {
   cell: number;
-  marks: CellMark[]; // 最多两枚：≥20% 的占用者取前二（对角分半）
+  marks: CellMark[]; // 最多两枚：≥20% 的占用者取前二（对角分半）——只管画
+  occupants: GridOccupant[]; // 全部占用者按时长降序，截前 4——悬停清单
+  occupant_count: number;    // 该格占用者总数（>4 时浮窗收 "…等 N 项"）
 }
 
 /** 数据内核接口：Tauri 与 mock 双实现 */

@@ -1336,6 +1336,12 @@ body:has(.overlay-card) {
 .dg-tip-title { font-weight: 600; }
 .dg-tip-time { color: var(--ink-soft); }
 .dg-tip-bp { color: var(--ink-faint); font-size: var(--fs-micro); margin-top: 2px; }
+/* 整格全量清单行（悬停浮窗 v1.4.1） */
+.dg-tip-row { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+.dg-tip-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; }
+.dg-tip-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dg-tip-row .dg-tip-time { flex: none; font-size: var(--fs-micro); }
+.dg-tip-more { color: var(--ink-faint); font-size: var(--fs-micro); padding-top: 4px; }
 
 /* 年视图 */
 .year-grid {

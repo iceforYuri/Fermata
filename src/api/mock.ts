@@ -8,6 +8,7 @@ import type {
   CellMark,
   DataApi,
   FermataEvent,
+  GridOccupant,
   PaletteEntry,
   Plan,
   Process,
@@ -287,8 +288,35 @@ function buildEmpty(): MockState {
   return s;
 }
 
+/** ?fixture=gridmulti：5 个占用者挤进同一格（悬停全量清单验收用）。
+ *  窗锚在**昨天** 12:00–12:04——恒在过去、恒整格不跨界（凌晨跑也确定）。 */
+function buildGridMulti(): MockState {
+  const s = baseState();
+  const now = Date.now();
+  const t = todayStr();
+  const [d0] = dayRangeMs(t);
+  const a = d0 - 86_400_000 + 12 * 3_600_000; // 昨天 12:00
+  const end = a + 4 * 60_000;                 // 昨天 12:04
+  const mkp = (title: string, color: number | null, s0: number, s1: number) => {
+    const p: Process = {
+      id: s.nextId++, title, state: "completed", prev_state: null, color_tag: color, notes: null,
+      created_at: now - 26 * 3_600_000, activated_count: 1, completed_at: now - 25 * 3_600_000,
+      queue_position: null, board_date: t,
+    };
+    s.processes.push(p);
+    s.segs.push({ pid: p.id, start: s0, end: s1 });
+    return p;
+  };
+  mkp("格子占者甲", 0, a, a + 4 * 60_000);      // 4 分钟（满格 40%…取主导）
+  mkp("格子占者乙", 1, a + 60_000, end);        // 3 分钟
+  mkp("格子占者丙", 2, a + 2 * 60_000, end);    // 2 分钟
+  mkp("格子占者丁", null, a + 3 * 60_000, end); // 1 分钟（10% <20% 也列出；无色→灰点）
+  mkp("格子占者戊", 4, end - 20_000, end);      // 20 秒（被 "等 1 项" 收）
+  return s;
+}
+
 const state: MockState =
-  fixture === "empty" ? buildEmpty() : buildRich();
+  fixture === "empty" ? buildEmpty() : fixture === "gridmulti" ? buildGridMulti() : buildRich();
 if (fixture === "rest") {
   state.resting = true;
   state.restSince = Date.now() - 12 * 60_000;
@@ -844,10 +872,8 @@ export const mockData: DataApi = {
     const [d0] = dayRangeMs(day);
     const ds = d0 + 6 * 3_600_000; // 时窗起点 06:00
     const CELL = 600_000;
-    const cells: { cell: number; marks: CellMark[] }[] = Array.from({ length: 108 }, (_, i) => ({
-      cell: i,
-      marks: [],
-    }));
+    const cells: { cell: number; marks: CellMark[]; occupants: GridOccupant[]; occupant_count: number }[] =
+      Array.from({ length: 108 }, (_, i) => ({ cell: i, marks: [], occupants: [], occupant_count: 0 }));
     const now = Date.now();
     // cell -> pid -> 累计占用 ms
     const cellMs = new Map<number, Map<number, number>>();
@@ -872,6 +898,37 @@ export const mockData: DataApi = {
     for (const [c, m] of cellMs) {
       const cs = ds + c * CELL;
       const ranked = [...m.entries()].sort((a, b) => b[1] - a[1]);
+      cells[c].occupant_count = ranked.length;
+      // 该进程所有段与本格窗交集的并（钳制在格窗内）
+      const occOf = (pid: number) => {
+        let occStart = Infinity;
+        let occEnd = -Infinity;
+        for (const g of state.segs) {
+          if (g.pid !== pid || dayOfTs(g.start) !== day) continue;
+          const gs = Math.max(g.start, cs);
+          const ge = Math.min(g.end ?? now, now, cs + CELL);
+          if (ge > gs) {
+            occStart = Math.min(occStart, gs);
+            occEnd = Math.max(occEnd, ge);
+          }
+        }
+        return { occStart, occEnd };
+      };
+      // 悬停清单：全部占用者按 ms 降序截前 4（share 不过滤——阈值只管画不画）
+      for (const [pid, ms] of ranked.slice(0, 4)) {
+        const { occStart, occEnd } = occOf(pid);
+        if (occEnd <= occStart) continue;
+        const p = proc(pid);
+        cells[c].occupants.push({
+          process_id: pid,
+          color_tag: p.color_tag,
+          title: p.title,
+          occ_start: occStart,
+          occ_end: occEnd,
+          share: ms / CELL,
+        });
+      }
+      // 画布标记：≥20% 取前二（对角分半）
       for (const [pid, ms] of ranked.slice(0, 2)) {
         const share = ms / CELL;
         if (share < MIN_SHARE) break; // 后面的更小，一并不取
@@ -889,18 +946,7 @@ export const mockData: DataApi = {
             best = g;
           }
         }
-        // 占用区间：该进程所有段与本格窗交集的并
-        let occStart = Infinity;
-        let occEnd = -Infinity;
-        for (const g of state.segs) {
-          if (g.pid !== pid || dayOfTs(g.start) !== day) continue;
-          const gs = Math.max(g.start, cs);
-          const ge = Math.min(g.end ?? now, now, cs + CELL);
-          if (ge > gs) {
-            occStart = Math.min(occStart, gs);
-            occEnd = Math.max(occEnd, ge);
-          }
-        }
+        const { occStart, occEnd } = occOf(pid);
         if (!best || occEnd <= occStart) continue;
         cells[c].marks.push({
           process_id: pid,
