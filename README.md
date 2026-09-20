@@ -1,85 +1,62 @@
 # Fermata
 
-把一天排成一页版面，管理并行工作的挂起与恢复，度量专注时间。Windows 桌面效率工具（Tauri 2 + React + TypeScript + SQLite）。
+把一天排成一页版面。
 
-![进程页](docs/screenshots/release/board-rich.png)
-![日网格](docs/screenshots/release/stats-day.png)
-![休息页](docs/screenshots/release/rest-page.png)
+并行工作的挂起、恢复与度量——给全天与 AI 协作、频繁切换、容易忘记"上一件做到哪"的人。
+
+![Fermata 进程页](docs/screenshots/release/readme-board.png)
+
+## 它在解决什么
+
+切走容易，回来难。Fermata 的内核是一台任务调度器：进程状态机、断点、计时、休止符。报纸式排版只是它的呈现。
+
+- **进程，不是任务**——一天的事情排在一页版面上；折线之上，只放一件正在做的
+- **断点，不是备注**——切走时留一句话，往步骤栈顶压一条；回来，从断点继续
+- **休止符**——时间片走满，或连轴 90 分钟，右下角弹一张不抢焦点的暖卡。无超时，不催促，恢复永远由你显式开始
+- **时间格**——一天画成 18×6 的圆点网格（06–24 时，每格 10 分钟）。空隙本身，也是数据
+
+![日网格](docs/screenshots/release/readme-daygrid.png)
+
+## 触点
+
+- `Alt+Q` 唤出切换浮层——进程版 Alt+Tab：过滤与新建二合一、断点内嵌、数字键直选
+- 休止符弹窗停在主屏右下角，实心暖卡、鼠标可点、绝不抢你的输入焦点
+- 主窗默认不置顶——它是"回来看版面"的地方，不挡你干活
+
+![暗 · 工作台](docs/screenshots/release/board-rich-dark.png)
+
+亮 · 淡暖 / 暗 · 工作台，两套主题。
 
 ## 安装
 
-- **安装包**：`Fermata_1.0.0_x64-setup.exe`（NSIS，含 WebView2 引导）——开始菜单/卸载条目齐全
-- **绿色版**：`fermata.exe` 单文件，放哪都能跑；数据在 `%APPDATA%/com.fermata.app/fermata.db`
-- 系统要求：Windows 10/11（Win11 由 DWM 自动提供圆角窗口）；系统自带或已装 WebView2 Runtime（Win11 预装）
-- 从 gika 升级：旧库 `%APPDATA%/com.gika.dev/gika.db` 在首次启动时自动**复制**到新目录（旧目录原样保留）
+| 形态 | 位置（构建产物，不入库，`pnpm tauri build` 随时可再生成） |
+| --- | --- |
+| 安装包（推荐） | `publish/Fermata-1.0.0-setup.exe` |
+| 绿色单文件 | `publish/Fermata-1.0.0-portable.exe` |
 
-## 运行（开发）
+要求 Windows 10/11（WebView2 随系统自带；安装包内含引导）。首次启动即是一张空版面——没有演示数据，你的数据从第一行事件起就属于你。
+
+从 gika 时代升级：旧库 `%APPDATA%/com.gika.dev/gika.db` 首启时自动复制迁移，原目录原样保留。
+
+## 数据
+
+local-first。SQLite 存在本机 `%APPDATA%/com.fermata.app/fermata.db`；事件日志 append-only，可导出 JSON。没有账号，没有云，没有遥测。
+
+## 开发
 
 ```bash
 pnpm install
 pnpm tauri dev
 ```
 
-种子演示数据（一周密集 + 可选 120 天稀疏）：
+演示数据：`pnpm seed`（一周）/ `pnpm seed:deep`（+120 天），用 `FERMATA_DB_PATH` 指定库文件。
+打包：`pnpm tauri build`，产物在 `src-tauri/target/release/`。
+验证：`cargo test` + `node scripts/verify-m1|m2|m3|m4`，发布验收总表见 [docs/screenshots/release/checklist.md](docs/screenshots/release/checklist.md)。
 
-```bash
-pnpm seed        # 写入 ./src-tauri/fermata-seed.db
-pnpm seed:deep   # 加铺过去 ~120 天
-pnpm tauri dev   # 用种子库：FERMATA_DB_PATH=...\src-tauri\fermata-seed.db
-```
+结构地图：`src/`（api 薄封装 · pages · store · styles/tokens）｜`src-tauri/`（db 数据内核 · commands · sys 六原语）｜`docs/`（设计合同 01–04 · ADR · 验收证据）。
+分支模型：`dev` 开发主线 / `main` 发布分支 / `feature/*` 功能分支。
+词汇与纪律：[CONTEXT.md](CONTEXT.md) 与 [AGENTS.md](AGENTS.md)。
 
-默认运行库在 `%APPDATA%/com.fermata.app/fermata.db`；`FERMATA_DB_PATH` 可覆盖。
+## 许可与致谢
 
-## 打包
-
-```bash
-pnpm tauri build
-# 产物：src-tauri/target/release/fermata.exe（绿色版）
-#       src-tauri/target/release/bundle/nsis/Fermata_1.0.0_x64-setup.exe（安装包）
-```
-
-## 分支模型
-
-`dev` = 开发记录与合并主线；`main` = 发布分支，仅在用户确认后由 dev 合入；新功能从 dev 开 `feature/<名>` 分支，回归全绿后合回 dev。
-
-## 截图 / 验证脚本
-
-```bash
-pnpm vite dev                 # 浏览器 mock 模式
-node scripts/shot-release.mjs # 发布截图矩阵（双主题）→ docs/screenshots/release/
-node scripts/verify-m1.mjs    # 进程页交互断言
-node scripts/verify-m3.mjs    # 统计页钻取断言
-node scripts/verify-m4.mjs    # 设置页双态断言
-# 真实窗口（WebView2 CDP）：
-# WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9223 pnpm tauri dev
-node scripts/verify-m2.mjs        # 系统层六项
-node scripts/verify-m2-idle.mjs   # 空闲回归（需 FERMATA_IDLE_SECS=5 实例）
-node scripts/verify-m4-real.mjs   # 设置真实链路
-```
-
-## 仓库结构
-
-```
-src/                  前端（React + TS）
-  api/                六原语与数据层薄封装（组件不许直接碰 Tauri）
-  pages/              进程页 / 统计页 / 设置页 / 休息页 / 浮层两窗
-  store/              board（数据）/ ui（面板）/ scheduler（调度 tick）/ actions
-  styles/             tokens.css（视觉底座定稿）+ app.css
-src-tauri/
-  src/db/             SQLite 内核：schema 迁移 / ops（状态机+事件）/ queries（统计）
-  src/commands.rs     命令层（全部 async + store-changed 广播）
-  src/sys.rs          六原语 / 预建浮层 / 热键 / 空闲看门狗 / debug 替身
-  src/bin/seed.rs     种子（--deep 铺 120 天）
-docs/                 设计文档（01–06 + adr/）与验收证据（screenshots/ 每阶段一册）
-docs/screenshots/release/   现行面貌（v1.0.0 发布截图集）
-```
-
-## 字体
-
-随包内置 MiSans（小米免费商用字体，子集 GB2312+ASCII，三档字重共 ~2.7MB），许可说明见 `src/assets/fonts/MiSans-LICENSE.txt`。
-
-## 词汇与纪律
-
-- 词汇表（进程/挂起/断点/折线/休止符…）见 [CONTEXT.md](CONTEXT.md)
-- 设计宪法、分支模型与工作协议见 [AGENTS.md](AGENTS.md)
-- 文档未覆盖处的实现决策留痕于 [docs/deviation.md](docs/deviation.md)
+界面字体 MiSans（小米，免费商用，子集内嵌），许可见 [src/assets/fonts/MiSans-LICENSE.txt](src/assets/fonts/MiSans-LICENSE.txt)。
