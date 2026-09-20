@@ -399,8 +399,38 @@ fn plan_reopen_and_day_view_filters_deleted() {
     };
     assert_eq!(order, vec![p1, p3], "夹紧到 min(prev,len)：p1 回队首");
 
+    // 分数位插入：reopen 不改他人 position；反复 done/reopen 相对顺序稳定
+    let pos_of = |id: i64| -> f64 {
+        conn.query_row("SELECT COALESCE(position,0) FROM plans WHERE id = ?1", rusqlite::params![id], |r| r.get(0))
+            .unwrap()
+    };
+    let p4 = ops::plan_create(&conn, t0 + 10, "丁", None, Some(&day)).unwrap();
+    let p5 = ops::plan_create(&conn, t0 + 11, "戊", None, Some(&day)).unwrap();
+    // pool: p1 p3 p4 p5；完成中间的 p3 再回退
+    let before: Vec<(i64, f64)> = vec![p1, p3, p4, p5].into_iter().map(|x| (x, pos_of(x))).collect();
+    ops::plan_done(&conn, t0 + 12, p3).unwrap();
+    ops::plan_reopen(&conn, t0 + 13, p3).unwrap();
+    assert_eq!(pos_of(p1), before[0].1, "他人 position 不被重写（p1）");
+    assert_eq!(pos_of(p4), before[2].1, "他人 position 不被重写（p4）");
+    assert_eq!(pos_of(p5), before[3].1, "他人 position 不被重写（p5）");
+    let order: Vec<i64> = {
+        let mut stmt = conn.prepare("SELECT id FROM plans WHERE state = 'pool' ORDER BY position, id").unwrap();
+        stmt.query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect()
+    };
+    assert_eq!(order, vec![p1, p3, p4, p5], "回退后相对顺序不变");
+    // 再来三轮 done/reopen 往返，顺序仍不变
+    for k in 0..3 {
+        ops::plan_done(&conn, t0 + 20 + k * 2, p3).unwrap();
+        ops::plan_reopen(&conn, t0 + 21 + k * 2, p3).unwrap();
+        let ord: Vec<i64> = {
+            let mut stmt = conn.prepare("SELECT id FROM plans WHERE state = 'pool' ORDER BY position, id").unwrap();
+            stmt.query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect()
+        };
+        assert_eq!(ord, vec![p1, p3, p4, p5], "往返 {k} 后顺序不变");
+    }
+
     // 守卫：非完成态不能回退；事件已记
-    assert!(ops::plan_reopen(&conn, t0 + 9, p1).is_err(), "pool 态不能再 reopen");
+    assert!(ops::plan_reopen(&conn, t0 + 30, p1).is_err(), "pool 态不能再 reopen");
     let evts = queries::q_events(&conn, None).unwrap();
     assert!(evts.iter().any(|e| e.kind == "plan_reopen"), "写 plan_reopen 事件");
 }

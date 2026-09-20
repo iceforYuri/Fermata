@@ -225,3 +225,8 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 - 锚点钉法=rAF 连续钉 600ms（操作帧起），不是一次性 scrollTop 补偿——幽灵沉降/进入弹簧/✕ 的 240ms 延迟落库都是动画中段的布局变化，钉一次钉不住。贴底/贴顶由浏览器自然夹紧。
 - `.stats-scroll` 加 `overflow-anchor: none` 关浏览器原生锚定（防与自钉双重补偿）。
 - 测试口径：锚点断言前必须等上一步操作的 600ms 钉窗结束再摆滚动位，否则钉环会把测试的手动 scrollTop 拉回（8c 首跑 Δ=108.8px 的根因）。
+
+### D48 · 分数位 position + 钉锚窗口收窄（fix/plan-ops 第四轮）
+- **分数位插入**：废除 plan_reopen 的 pool 密化重写（重写会让 pool 行与完成行保留的旧 position 撞值，`ORDER BY position, id` 撞出 id 序、视觉跳变）。改邻居中值插入：目标位 = （上邻居 + 下邻居）/2，无上邻 = 下邻 − 1，无下邻 = 上邻 + 1，空表 = 1。SQLite INTEGER 亲和列无损存 REAL（2.5 这类）；Rust `Plan.position` 改 `Option<f64>`，plan_create 的 MAX 按 f64 读；mock 同口径。prev_position 仍是稠密名次语义（只用来算目标位）。cargo test 加"往返 4 次相对顺序不变 + 他人 position 不被重写"。
+- **钉锚收窄**：rAF 钉窗 600ms → **340ms**（= 刷新延迟 ~80ms + 沉降 200 / 开缝 220），且只在量到位移的帧写 scrollTop（不脏不写）；连续操作新钉替换旧钉（pinGen）。✕ 删除的钉窗从数据提交回调起算（行沉降在计划区内、不动区头；未做区幽灵沉降发生在 +240ms 提交后）。
+- **帧耗证据**（scripts/measure-pin-frames.mjs，PerformanceObserver longtask + rAF 帧间隔，mock/headless Chromium）：修复前 `{"longTasks":[],"frames":90,"maxFrameMs":16.8,"p95":16.7,"over33":0}`，修复后同值——mock 环境帧耗本就在帧预算内，用户感知到的卡是真机 WebView2 上 600ms 每帧强制同步布局与高度动画同帧互踩的结构性问题；收窄+按需写消除该结构条件。真机复测脚本已入库。

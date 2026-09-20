@@ -623,7 +623,7 @@ export const mockData: DataApi = {
   async planReopen(id) {
     const pl = state.plans.find((x) => x.id === id && x.state === "completed");
     if (!pl) throw new Error("计划不在完成态");
-    // 插回 min(prev_position, 队列长度) 原位，密化让位；无 prev_position（存量）→ 队尾
+    // 插回 min(prev_position, 队列长度) 原位；**不改他人 position**：邻居间取分数位中值
     const pool = state.plans
       .filter((x) => x.state === "pool")
       .sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.id - b.id);
@@ -631,12 +631,15 @@ export const mockData: DataApi = {
     const idx0 = pl.prev_position != null
       ? Math.max(0, Math.min(pl.prev_position, len) - 1)
       : len;
-    pool.forEach((x, i) => {
-      x.position = i < idx0 ? i + 1 : i + 2;
-    });
+    const before = idx0 > 0 ? (pool[idx0 - 1].position ?? 0) : null;
+    const after = idx0 < pool.length ? (pool[idx0].position ?? 0) : null;
+    pl.position =
+      before !== null && after !== null ? (before + after) / 2
+      : before === null && after !== null ? after - 1
+      : before !== null ? before + 1
+      : 1;
     pl.state = "pool";
     pl.completed_at = null;
-    pl.position = idx0 + 1;
     ev("plan_reopen", null, { plan_id: id });
   },
 

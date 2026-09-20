@@ -296,7 +296,8 @@ pub struct Plan {
     pub state: String,
     pub created_at: i64,
     pub completed_at: Option<i64>,
-    pub position: Option<i64>,
+    /// 排序位；v4 起允许 REAL 分数位（回退原位插入不重排他人）
+    pub position: Option<f64>,
 }
 
 #[derive(Serialize, Clone, Debug)]

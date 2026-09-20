@@ -69,15 +69,19 @@ export function DayViewSection({ day }: { day: string }) {
   }, [view]);
 
   // 视觉锚点：计划区头屏幕位置在操作前后纹丝不动。
-  // rAF 连续钉住 ~600ms——覆盖数据刷新 + 未做区幽灵沉降(200ms) + 进入弹簧(220ms) + ✕ 的 240ms 延迟落库；
-  // 一次性补偿会被动画中段的布局变化甩开（钉一次 ≠ 钉得住）。
+  // rAF 钉住 340ms（= 真实布局变化窗口：刷新延迟 ~80ms + 沉降 200 / 开缝 220），
+  // 只在量到位移的帧才写 scrollTop（不脏不写，避免每帧强制同步布局与行动画互踩）；
+  // ✕ 的落库延迟 240ms，钉窗从动作回调（数据提交）起算。
+  const pinGen = useRef(0);
   const pinAnchor = () => {
     const el = plansRef.current;
     const sc = el?.closest(".stats-scroll");
     if (!el || !sc) return;
+    const gen = ++pinGen.current; // 新钉替换旧钉
     const y = el.getBoundingClientRect().top;
-    const until = performance.now() + 600;
+    const until = performance.now() + 340;
     const step = () => {
+      if (gen !== pinGen.current) return;
       const d = el.getBoundingClientRect().top - y;
       if (Math.abs(d) > 0.5) sc.scrollTop += d; // 贴底/贴顶浏览器自然夹紧
       if (performance.now() < until) requestAnimationFrame(step);
@@ -218,10 +222,12 @@ export function DayViewSection({ day }: { day: string }) {
                 <button
                   data-testid="dv-plan-del"
                   onClick={(e) => {
-                    pinAnchor();
                     animateRowLeave(
                       (e.currentTarget as HTMLElement).closest(".dv-plan"),
-                      () => void act(() => data.planDelete(p.id)),
+                      () => {
+                        pinAnchor(); // 钉窗从数据提交起算（行沉降在计划区内、不动区头）
+                        void act(() => data.planDelete(p.id));
+                      },
                     );
                   }}
                 >
