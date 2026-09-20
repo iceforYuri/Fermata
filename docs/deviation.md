@@ -219,3 +219,9 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 - **动效语言**（不新增曲线/时长）：完成=伪元素划线 scaleX 0→1 从左画出（160ms ease-out）+ 标题降淡（color var(--dur)）；删除=沉降收起（量高→0 + 淡出 200ms ease-out，JS 延迟 240ms 才真正删数据）；稿库完成=划线后接沉降（行离 pool 列表）；稿库新行（回退/新建）=高度 0→44 弹簧开缝（220ms，与 dnd.SQUEEZE 同 cubic-bezier(0.34,1.36,0.64,1)），初次装载不播。共用助手 `src/components/rowAnim.ts`。
 - **InlineEdit 加 disabled**：完成态标题仍挂同一 DOM 节点（组件类型不变），划线/颜色过渡才连续——此前完成瞬间 React 换节点导致划线跳变无动画。disabled 态 cursor:default 不可点编。
 - 截图中间帧手法：Playwright 截图快于真实动画，用注入 `transition-duration: 3200ms !important`（含 ::before/::after，`*` 不匹配伪元素）减速 20 倍截半途帧。
+
+### D47 · 未做区出入动效 + 计划区视觉锚点（fix/plan-ops 第三轮）
+- 「未做」区行不是直接操作对象，是计划区 ✓/↩/✕ 的联动结果：行出=LeavingRow 幽灵行（diff 时记下标题/量高/旧序邻位 afterId，挂起后下一帧沉降 200ms，到点卸载）；行入=EnteringRow（0 高挂载→量 scrollHeight→弹簧撑开 220ms，播完恢复自适应）。首次装载不播。rowAnim.ts 改 .tsx。
+- 锚点钉法=rAF 连续钉 600ms（操作帧起），不是一次性 scrollTop 补偿——幽灵沉降/进入弹簧/✕ 的 240ms 延迟落库都是动画中段的布局变化，钉一次钉不住。贴底/贴顶由浏览器自然夹紧。
+- `.stats-scroll` 加 `overflow-anchor: none` 关浏览器原生锚定（防与自钉双重补偿）。
+- 测试口径：锚点断言前必须等上一步操作的 600ms 钉窗结束再摆滚动位，否则钉环会把测试的手动 scrollTop 拉回（8c 首跑 Δ=108.8px 的根因）。

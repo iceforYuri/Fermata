@@ -247,6 +247,48 @@ ok("未计时完成标记出现且不画圈", doneTag.includes("未计时完成"
   ok("删除沉降（先收后删）", midCount === 1 && leaving === 1 && gone, `mid=${midCount} leaving=${leaving} gone=${gone}`);
 }
 
+// 8c. 未做区出入动效（联动）+ 计划区锚点钉住
+{
+  const sc = "[data-testid=drill-current] .stats-scroll";
+  // 造一条联动计划（进未做区）；建的钉窗 600ms，等它彻底结束再摆滚动位
+  await page.fill("[data-testid=dv-plan-input]", "动效联动计划");
+  await page.press("[data-testid=dv-plan-input]", "Enter");
+  await sleep(800);
+  // 滚到计划区头在视口中段（内容不够高则由浏览器夹紧，断言仍成立）
+  await page.evaluate((sel) => {
+    const scEl = document.querySelector(sel);
+    const head = document.querySelector("[data-testid=dv-plans] .detail-label");
+    scEl.scrollTop = head.getBoundingClientRect().top + scEl.scrollTop - scEl.getBoundingClientRect().top - 300;
+  }, sc);
+  await sleep(150);
+  const headTop0 = await page.evaluate(
+    () => document.querySelector("[data-testid=dv-plans] .detail-label").getBoundingClientRect().top,
+  );
+
+  // 勾选完成 → 未做行沉降（幽灵行）+ 锚点钉住
+  const prow = page.locator("[data-testid=dv-plan-row]", { hasText: "动效联动计划" });
+  await prow.locator("[data-testid=dv-plan-done]").click();
+  await sleep(120);
+  const leaving = await page.locator("[data-testid=dv-notdone-leaving]").count();
+  await sleep(600);
+  const leavingGone = (await page.locator("[data-testid=dv-notdone-leaving]").count()) === 0;
+  const headTop1 = await page.evaluate(
+    () => document.querySelector("[data-testid=dv-plans] .detail-label").getBoundingClientRect().top,
+  );
+  ok("勾选完成：未做行沉降过渡", leaving === 1 && leavingGone, `leaving=${leaving} gone=${leavingGone}`);
+  ok("计划区头锚点纹丝不动（±2px）", Math.abs(headTop1 - headTop0) <= 2, `Δ=${(headTop1 - headTop0).toFixed(1)}px`);
+
+  // 回退 → 未做行弹性进入 + 回到未做区
+  const doneRow2 = page.locator("[data-testid=dv-plan-row][data-state=completed]", { hasText: "动效联动计划" });
+  await doneRow2.hover();
+  await doneRow2.locator("[data-testid=dv-plan-reopen]").click();
+  await sleep(120);
+  const entering = await page.locator("[data-testid=dv-notdone-entering]").count();
+  await sleep(600);
+  const backIn = await page.locator("[data-testid=dv-notdone-row]", { hasText: "动效联动计划" }).count();
+  ok("回退：未做行弹性开缝接纳", entering === 1 && backIn === 1, `entering=${entering} back=${backIn}`);
+}
+
 // 9. 日视角锚点=月历选中日（非强制今天）
 await page.click(`.day-unit[data-day="${todayStr()}"] .day-big-label`).catch(async () => {
   await page.click("[data-testid=daygrid-date]").catch(() => {});

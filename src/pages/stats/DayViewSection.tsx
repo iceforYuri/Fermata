@@ -1,22 +1,101 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { data, type DayView } from "../../api/data";
 import { act, markHex, useBoard } from "../../store/board";
 import { fmtDur } from "../../util";
 import { InlineEdit } from "../../components/InlineEdit";
-import { animateRowLeave } from "../../components/rowAnim";
+import { animateRowLeave, EnteringRow, ENTER_MS, LeavingRow } from "../../components/rowAnim";
 
 /**
  * 当天视图（清单视角）：已做 / 进行中 / 未做 / 计划编辑 / 挂起成本。
  * 计划与 Tab1 稿库同源（plans 表），跨 tab 经 store-changed 同步。
+ * 「未做」区是计划区 ✓/↩/✕ 的联动对象：行出=沉降收起（幽灵行），行入=弹性开缝。
+ * 计划区操作钉视觉锚点：操作前记分区头屏幕位置，刷新后对 .stats-scroll 做 scrollTop 补偿。
  */
 export function DayViewSection({ day }: { day: string }) {
   const board = useBoard();
   const [view, setView] = useState<DayView | null>(null);
   const [newPlan, setNewPlan] = useState("");
+  // 「未做」出入动效状态
+  const [leavingRows, setLeavingRows] = useState<
+    Map<number, { title: string; height: number; afterId: number | null }>
+  >(new Map());
+  const [enteringIds, setEnteringIds] = useState<Set<number>>(new Set());
+  const prevNotDone = useRef<number[] | null>(null);
+  const titleCache = useRef(new Map<number, string>());
+  const heightCache = useRef(new Map<number, number>());
+  // 视觉锚点：计划分区头
+  const plansRef = useRef<HTMLElement>(null);
+
   useEffect(() => {
     void data.qDayView(day).then(setView);
   }, [day, board.tick, board.plans]); // board.plans：计划变更立即反映，不等 1Hz tick
+
+  // 「未做」出入 diff（首次装载不动）
+  useEffect(() => {
+    if (!view) return;
+    const cur = view.not_done.map((p) => p.id);
+    for (const p of view.not_done) titleCache.current.set(p.id, p.title);
+    const prev = prevNotDone.current;
+    prevNotDone.current = cur;
+    if (prev === null) return;
+    const curSet = new Set(cur);
+    const left = prev.filter((id) => !curSet.has(id));
+    const entered = cur.filter((id) => !prev.includes(id));
+    if (left.length) {
+      setLeavingRows((m) => {
+        const n = new Map(m);
+        for (const id of left) {
+          const idx = prev.indexOf(id);
+          n.set(id, {
+            title: titleCache.current.get(id) ?? "",
+            height: heightCache.current.get(id) ?? 28,
+            // 旧序里它后面仍在的第一行 = 沉降幽灵行的插入邻位（无则落尾）
+            afterId: prev.slice(idx + 1).find((x) => curSet.has(x)) ?? null,
+          });
+        }
+        return n;
+      });
+    }
+    if (entered.length) {
+      setEnteringIds((s) => new Set([...s, ...entered]));
+      setTimeout(() => {
+        setEnteringIds((s) => {
+          const n = new Set(s);
+          entered.forEach((id) => n.delete(id));
+          return n;
+        });
+      }, ENTER_MS + 80);
+    }
+  }, [view]);
+
+  // 视觉锚点：计划区头屏幕位置在操作前后纹丝不动。
+  // rAF 连续钉住 ~600ms——覆盖数据刷新 + 未做区幽灵沉降(200ms) + 进入弹簧(220ms) + ✕ 的 240ms 延迟落库；
+  // 一次性补偿会被动画中段的布局变化甩开（钉一次 ≠ 钉得住）。
+  const pinAnchor = () => {
+    const el = plansRef.current;
+    const sc = el?.closest(".stats-scroll");
+    if (!el || !sc) return;
+    const y = el.getBoundingClientRect().top;
+    const until = performance.now() + 600;
+    const step = () => {
+      const d = el.getBoundingClientRect().top - y;
+      if (Math.abs(d) > 0.5) sc.scrollTop += d; // 贴底/贴顶浏览器自然夹紧
+      if (performance.now() < until) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  };
+
   if (!view) return null;
+
+  // 「未做」合并序：现存行按数据序；沉降幽灵行插回 diff 时记下的邻里位
+  type NotDoneItem =
+    | { kind: "cur"; plan: (typeof view.not_done)[number] }
+    | { kind: "leave"; id: number; title: string; height: number };
+  const merged: NotDoneItem[] = view.not_done.map((p) => ({ kind: "cur", plan: p }));
+  for (const [id, info] of leavingRows) {
+    const at = info.afterId !== null ? merged.findIndex((m) => m.kind === "cur" && m.plan.id === info.afterId) : -1;
+    merged.splice(at < 0 ? merged.length : at, 0, { kind: "leave", id, title: info.title, height: info.height });
+  }
 
   return (
     <div className="dayview" data-testid="dayview">
@@ -53,13 +132,42 @@ export function DayViewSection({ day }: { day: string }) {
 
       <section className="dv-section" data-testid="dv-notdone">
         <div className="detail-label">未做</div>
-        {view.not_done.map((p) => (
-          <div className="dv-plan" key={p.id} data-testid="dv-notdone-row">{p.title}</div>
-        ))}
-        {view.not_done.length === 0 && <Empty line="没有开天窗的计划" />}
+        {merged.map((item) =>
+          item.kind === "leave" ? (
+            <LeavingRow
+              key={`leave-${item.id}`}
+              className="dv-plan"
+              title={item.title}
+              height={item.height}
+              onGone={() =>
+                setLeavingRows((m) => {
+                  const n = new Map(m);
+                  n.delete(item.id);
+                  return n;
+                })
+              }
+            />
+          ) : enteringIds.has(item.plan.id) ? (
+            <EnteringRow key={item.plan.id} className="dv-plan">
+              <span data-testid="dv-notdone-row">{item.plan.title}</span>
+            </EnteringRow>
+          ) : (
+            <div
+              className="dv-plan"
+              key={item.plan.id}
+              data-testid="dv-notdone-row"
+              ref={(el) => {
+                if (el) heightCache.current.set(item.plan.id, el.offsetHeight);
+              }}
+            >
+              {item.plan.title}
+            </div>
+          ),
+        )}
+        {view.not_done.length === 0 && leavingRows.size === 0 && <Empty line="没有开天窗的计划" />}
       </section>
 
-      <section className="dv-section" data-testid="dv-plans">
+      <section className="dv-section" data-testid="dv-plans" ref={plansRef}>
         <div className="detail-label">计划（该天）</div>
         {view.plans.map((p) => (
           <div
@@ -75,7 +183,9 @@ export function DayViewSection({ day }: { day: string }) {
               testid="dv-plan-title"
               disabled={p.state !== "pool"}
               onCommit={(v) => {
-                if (v) void act(() => data.planUpdate(p.id, { title: v }));
+                if (!v) return;
+                pinAnchor();
+                void act(() => data.planUpdate(p.id, { title: v }));
               }}
             />
             {p.state === "completed" && <span className="dv-tag">未计时完成</span>}
@@ -85,7 +195,10 @@ export function DayViewSection({ day }: { day: string }) {
                   className="dv-reopen"
                   title="放回稿库"
                   data-testid="dv-plan-reopen"
-                  onClick={() => void act(() => data.planReopen(p.id))}
+                  onClick={() => {
+                    pinAnchor();
+                    void act(() => data.planReopen(p.id));
+                  }}
                 >
                   ↩
                 </button>
@@ -93,15 +206,24 @@ export function DayViewSection({ day }: { day: string }) {
             )}
             {p.state === "pool" && (
               <span className="plan-ops-inline">
-                <button data-testid="dv-plan-done" onClick={() => void act(() => data.planDone(p.id))}>✓</button>
+                <button
+                  data-testid="dv-plan-done"
+                  onClick={() => {
+                    pinAnchor();
+                    void act(() => data.planDone(p.id));
+                  }}
+                >
+                  ✓
+                </button>
                 <button
                   data-testid="dv-plan-del"
-                  onClick={(e) =>
+                  onClick={(e) => {
+                    pinAnchor();
                     animateRowLeave(
                       (e.currentTarget as HTMLElement).closest(".dv-plan"),
                       () => void act(() => data.planDelete(p.id)),
-                    )
-                  }
+                    );
+                  }}
                 >
                   ✕
                 </button>
@@ -118,6 +240,7 @@ export function DayViewSection({ day }: { day: string }) {
             onChange={(e) => setNewPlan(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && newPlan.trim()) {
+                pinAnchor();
                 void act(() => data.planCreate(newPlan.trim(), undefined, day));
                 setNewPlan("");
               }
