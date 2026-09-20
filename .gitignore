@@ -7,3 +7,4 @@ playwright-report/
 test-results/
 src-tauri/fermata-seed.db
 src-tauri/fermata-*.db
+publish/
