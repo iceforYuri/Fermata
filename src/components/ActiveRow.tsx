@@ -158,7 +158,7 @@ export function ActiveRow({ bp }: { bp: BoardProcess }) {
                   return r ? { top: r.bottom + 8, right: window.innerWidth - r.right } : {};
                 })()}
               >
-                {[25, 45, 60, 90].map((m) => (
+                {[25, 45, 90].map((m) => (
                   <button
                     key={m}
                     className={`choice-chip${sliceMs(board) === m * 60_000 ? " active" : ""}`}
@@ -176,11 +176,50 @@ export function ActiveRow({ bp }: { bp: BoardProcess }) {
                     {m}m
                   </button>
                 ))}
+                <SliceCustom
+                  onCommit={(m) => {
+                    void act(async () => {
+                      await data.sliceComplete(bp.process.id);
+                      await data.sliceOverride(bp.process.id, m);
+                    });
+                    setSliceOverride(bp.process.id, m);
+                    setSliceOpen(false);
+                  }}
+                />
               </div>,
               document.body,
             )}
         </div>
       </div>
     </div>
+  );
+}
+
+/** 自定义时间片分钟数：chip 大小的行内输入（1px 下划线为唯一编辑指示；Enter 提交，Esc 还原） */
+function SliceCustom({ onCommit }: { onCommit: (minutes: number) => void }) {
+  const [val, setVal] = useState("");
+  const commit = () => {
+    const n = Math.round(Number(val));
+    if (Number.isFinite(n) && n >= 1) onCommit(Math.min(480, n));
+  };
+  return (
+    <span className="choice-chip slice-custom">
+      <input
+        data-testid="slice-custom"
+        value={val}
+        placeholder="自定义"
+        inputMode="numeric"
+        className="num"
+        onChange={(e) => setVal(e.target.value.replace(/[^0-9]/g, ""))}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") {
+            setVal("");
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+      />
+      <span className="slice-custom-unit">m</span>
+    </span>
   );
 }
