@@ -158,6 +158,7 @@ fn migrate_legacy_db(new_dir: &std::path::Path) {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
@@ -192,6 +193,7 @@ fn main() {
             fermata_lib::commands::plan_update,
             fermata_lib::commands::plan_done,
             fermata_lib::commands::plan_delete,
+            fermata_lib::commands::plan_reopen,
             fermata_lib::commands::idle_start,
             fermata_lib::commands::idle_end,
             fermata_lib::commands::rest_trigger,
@@ -238,6 +240,12 @@ fn main() {
             fermata_lib::sys::idle_current,
             fermata_lib::sys::debug_always_on_top,
             fermata_lib::commands::export_events,
+            fermata_lib::commands::export_events_dialog,
+            fermata_lib::commands::export_snapshot_to,
+            fermata_lib::commands::export_snapshot_dialog,
+            fermata_lib::commands::import_snapshot_check,
+            fermata_lib::commands::import_snapshot_from,
+            fermata_lib::commands::import_snapshot_dialog,
             fermata_lib::sys::debug_window_visible,
             debug_focus_check,
         ])

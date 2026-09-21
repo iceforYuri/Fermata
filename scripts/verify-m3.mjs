@@ -145,7 +145,54 @@ await page.mouse.move(24, 100);
   ok("钻取零漂移（锚日 y 恒定）", y1 !== null && y1 === y2, `t60ms=${y1} t280ms=${y2}`);
 }
 
+// 7d. 整格 hover 全量清单（fixture=gridmulti：5 占用者挤昨天一格，含 <20%）
+{
+  const yd = new Date(Date.now() - 86400000);
+  const yStr = `${yd.getFullYear()}-${String(yd.getMonth() + 1).padStart(2, "0")}-${String(yd.getDate()).padStart(2, "0")}`;
+  await page.goto(`${BASE}/?fixture=gridmulti`);
+  await page.waitForSelector("[data-testid=tab-stats]");
+  await page.click("[data-testid=tab-stats]");
+  await page.waitForSelector("[data-testid=month-cal]");
+  await sleep(400);
+  await page.dblclick(`[data-testid=cal-cell][data-day="${yStr}"]`);
+  await page.waitForSelector("[data-testid=daygrid-scroll]");
+  await sleep(800);
+  // 整格命中：hover 格内偏离圆点的角（不碰 dg-dot 本体）
+  const cell = page.locator(`.day-unit[data-day="${yStr}"] .dg-cell:has([data-testid=dg-dot])`).first();
+  const cb = await cell.boundingBox();
+  await page.mouse.move(cb.x + 2, cb.y + 2);
+  await sleep(300);
+  const rows = await page.locator("[data-testid=dg-tip-row]").count();
+  const more = await page.locator("[data-testid=dg-tip-more]").textContent().catch(() => null);
+  const allText = (await page.locator("[data-testid=dg-tip]").textContent()) ?? "";
+  ok(
+    "整格 hover 出全量清单（前4+等N项）",
+    rows === 4 && !!more && more.includes("等 1 项") && allText.includes("格子占者甲"),
+    `rows=${rows} more=${more} tip=${allText.slice(0, 60)}`,
+  );
+  // 清单含 <20% 占用者（丁 1 分钟 = 10%，阈值只管画不画）；丁（灰点无色）在列
+  ok("清单含 <20% 占用者（阈值只管画）", allText.includes("格子占者丁"), allText.slice(0, 80));
+  // 幽灵点空格不出浮窗
+  await page.mouse.move(24, 100);
+  await sleep(250);
+  const emptyCell = page.locator(".dg-cell:not(:has([data-testid=dg-dot]))").first();
+  const eb = await emptyCell.boundingBox();
+  await page.mouse.move(eb.x + eb.width / 2, eb.y + eb.height / 2);
+  await sleep(250);
+  ok("空格（幽灵点邻域）不出浮窗", (await page.$("[data-testid=dg-tip]")) === null, "");
+  // 回主 fixture 继续后续测试
+  await page.goto(BASE);
+  await page.waitForSelector("[data-testid=tab-stats]");
+  await page.click("[data-testid=tab-stats]");
+  await page.waitForSelector("[data-testid=month-cal]");
+  await sleep(300);
+  await page.dblclick(`[data-testid=cal-cell][data-day="${todayStr()}"]`);
+  await page.waitForSelector("[data-testid=daygrid-scroll]");
+  await sleep(600);
+}
+
 // 8. 未计时完成不画圈：今天加计划并直接完成 → 圆圈数不变
+const dotsBefore8 = (await page.$$("[data-testid=dg-dot]")).length; // 7d 换过 fixture，基数在此重取
 await page.click(`.day-unit[data-day="${todayStr()}"] .day-big-label`);
 await page.waitForSelector("[data-testid=month-cal]");
 await page.click(`[data-testid=cal-cell][data-day="${todayStr()}"]`);
@@ -161,7 +208,131 @@ await page.dblclick(`[data-testid=cal-cell][data-day="${todayStr()}"]`);
 await page.waitForSelector("[data-testid=daygrid-scroll]");
 await sleep(800);
 const dotsAfter = (await page.$$("[data-testid=dg-dot]")).length;
-ok("未计时完成标记出现且不画圈", doneTag.includes("未计时完成") && dotsAfter === dotsToday, `${dotsToday}→${dotsAfter}`);
+ok("未计时完成标记出现且不画圈", doneTag.includes("未计时完成") && dotsAfter === dotsBefore8, `${dotsBefore8}→${dotsAfter}`);
+
+// 8b. 计划四修：编辑提交/Esc、完成划线、↩放回稿库、删除即消失
+{
+  // 重回当天视图
+  await page.click(`.day-unit[data-day="${todayStr()}"] .day-big-label`);
+  await page.waitForSelector("[data-testid=month-cal]");
+  await page.click(`[data-testid=cal-cell][data-day="${todayStr()}"]`);
+  await page.waitForSelector("[data-testid=dayview]");
+  await sleep(300);
+
+  // ① pool 态标题双态编辑：Esc 还原
+  const poolRow = page.locator("[data-testid=dv-plan-row][data-state=pool]").first();
+  const oldTitle = (await poolRow.locator(".dv-plan-title").textContent()).trim();
+  await poolRow.locator("[data-testid=dv-plan-title]").click();
+  await poolRow.locator("[data-testid=dv-plan-title-editing]").waitFor();
+  await poolRow.locator("[data-testid=dv-plan-title-editing]").fill("不应出现的名字");
+  await page.keyboard.press("Escape");
+  await sleep(300);
+  const afterEsc = (await poolRow.locator(".dv-plan-title").textContent()).trim();
+  ok("计划编辑 Esc 还原", afterEsc === oldTitle, `esc=${afterEsc} 期望 ${oldTitle}`);
+
+  // ② Enter 提交改名
+  await poolRow.locator("[data-testid=dv-plan-title]").click();
+  await poolRow.locator("[data-testid=dv-plan-title-editing]").waitFor();
+  await poolRow.locator("[data-testid=dv-plan-title-editing]").fill("改名后的计划");
+  await page.keyboard.press("Enter");
+  await sleep(400);
+  const renamed = (await page.locator("[data-testid=dv-plan-row][data-state=pool]", { hasText: "改名后的计划" }).count()) === 1;
+  ok("计划编辑 Enter 提交", renamed, "");
+
+  // ③ 完成态划线=伪元素画出（非 text-decoration）：::after 存在且 scaleX→1，标题降淡
+  const doneRow = page.locator("[data-testid=dv-plan-row][data-state=completed]", { hasText: "未计时完成验收项" });
+  const strike = await doneRow.locator(".dv-plan-title").evaluate((el) => {
+    const cs = getComputedStyle(el);
+    const af = getComputedStyle(el, "::after");
+    return { line: cs.textDecorationLine, color: cs.color, tf: af.transform, h: af.height };
+  });
+  const scaleBack = strike.tf !== "none" && Math.abs((parseFloat(strike.tf.match(/matrix\(([^,]+)/)?.[1]) || 0) - 1) < 0.01;
+  ok(
+    "完成态标题划线（伪元素画出）",
+    !strike.line.includes("line-through") && scaleBack && strike.h === "1px",
+    `deco=${strike.line} tf=${strike.tf} h=${strike.h}`,
+  );
+
+  // ④ ↩ 放回稿库 + 落位：三条新计划，完成中间那条再回退 → 回原下标
+  for (const t of ["落位甲", "落位乙", "落位丙"]) {
+    await page.fill("[data-testid=dv-plan-input]", t);
+    await page.press("[data-testid=dv-plan-input]", "Enter");
+    await sleep(250);
+  }
+  const poolTitles = () =>
+    page.$$eval("[data-testid=dv-plan-row][data-state=pool] .dv-plan-title, [data-testid=dv-plan-row][data-state=pool] [data-testid=dv-plan-title]", (els) =>
+      els.map((e) => e.textContent.trim()),
+    );
+  const before = await poolTitles();
+  const idxB = before.indexOf("落位乙");
+  const rowB = page.locator("[data-testid=dv-plan-row]", { hasText: "落位乙" });
+  await rowB.locator("[data-testid=dv-plan-done]").click();
+  await sleep(500);
+  const mid = await poolTitles();
+  const doneB = page.locator("[data-testid=dv-plan-row][data-state=completed]", { hasText: "落位乙" });
+  await doneB.hover();
+  await doneB.locator("[data-testid=dv-plan-reopen]").click();
+  await sleep(500);
+  const after = await poolTitles();
+  ok(
+    "↩ 放回稿库（回 pool 且落原位）",
+    !mid.includes("落位乙") && after.indexOf("落位乙") === idxB && after.length === before.length,
+    `前 ${idxB} → 后 ${after.indexOf("落位乙")}`,
+  );
+
+  // ⑤ 删除沉降：点 ✕ 后行仍在（.leaving 收起中），~240ms 后消失
+  await page.fill("[data-testid=dv-plan-input]", "要消失的计划");
+  await page.press("[data-testid=dv-plan-input]", "Enter");
+  await sleep(400);
+  const delRow = page.locator("[data-testid=dv-plan-row]", { hasText: "要消失的计划" });
+  await delRow.locator("[data-testid=dv-plan-del]").click();
+  await sleep(60);
+  const midCount = await page.locator("[data-testid=dv-plan-row]", { hasText: "要消失的计划" }).count();
+  const leaving = await page.locator("[data-testid=dv-plan-row].leaving", { hasText: "要消失的计划" }).count();
+  await sleep(600);
+  const gone = (await page.locator("[data-testid=dv-plan-row]", { hasText: "要消失的计划" }).count()) === 0;
+  ok("删除沉降（先收后删）", midCount === 1 && leaving === 1 && gone, `mid=${midCount} leaving=${leaving} gone=${gone}`);
+}
+
+// 8c. 未做区出入动效（联动）+ 计划区锚点钉住
+{
+  const sc = "[data-testid=drill-current] .stats-scroll";
+  // 造一条联动计划（进未做区）；建的钉窗 600ms，等它彻底结束再摆滚动位
+  await page.fill("[data-testid=dv-plan-input]", "动效联动计划");
+  await page.press("[data-testid=dv-plan-input]", "Enter");
+  await sleep(800);
+  // 滚到计划区头在视口中段（内容不够高则由浏览器夹紧，断言仍成立）
+  await page.evaluate((sel) => {
+    const scEl = document.querySelector(sel);
+    const head = document.querySelector("[data-testid=dv-plans] .detail-label");
+    scEl.scrollTop = head.getBoundingClientRect().top + scEl.scrollTop - scEl.getBoundingClientRect().top - 300;
+  }, sc);
+  await sleep(150);
+  const headTop0 = await page.evaluate(
+    () => document.querySelector("[data-testid=dv-plans] .detail-label").getBoundingClientRect().top,
+  );
+
+  // 勾选完成 → 未做行当帧挂沉降幽灵（不等 refetch）+ 锚点钉住
+  const prow = page.locator("[data-testid=dv-plan-row]", { hasText: "动效联动计划" });
+  await prow.locator("[data-testid=dv-plan-done]").click();
+  const leaving = await page.locator("[data-testid=dv-notdone-leaving]").count(); // 当帧断言
+  await sleep(600);
+  const leavingGone = (await page.locator("[data-testid=dv-notdone-leaving]").count()) === 0;
+  const headTop1 = await page.evaluate(
+    () => document.querySelector("[data-testid=dv-plans] .detail-label").getBoundingClientRect().top,
+  );
+  ok("勾选完成：未做行当帧沉降（乐观同步）", leaving === 1 && leavingGone, `leaving=${leaving} gone=${leavingGone}`);
+  ok("计划区头锚点纹丝不动（±2px）", Math.abs(headTop1 - headTop0) <= 2, `Δ=${(headTop1 - headTop0).toFixed(1)}px`);
+
+  // 回退 → 未做行当帧开缝（乐观占位）+ 落到原位
+  const doneRow2 = page.locator("[data-testid=dv-plan-row][data-state=completed]", { hasText: "动效联动计划" });
+  await doneRow2.hover();
+  await doneRow2.locator("[data-testid=dv-plan-reopen]").click();
+  const entering = await page.locator("[data-testid=dv-notdone-entering]").count(); // 当帧断言
+  await sleep(600);
+  const backIn = await page.locator("[data-testid=dv-notdone-row]", { hasText: "动效联动计划" }).count();
+  ok("回退：未做行当帧开缝接纳", entering === 1 && backIn === 1, `entering=${entering} back=${backIn}`);
+}
 
 // 9. 日视角锚点=月历选中日（非强制今天）
 await page.click(`.day-unit[data-day="${todayStr()}"] .day-big-label`).catch(async () => {

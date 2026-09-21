@@ -12,6 +12,7 @@ import { TitleBar } from "./components/TitleBar";
 import { LibraryPanel } from "./components/LibraryPanel";
 import { DetailPanel } from "./components/DetailPanel";
 import { ArchiveOverlay } from "./components/ArchiveOverlay";
+import { ImportConfirmDemo, ImportConfirmOverlay } from "./components/ImportConfirmOverlay";
 import { UndoToast } from "./components/UndoToast";
 import { useBoard } from "./store/board";
 import { setUi, useUi } from "./store/ui";
@@ -118,6 +119,7 @@ function Shell() {
         <DetailPanel />
       </div>
       <ArchiveOverlay />
+      <ImportConfirmOverlay />
       <UndoToast />
     </div>
   );
@@ -134,6 +136,8 @@ export default function App() {
       return <PopupTriggerPage />;
     case "/overlay/poc-popup":
       return <PocPopupPage />;
+    case "/overlay/import-confirm":
+      return <ImportConfirmDemo />;
     case "/home":
       return <HomePage />;
     default:

@@ -10,6 +10,10 @@ interface UiState {
   rightPid: number | null;
   archiveOpen: boolean;
   toast: { pid: number; title: string; wasRunning: boolean; deadline: number } | null;
+  /** 导入确认覆盖层：带快照摘要待确认；null=关 */
+  importConfirm: { path: string; processes: number; events: number; exported_at: number | null } | null;
+  /** 设置页数据组的行内回执（导出路径 / 导入结果 / 错误） */
+  dataEcho: string | null;
 }
 
 let state: UiState = {
@@ -18,6 +22,8 @@ let state: UiState = {
   rightPid: null,
   archiveOpen: false,
   toast: null,
+  importConfirm: null,
+  dataEcho: null,
 };
 
 const listeners = new Set<() => void>();

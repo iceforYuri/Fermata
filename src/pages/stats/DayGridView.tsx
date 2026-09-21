@@ -46,7 +46,8 @@ export function DayGridView({
 }) {
   const today = dayStr(new Date());
   const [firstDay, setFirstDay] = useState<string | null>(null);
-  const [hover, setHover] = useState<{ mark: CellMark; x: number; y: number } | null>(null);
+  const [hover, setHover] = useState<{ cell: GridCell; x: number; y: number } | null>(null);
+  const board = useBoard();
   const scrollRef = useRef<HTMLDivElement>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastHeight = useRef(0);
@@ -157,7 +158,7 @@ export function DayGridView({
         />
       ))}
       {hover &&
-        hover.mark.title &&
+        hover.cell.occupants.length > 0 &&
         // 门户到 body：轨道 transform/will-change 会把 fixed 变成相对祖先定位
         createPortal(
           <div
@@ -165,11 +166,25 @@ export function DayGridView({
             data-testid="dg-tip"
             style={{ left: Math.min(hover.x, window.innerWidth - 260), top: hover.y - 8 }}
           >
-            <div className="dg-tip-title">{hover.mark.title}</div>
-            <div className="num dg-tip-time">
-              {fmtClock(hover.mark.occ_start)}–{fmtClock(hover.mark.occ_end)}
-              {` · ${fmtDur(hover.mark.occ_end - hover.mark.occ_start)}`}
-            </div>
+            {/* 整格全量清单：按时长降序前 4；<20% 也列出（阈值只管画不画） */}
+            {hover.cell.occupants.map((o) => (
+              <div className="dg-tip-row" data-testid="dg-tip-row" key={o.process_id}>
+                <span
+                  className="dg-tip-dot"
+                  style={{ background: markHex(board, o.color_tag) ?? "var(--ring-neutral)" }}
+                />
+                <span className="dg-tip-name">{o.title}</span>
+                <span className="num dg-tip-time">
+                  {fmtClock(o.occ_start)}–{fmtClock(o.occ_end)}
+                  {` · ${fmtDur(o.occ_end - o.occ_start)}`}
+                </span>
+              </div>
+            ))}
+            {hover.cell.occupant_count > hover.cell.occupants.length && (
+              <div className="dg-tip-more" data-testid="dg-tip-more">
+                …等 {hover.cell.occupant_count - hover.cell.occupants.length} 项
+              </div>
+            )}
           </div>,
           document.body,
         )}
@@ -178,24 +193,19 @@ export function DayGridView({
 }
 
 /** 格内标记（v1.4 占用率口径）：单枚 ≥80% 实心全圆；其余 45° 斜半圆
- *  （段起=色右下、段止=色左上、中段默认右下）；两进程同格 ≥20% 对角分半（主导右下、次者左上）。 */
+ *  （段起=色右下、段止=色左上、中段默认右下）；两进程同格 ≥20% 对角分半（主导右下、次者左上）。
+ *  v1.4.1：悬停交互上移到整格（dg-cell），标记纯渲染。 */
 function CellMarks({
   day,
   cell,
   marks,
   colorOf,
-  onHover,
 }: {
   day: string;
   cell: number;
   marks: CellMark[];
   colorOf: (tag: number | null) => string;
-  onHover: (h: { mark: CellMark; x: number; y: number } | null) => void;
 }) {
-  const enter = (m: CellMark) => (e: React.MouseEvent) => {
-    const r = (e.target as HTMLElement).getBoundingClientRect();
-    onHover({ mark: m, x: r.left, y: r.top });
-  };
   if (marks.length === 1 && marks[0].share >= halfThreshold()) {
     const m = marks[0];
     return (
@@ -203,8 +213,6 @@ function CellMarks({
         className="dg-dot"
         data-testid="dg-dot"
         style={{ background: colorOf(m.color_tag) }}
-        onMouseEnter={enter(m)}
-        onMouseLeave={() => onHover(null)}
       />
     );
   }
@@ -233,8 +241,6 @@ function CellMarks({
           r="11.6"
           fill={colorOf(m.color_tag)}
           clipPath={`url(#halfclip-${uid}-${i})`}
-          onMouseEnter={enter(m)}
-          onMouseLeave={() => onHover(null)}
         />
       ))}
       <defs>
@@ -259,7 +265,7 @@ function DayUnit({
   today: string;
   scrollRoot: React.RefObject<HTMLDivElement | null>;
   onBackToMonth: () => void;
-  onHover: (h: { mark: CellMark; x: number; y: number } | null) => void;
+  onHover: (h: { cell: GridCell; x: number; y: number } | null) => void;
 }) {
   const board = useBoard();
   const [cells, setCells] = useState<GridCell[] | null>(null);
@@ -330,9 +336,23 @@ function DayUnit({
           <>
             <div className="daygrid-grid" data-testid="daygrid">
               {cells.map((c) => (
-                <div key={c.cell} className="dg-cell" data-cell={c.cell}>
+                <div
+                  key={c.cell}
+                  className="dg-cell"
+                  data-cell={c.cell}
+                  /* 整格 hover（只有有占用的格子才出浮窗；幽灵点空格不出） */
+                  onMouseEnter={
+                    c.occupants.length > 0
+                      ? (e) => {
+                          const r = e.currentTarget.getBoundingClientRect();
+                          onHover({ cell: c, x: r.left, y: r.top });
+                        }
+                      : undefined
+                  }
+                  onMouseLeave={c.occupants.length > 0 ? () => onHover(null) : undefined}
+                >
                   {c.marks.length > 0 ? (
-                    <CellMarks day={day} cell={c.cell} marks={c.marks} colorOf={colorOf} onHover={onHover} />
+                    <CellMarks day={day} cell={c.cell} marks={c.marks} colorOf={colorOf} />
                   ) : (
                     <span className="dg-empty-dot" />
                   )}

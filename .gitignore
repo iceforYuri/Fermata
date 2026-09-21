@@ -9,3 +9,4 @@ src-tauri/fermata-seed.db
 src-tauri/fermata-*.db
 publish/
 src-tauri/readme-demo.db
+scripts/input-probe/target/
