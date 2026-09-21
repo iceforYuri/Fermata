@@ -223,6 +223,33 @@ export function SettingsPage() {
   const { dataEcho } = useUi();
   const [activeSec, setActiveSec] = useState("slice");
   const rootRef = useRef<HTMLDivElement>(null);
+  // 存储位置：当前路径 + 切换中 + 回执
+  const [loc, setLoc] = useState<string>("");
+  const [locBusy, setLocBusy] = useState(false);
+  const [locSlow, setLocSlow] = useState(false);
+  useEffect(() => {
+    void data.qDataLocation().then(setLoc).catch(() => {});
+  }, []);
+  const changeLocation = () => {
+    void (async () => {
+      setLocBusy(true);
+      setLocSlow(false);
+      const slowTimer = setTimeout(() => setLocSlow(true), 400); // 超 400ms 才上浮层，亚秒切换不打扰
+      try {
+        const r = await data.setDataLocation();
+        if (r) {
+          setLoc(r.path);
+          setUi({ dataEcho: r.adopted ? `已接续已有库：${r.path}` : `已迁移到：${r.path}（原库保留未动）` });
+        }
+      } catch (e) {
+        setUi({ dataEcho: `切换失败：${e}` });
+      } finally {
+        clearTimeout(slowTimer);
+        setLocBusy(false);
+        setLocSlow(false);
+      }
+    })();
+  };
 
   const get = (k: string, dflt: string) => settings[k] ?? dflt;
   const setNum = (k: string) => (v: number) => void act(() => data.settingSet(k, String(v)));
@@ -330,6 +357,22 @@ export function SettingsPage() {
 
       <section data-sec="data" className="set-sec">
         <div className="detail-label">数据</div>
+        <div className="set-row">
+          <span className="set-label">存储位置</span>
+          <span className="plan-ops-inline">
+            <button className="set-export" data-testid="data-location-change" disabled={locBusy} onClick={changeLocation}>
+              {locBusy ? "正在切换…" : "更改"}
+            </button>
+          </span>
+        </div>
+        {loc && (
+          <div className="set-exported num" data-testid="data-location-path" title={loc}>
+            {loc}
+          </div>
+        )}
+        {locSlow && (
+          <div className="loc-slow" data-testid="loc-slow">正在搬迁数据…</div>
+        )}
         <div className="set-row">
           <span className="set-label">全量数据</span>
           <span className="plan-ops-inline">

@@ -1020,6 +1020,19 @@ export const mockData: DataApi = {
     };
   },
 
+  async qDataLocation() {
+    return "C:\\Users\\you\\AppData\\Roaming\\com.fermata.app\\fermata.db";
+  },
+  async setDataLocation() {
+    return { path: "D:\\fermata-data\\fermata.db", adopted: false };
+  },
+  async setDataLocationTo(path: string) {
+    return { path: `${path}\\fermata.db`, adopted: false };
+  },
+  async resetDataLocation() {
+    return { path: "C:\\Users\\you\\AppData\\Roaming\\com.fermata.app\\fermata.db", adopted: true };
+  },
+
   async qRestState() {
     return {
       resting: state.resting,

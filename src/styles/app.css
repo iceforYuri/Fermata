@@ -1902,3 +1902,17 @@ body:has(.lib-rail:hover) .lib-hint-arrow { animation: hint-breathe 2.4s ease-in
 .slice-custom input::placeholder { color: var(--ink-ghost); }
 .slice-custom input:focus { border-bottom-color: var(--ink); } /* 1px 下划线唯一编辑指示 */
 .slice-custom-unit { color: var(--ink-faint); }
+
+/* 存储位置切换超 400ms 的交代层（玻璃遮罩 + 一行字，非模态） */
+.loc-slow {
+  position: fixed;
+  inset: 44px 0 0 0;
+  display: grid;
+  place-items: center;
+  backdrop-filter: blur(14px) saturate(1.1);
+  background: color-mix(in srgb, var(--paper) 55%, transparent);
+  color: var(--ink-soft);
+  font-size: var(--fs-body);
+  z-index: 50;
+  animation: glass-in var(--dur-fast) ease-out;
+}

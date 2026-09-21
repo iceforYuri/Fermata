@@ -249,3 +249,14 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 - **命令分两层**：对话框层（export_snapshot_dialog / import_snapshot_dialog / export_events_dialog）+ 可测层（export_snapshot_to / import_snapshot_check / import_snapshot_from）——系统对话框测试驱动不了，verify 走可测层；对话框层由人工验收。
 - 既有 export_events（直写 exports 目录）命令保留注册不删（向后兼容），UI 已切到对话框版。
 - 测试副作用注意：真机 exe 跑 verify 时备份文件落在真实 app_data/exports（verify 脚本已自清）；verify 用 FERMATA_DB_PATH 隔了临时库。
+
+### D52 · 数据存储位置可指定（feature/data-location）
+- 方向变更留痕：先议过"绿色优先（exe 同目录）"，用户否了（exe 会跑、同目录难管理）→ 定为设置页指定存储位置。指针文件解"数据库位置不能存在数据库里"的鸡生蛋问题。
+- 接续语义：目标目录已有 fermata.db → 直接切换不覆盖（那是用户的旧库）；没有 → WAL checkpoint 后整文件复制（不移动）。
+- 切换为热切换（换连接 + store-changed 全窗刷新）；超 400ms 才浮"正在搬迁数据…"玻璃行（spinner 属禁清单）。
+- 目录选择弹窗起始落在当前库所在目录（先看到"现在在哪儿"），取不到回落"文档"。
+
+### D53 · 桌面端 dev 不吃 vite、run-dev.bat 先 build
+- 现象：pnpm tauri dev 起了 vite（14200），但窗口加载内嵌 dist/（tauri.localhost），不是 devUrl——前端改动不 build 则桌面端永远是旧界面（2026-09-21 排查坐实：CDP 页面 URL + 构建戳 + dist grep 三证）。
+- 待查：devUrl 为何没挂上（tauri.conf.json 配置无误、窗口为标准 WebviewUrl::App、--no-default-features 无关）。未深挖。
+- 临时措：run-dev.bat 改为先 pnpm build 再 tauri dev，构建失败即中止不弹旧界面。代价：每次启动 +数秒构建；devUrl 修复后撤掉此步恢复热更。
