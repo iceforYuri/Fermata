@@ -64,6 +64,12 @@ const tauriData: DataApi = {
   qDayGrid: (day) => invoke("q_day_grid", { day }),
   qFirstDay: () => invoke("q_first_day"),
   exportEvents: () => invoke("export_events"),
+  exportSnapshotDialog: () => invoke("export_snapshot_dialog"),
+  exportSnapshotTo: (path) => invoke("export_snapshot_to", { path }),
+  exportEventsDialog: () => invoke("export_events_dialog"),
+  importSnapshotDialog: () => invoke("import_snapshot_dialog"),
+  importSnapshotCheck: (path) => invoke("import_snapshot_check", { path }),
+  importSnapshotFrom: (path) => invoke("import_snapshot_from", { path }),
 };
 
 export const data: DataApi = isTauri ? tauriData : mockData;

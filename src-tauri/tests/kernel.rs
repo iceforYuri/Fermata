@@ -462,3 +462,74 @@ fn plan_reopen_and_day_view_filters_deleted() {
     let evts = queries::q_events(&conn, None).unwrap();
     assert!(evts.iter().any(|e| e.kind == "plan_reopen"), "写 plan_reopen 事件");
 }
+
+// ================= 数据快照（feature/data-port） =================
+
+#[test]
+fn snapshot_roundtrip_preserves_ids_and_fractional_position() {
+    let conn = db::open_in_memory().unwrap();
+    let t0 = 1_800_000_000_000i64;
+    let day = db::day_of(t0);
+    let a = ops::process_create(&conn, t0, "甲进程", Some(2), Some(&day)).unwrap();
+    let b = ops::process_create(&conn, t0 + 1, "乙进程", None, Some(&day)).unwrap();
+    ops::process_switch(&conn, t0 + 10, a, None).unwrap();
+    ops::process_switch(&conn, t0 + 20, b, Some("甲的断点")).unwrap();
+    let p1 = ops::plan_create(&conn, t0 + 30, "计划甲", Some(30), Some(&day)).unwrap();
+    ops::plan_create(&conn, t0 + 31, "计划乙", None, Some(&day)).unwrap();
+    ops::plan_done(&conn, t0 + 32, p1).unwrap();
+    ops::plan_reopen(&conn, t0 + 33, p1).unwrap(); // 回原位 → 分数位 position
+    let pos_before: f64 = conn
+        .query_row("SELECT position FROM plans WHERE id = ?1", rusqlite::params![p1], |r| r.get(0))
+        .unwrap();
+
+    let snap = db::snapshot::build_snapshot(&conn).unwrap();
+    let ev_count = queries::q_events(&conn, None).unwrap().len();
+    assert!(ev_count > 0, "事件必须在快照里（统计的粮食）");
+
+    let conn2 = db::open_in_memory().unwrap();
+    db::snapshot::import_snapshot(&conn2, &snap).unwrap();
+
+    // 行级一致：进程 id/标题逐行相同；事件计数相同；分数位 position 不变
+    let procs: Vec<(i64, String)> = {
+        let mut s = conn2.prepare("SELECT id, title FROM processes ORDER BY id").unwrap();
+        s.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect()
+    };
+    assert_eq!(procs, vec![(a, "甲进程".to_string()), (b, "乙进程".to_string())], "id 与标题保真");
+    assert_eq!(queries::q_events(&conn2, None).unwrap().len(), ev_count);
+    let pos_after: f64 = conn2
+        .query_row("SELECT position FROM plans WHERE id = ?1", rusqlite::params![p1], |r| r.get(0))
+        .unwrap();
+    assert_eq!(pos_before, pos_after, "REAL 分数位 roundtrip 无损");
+    // settings/palette 也过来了
+    let theme: Option<String> = conn2
+        .query_row("SELECT value FROM settings WHERE key = 'theme'", [], |r| r.get(0))
+        .ok();
+    assert!(theme.is_some(), "settings 随快照迁移");
+}
+
+#[test]
+fn snapshot_invalid_rejected_and_db_untouched() {
+    let conn = db::open_in_memory().unwrap();
+    let t0 = 1_800_000_000_000i64;
+    let day = db::day_of(t0);
+    ops::plan_create(&conn, t0, "别让坏文件碰我", None, Some(&day)).unwrap();
+    let before: i64 = conn.query_row("SELECT COUNT(*) FROM plans", [], |r| r.get(0)).unwrap();
+
+    // 顶层非对象
+    let bad = serde_json::json!(["not", "snapshot"]);
+    assert!(db::snapshot::import_snapshot(&conn, &bad).is_err());
+    // 版本不符
+    let mut snap = db::snapshot::build_snapshot(&conn).unwrap();
+    snap["meta"]["format_version"] = serde_json::json!(99);
+    assert!(db::snapshot::import_snapshot(&conn, &snap).is_err());
+    // 缺表
+    let mut snap2 = db::snapshot::build_snapshot(&conn).unwrap();
+    snap2.as_object_mut().unwrap().remove("events");
+    assert!(db::snapshot::import_snapshot(&conn, &snap2).is_err());
+
+    let after: i64 = conn.query_row("SELECT COUNT(*) FROM plans", [], |r| r.get(0)).unwrap();
+    assert_eq!(before, after, "非法快照零副作用");
+}

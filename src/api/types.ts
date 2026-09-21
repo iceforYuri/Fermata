@@ -201,4 +201,16 @@ export interface DataApi {
   qDayGrid(day: string): Promise<GridCell[]>;
   qFirstDay(): Promise<string | null>;
   exportEvents(): Promise<string>;
+  /** 全量快照：另存为对话框（取消 → null） */
+  exportSnapshotDialog(): Promise<string | null>;
+  /** 可测层：导出到指定路径 */
+  exportSnapshotTo(path: string): Promise<string>;
+  /** 事件日志导出（次要行）：另存为对话框 */
+  exportEventsDialog(): Promise<string | null>;
+  /** 打开对话框选快照（取消 → null） */
+  importSnapshotDialog(): Promise<string | null>;
+  /** 读+校验（不碰库），返回确认覆盖层摘要 */
+  importSnapshotCheck(path: string): Promise<{ processes: number; events: number; exported_at: number | null }>;
+  /** 备份+事务导入，返回回执 */
+  importSnapshotFrom(path: string): Promise<{ backup: string; processes: number; events: number }>;
 }

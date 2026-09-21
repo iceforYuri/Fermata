@@ -439,3 +439,114 @@ pub async fn slice_override(app: AppHandle, state: State<'_, DbState>, pid: i64,
     changed(&app);
     Ok(())
 }
+
+// ---------- 数据导入导出（快照 *.fermata.json） ----------
+
+use serde_json::Value;
+use tauri_plugin_dialog::DialogExt;
+
+/// 可测层：导出全量快照到指定路径
+#[tauri::command]
+pub async fn export_snapshot_to(state: State<'_, DbState>, path: String) -> Result<String, String> {
+    let c = lock(&state)?;
+    db::snapshot::write_snapshot_file(&c, std::path::Path::new(&path))
+}
+
+/// 对话框层：另存为（默认文档目录 + fermata-YYYY-MM-DD.fermata.json）
+#[tauri::command]
+pub async fn export_snapshot_dialog(
+    app: AppHandle,
+    state: State<'_, DbState>,
+) -> Result<Option<String>, String> {
+    let default_name = format!("fermata-{}.fermata.json", chrono::Local::now().format("%Y-%m-%d"));
+    let mut d = app.dialog().file().add_filter("Fermata 快照", &["json"]);
+    if let Ok(dir) = app.path().document_dir() {
+        d = d.set_directory(dir);
+    }
+    let picked = d.set_file_name(&default_name).blocking_save_file();
+    match picked {
+        Some(p) => {
+            let path = p.into_path().map_err(|e| e.to_string())?;
+            let c = lock(&state)?;
+            let out = db::snapshot::write_snapshot_file(&c, &path)?;
+            Ok(Some(out))
+        }
+        None => Ok(None),
+    }
+}
+
+/// 可测层：读 + 解析 + 校验（不碰库），返回摘要给确认覆盖层
+#[tauri::command]
+pub async fn import_snapshot_check(path: String) -> Result<Value, String> {
+    let v = db::snapshot::read_snapshot_file(std::path::Path::new(&path))?;
+    Ok(db::snapshot::summarize(&v))
+}
+
+/// 可测层：备份当前库 → 事务导入 → 返回 {backup, processes, events}
+#[tauri::command]
+pub async fn import_snapshot_from(
+    app: AppHandle,
+    state: State<'_, DbState>,
+    path: String,
+) -> Result<Value, String> {
+    let v = db::snapshot::read_snapshot_file(std::path::Path::new(&path))?; // 校验失败零副作用
+    let backup = {
+        let c = lock(&state)?;
+        let dir = app
+            .path()
+            .app_data_dir()
+            .map_err(|e| e.to_string())?
+            .join("exports");
+        db::snapshot::backup_current(&c, &dir)?
+    };
+    {
+        let c = lock(&state)?;
+        db::snapshot::import_snapshot(&c, &v)?;
+    }
+    changed(&app);
+    let mut s = db::snapshot::summarize(&v);
+    if let Some(m) = s.as_object_mut() {
+        m.insert("backup".into(), Value::String(backup));
+    }
+    Ok(s)
+}
+
+/// 对话框层：打开快照文件（.json 过滤，文档目录起）
+#[tauri::command]
+pub async fn import_snapshot_dialog(app: AppHandle) -> Result<Option<String>, String> {
+    let mut d = app.dialog().file().add_filter("Fermata 快照", &["json"]);
+    if let Ok(dir) = app.path().document_dir() {
+        d = d.set_directory(dir);
+    }
+    let picked = d.blocking_pick_file();
+    Ok(picked
+        .and_then(|p| p.into_path().ok())
+        .map(|p| p.to_string_lossy().to_string()))
+}
+
+/// 事件日志导出（保留为次要行）：改走另存为对话框，不再默认写 exports 目录
+#[tauri::command]
+pub async fn export_events_dialog(
+    app: AppHandle,
+    state: State<'_, DbState>,
+) -> Result<Option<String>, String> {
+    let default_name = format!("fermata-events-{}.json", chrono::Local::now().format("%Y-%m-%d"));
+    let mut d = app.dialog().file().add_filter("JSON", &["json"]);
+    if let Ok(dir) = app.path().document_dir() {
+        d = d.set_directory(dir);
+    }
+    let picked = d.set_file_name(&default_name).blocking_save_file();
+    match picked {
+        Some(p) => {
+            let path = p.into_path().map_err(|e| e.to_string())?;
+            let events = {
+                let c = lock(&state)?;
+                queries::q_events(&c, None)?
+            };
+            std::fs::write(&path, serde_json::to_string_pretty(&events).map_err(|e| e.to_string())?)
+                .map_err(|e| e.to_string())?;
+            Ok(Some(path.to_string_lossy().to_string()))
+        }
+        None => Ok(None),
+    }
+}
