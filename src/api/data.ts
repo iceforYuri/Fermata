@@ -70,6 +70,10 @@ const tauriData: DataApi = {
   importSnapshotDialog: () => invoke("import_snapshot_dialog"),
   importSnapshotCheck: (path) => invoke("import_snapshot_check", { path }),
   importSnapshotFrom: (path) => invoke("import_snapshot_from", { path }),
+  qDataLocation: () => invoke("q_data_location"),
+  setDataLocation: () => invoke("set_data_location_dialog"),
+  setDataLocationTo: (path) => invoke("set_data_location_to", { targetDir: path }),
+  resetDataLocation: () => invoke("reset_data_location"),
 };
 
 export const data: DataApi = isTauri ? tauriData : mockData;

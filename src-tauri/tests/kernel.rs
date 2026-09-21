@@ -533,3 +533,74 @@ fn snapshot_invalid_rejected_and_db_untouched() {
     let after: i64 = conn.query_row("SELECT COUNT(*) FROM plans", [], |r| r.get(0)).unwrap();
     assert_eq!(before, after, "非法快照零副作用");
 }
+
+// ---------- 存储位置（指针文件 + 切换） ----------
+
+#[test]
+fn data_location_resolve_priority_and_pointer() {
+    let dir = std::env::temp_dir().join(format!("fermata-loc-test-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    // 默认 = app_dir/fermata.db
+    assert_eq!(db::location::resolve(&dir), dir.join("fermata.db"));
+    // 指针文件存在且目标存在 → 用指针
+    let custom = dir.join("custom").join("fermata.db");
+    std::fs::create_dir_all(custom.parent().unwrap()).unwrap();
+    db::open(&custom).unwrap();
+    std::fs::write(db::location::pointer_path(&dir), custom.to_string_lossy().as_bytes()).unwrap();
+    assert_eq!(db::location::resolve(&dir), custom);
+    // 指针目标不存在 → 回落默认（不写死路）
+    std::fs::write(db::location::pointer_path(&dir), b"Z:/nonexistent/fermata.db").unwrap();
+    assert_eq!(db::location::resolve(&dir), dir.join("fermata.db"));
+    // reset 清指针回默认
+    let back = db::location::reset(&dir).unwrap();
+    assert_eq!(back, dir.join("fermata.db"));
+    assert!(!db::location::pointer_path(&dir).exists());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn data_location_switch_copy_and_adopt() {
+    let dir = std::env::temp_dir().join(format!("fermata-loc-switch-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let app_dir = dir.join("app");
+    let d1 = dir.join("d1");
+    let d2 = dir.join("d2");
+    std::fs::create_dir_all(&app_dir).unwrap();
+    std::fs::create_dir_all(&d1).unwrap();
+    std::fs::create_dir_all(&d2).unwrap();
+
+    // 源库有点内容
+    let src = app_dir.join("fermata.db");
+    let conn = db::open(&src).unwrap();
+    let t0 = 1_800_000_000_000i64;
+    let day = db::day_of(t0);
+    ops::process_create(&conn, t0, "迁移甲", None, Some(&day)).unwrap();
+
+    // 切到空目录 → 复制迁移，原库不动
+    let (p, adopted) = db::location::switch(&conn, &src, &app_dir, &d1).unwrap();
+    assert!(!adopted, "空目录应是复制迁移");
+    assert!(p.exists());
+    let conn_new = db::open(&p).unwrap();
+    let n: i64 = conn_new.query_row("SELECT COUNT(*) FROM processes", [], |r| r.get(0)).unwrap();
+    assert_eq!(n, 1, "复制后内容完整");
+    let ptr = std::fs::read_to_string(db::location::pointer_path(&app_dir)).unwrap();
+    assert_eq!(ptr.trim(), p.to_string_lossy());
+
+    // 目标目录已有库 → 接续，不覆盖不合并
+    let existing = d2.join("fermata.db");
+    {
+        let c = db::open(&existing).unwrap();
+        ops::process_create(&c, t0, "老库进程", None, Some(&day)).unwrap();
+    }
+    let (p2, adopted2) = db::location::switch(&conn_new, &p, &app_dir, &d2).unwrap();
+    assert!(adopted2, "已有库应接续");
+    let conn2 = db::open(&p2).unwrap();
+    let titles: Vec<String> = {
+        let mut s = conn2.prepare("SELECT title FROM processes").unwrap();
+        s.query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect()
+    };
+    assert_eq!(titles, vec!["老库进程".to_string()], "接续已有库，不覆盖不合并");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}

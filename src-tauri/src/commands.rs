@@ -550,3 +550,79 @@ pub async fn export_events_dialog(
         None => Ok(None),
     }
 }
+
+// ---------- 数据存储位置 ----------
+
+use crate::db::DbPathState;
+
+/// 当前库文件路径
+#[tauri::command]
+pub async fn q_data_location(path_state: State<'_, DbPathState>) -> Result<String, String> {
+    let p = path_state.inner().0.lock().map_err(|e| e.to_string())?;
+    Ok(p.to_string_lossy().to_string())
+}
+
+/// 可测层：切换到目标目录（已有库=接续，没有=复制迁移）
+#[tauri::command]
+pub async fn set_data_location_to(
+    app: AppHandle,
+    state: State<'_, DbState>,
+    path_state: State<'_, DbPathState>,
+    target_dir: String,
+) -> Result<Value, String> {
+    let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let target = std::path::PathBuf::from(&target_dir);
+    let (new_path, adopted) = {
+        let c = lock(&state)?;
+        let cur = path_state.inner().0.lock().map_err(|e| e.to_string())?.clone();
+        db::location::switch(&c, &cur, &app_dir, &target)?
+    };
+    // 换连接 + 换路径状态（先开新再丢旧，失败留在旧库）
+    let new_conn = db::open(&new_path)?;
+    *state.inner().0.lock().map_err(|e| e.to_string())? = new_conn;
+    *path_state.inner().0.lock().map_err(|e| e.to_string())? = new_path.clone();
+    changed(&app);
+    Ok(serde_json::json!({
+        "path": new_path.to_string_lossy(),
+        "adopted": adopted,
+    }))
+}
+
+/// 对话框层：系统文件夹选择 → 切换
+#[tauri::command]
+pub async fn set_data_location_dialog(
+    app: AppHandle,
+    state: State<'_, DbState>,
+    path_state: State<'_, DbPathState>,
+) -> Result<Option<Value>, String> {
+    let mut d = app.dialog().file();
+    if let Ok(dir) = app.path().document_dir() {
+        d = d.set_directory(dir);
+    }
+    let picked = d.blocking_pick_folder();
+    match picked {
+        Some(p) => {
+            let dir = p.into_path().map_err(|e| e.to_string())?;
+            set_data_location_to(app, state, path_state, dir.to_string_lossy().to_string())
+                .await
+                .map(Some)
+        }
+        None => Ok(None),
+    }
+}
+
+/// 回默认位置（AppData）：清指针 + 换连接
+#[tauri::command]
+pub async fn reset_data_location(
+    app: AppHandle,
+    state: State<'_, DbState>,
+    path_state: State<'_, DbPathState>,
+) -> Result<Value, String> {
+    let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let default_db = db::location::reset(&app_dir)?;
+    let new_conn = db::open(&default_db)?;
+    *state.inner().0.lock().map_err(|e| e.to_string())? = new_conn;
+    *path_state.inner().0.lock().map_err(|e| e.to_string())? = default_db.clone();
+    changed(&app);
+    Ok(serde_json::json!({ "path": default_db.to_string_lossy(), "adopted": true }))
+}
