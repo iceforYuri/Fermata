@@ -596,7 +596,15 @@ pub async fn set_data_location_dialog(
     path_state: State<'_, DbPathState>,
 ) -> Result<Option<Value>, String> {
     let mut d = app.dialog().file();
-    if let Ok(dir) = app.path().document_dir() {
+    // 弹窗起始目录 = 当前库所在目录（先让用户看到"现在在哪儿"），取不到再回落"文档"
+    let start = {
+        let cur = path_state.inner().0.lock().map_err(|e| e.to_string())?.clone();
+        cur.parent()
+            .map(|p| p.to_path_buf())
+            .filter(|p| p.is_dir())
+            .or_else(|| app.path().document_dir().ok())
+    };
+    if let Some(dir) = start {
         d = d.set_directory(dir);
     }
     let picked = d.blocking_pick_folder();
