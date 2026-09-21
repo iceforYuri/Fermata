@@ -37,8 +37,8 @@
 
 | 形态 | 文件 |
 | --- | --- |
-| 安装包（推荐） | `publish/Fermata-1.0.0-setup.exe` |
-| 绿色单文件 | `publish/Fermata-1.0.0-portable.exe` |
+| 安装包（推荐） | `publish/Fermata-1.1.0-setup.exe` |
+| 绿色单文件 | `publish/Fermata-1.1.0-portable.exe` |
 
 要求 Windows 10/11（WebView2 随系统自带）。首次启动即为空版面，不含任何演示数据。
 从 gika 时代升级：旧数据库首启自动复制迁移，原目录原样保留。
