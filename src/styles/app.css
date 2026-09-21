@@ -1393,6 +1393,46 @@ body:has(.overlay-card) {
   padding: 10px 12px;
   font-size: var(--fs-small);
 }
+/* ============ 导入确认覆盖层（页内玻璃 + 实心小卡，非模态窗） ============ */
+.import-confirm {
+  position: fixed;
+  inset: 44px 0 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+}
+.import-confirm .archive-backdrop { position: absolute; inset: 0; }
+.import-card {
+  position: relative;
+  z-index: 41;
+  width: 400px;
+  background: var(--paper-deep);
+  border: 1px solid var(--hairline);
+  border-radius: var(--card-radius);
+  box-shadow: 0 8px 24px rgba(38, 34, 30, 0.14);
+  padding: 20px 22px;
+  animation: archive-in var(--dur) var(--ease-out);
+}
+.import-card-title { font-size: var(--fs-body); font-weight: 600; }
+.import-card-sub { font-size: var(--fs-small); color: var(--ink-soft); margin-top: 8px; }
+.import-card-ops {
+  display: flex;
+  justify-content: flex-end;
+  gap: 18px;
+  margin-top: 18px;
+}
+.import-card-ops button {
+  font-size: var(--fs-body);
+  color: var(--ink-soft);
+}
+.import-card-ops button:hover { color: var(--ink); }
+.import-card-ops .import-go {
+  color: var(--ink);
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 1px;
+}
+.import-card-ops button:disabled { opacity: 0.4; }
+
 .dg-tip-title { font-weight: 600; }
 .dg-tip-time { color: var(--ink-soft); }
 .dg-tip-bp { color: var(--ink-faint); font-size: var(--fs-micro); margin-top: 2px; }

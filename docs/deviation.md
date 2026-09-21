@@ -242,3 +242,10 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 - `GridCell.occupants`（全部占用者按 ms 降序截前 4）+ `occupant_count`（总数）；20%/80% 阈值只管 marks 画不画，不管清单说不说；钳制区间沿用 v1.4 口径。mock 同步；q_plans 排序不受影响。
 - 多占用者格的场景测试构造教训：既有 grid 测试里乙的长段（10:15–23:50）会铺满中途所有格——新场景必须锚在其覆盖窗外（选了 08:00–08:10）；跨午夜的 fixture 锚点（now 相对量）在 00:30 前会落到昨天，悬停清单 fixture 固定锚昨天 12:00–12:04 保确定性。
 - verify-m3 的圆点基数类断言对"中途换 fixture 重载页面"敏感（基数随 now 漂移）——基数在换回主 fixture 后重取。
+
+### D51 · 数据导入导出（feature/data-port）
+- **确认覆盖层做成主窗内覆盖层的宪法理由**：宪法 6「推拉不弹窗，主窗内禁一切模态」——导入确认虽要阻断，但液态玻璃遮罩+实心小卡是版面语言（同完成档案 archive-backdrop 的先例），backdrop-filter 只盖自家内容合宪；不开系统模态。覆盖层路由可达（#/overlay/import-confirm）供截图。
+- **替换实现=同连接事务**：DELETE（子表先行：steps/segments → processes，FK 约束下别的顺序会炸）+ 显式列名 INSERT；比换 db 文件稳（连接不断、不碰 WAL、不引空窗期）。序列化走 SELECT * 行级通用读写，id 保真，REAL 分数位（计划 position）无损 roundtrip。
+- **命令分两层**：对话框层（export_snapshot_dialog / import_snapshot_dialog / export_events_dialog）+ 可测层（export_snapshot_to / import_snapshot_check / import_snapshot_from）——系统对话框测试驱动不了，verify 走可测层；对话框层由人工验收。
+- 既有 export_events（直写 exports 目录）命令保留注册不删（向后兼容），UI 已切到对话框版。
+- 测试副作用注意：真机 exe 跑 verify 时备份文件落在真实 app_data/exports（verify 脚本已自清）；verify 用 FERMATA_DB_PATH 隔了临时库。

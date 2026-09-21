@@ -997,6 +997,28 @@ export const mockData: DataApi = {
   async exportEvents() {
     return "mock://events.json（浏览器环境不落盘）";
   },
+  async exportSnapshotDialog() {
+    return "mock://fermata-snapshot.fermata.json（浏览器环境不落盘）";
+  },
+  async exportSnapshotTo(path: string) {
+    return path;
+  },
+  async exportEventsDialog() {
+    return "mock://fermata-events.json（浏览器环境不落盘）";
+  },
+  async importSnapshotDialog() {
+    return "mock://fermata-2026-09-20.fermata.json"; // mock 无系统对话框，给个固定路径走通 UI 流
+  },
+  async importSnapshotCheck(_path: string) {
+    return { processes: state.processes.length, events: state.events.length, exported_at: Date.now() };
+  },
+  async importSnapshotFrom(_path: string) {
+    return {
+      backup: "mock://exports/backup-20260920-1830.fermata.json",
+      processes: state.processes.length,
+      events: state.events.length,
+    };
+  },
 
   async qRestState() {
     return {

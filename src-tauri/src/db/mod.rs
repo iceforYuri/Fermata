@@ -3,6 +3,7 @@
 
 pub mod ops;
 pub mod queries;
+pub mod snapshot;
 
 use chrono::{Datelike, Local, TimeZone};
 use rusqlite::Connection;

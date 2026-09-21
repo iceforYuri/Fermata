@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { data } from "../../api/data";
 import { system } from "../../api/system";
 import { act, effectiveTheme, useBoard } from "../../store/board";
+import { setUi, useUi } from "../../store/ui";
 
 /* ---------- 双态控件族（排版文字 → 原地变形；1px 下划线唯一编辑指示） ---------- */
 
@@ -219,8 +220,8 @@ const SECTIONS: [string, string][] = [
 export function SettingsPage() {
   const board = useBoard();
   const { settings, palette } = board;
+  const { dataEcho } = useUi();
   const [activeSec, setActiveSec] = useState("slice");
-  const [exported, setExported] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   const get = (k: string, dflt: string) => settings[k] ?? dflt;
@@ -330,18 +331,67 @@ export function SettingsPage() {
       <section data-sec="data" className="set-sec">
         <div className="detail-label">数据</div>
         <div className="set-row">
+          <span className="set-label">全量数据</span>
+          <span className="plan-ops-inline">
+            <button
+              className="set-export"
+              data-testid="export-snapshot"
+              onClick={() => {
+                void (async () => {
+                  try {
+                    const p = await data.exportSnapshotDialog();
+                    setUi({ dataEcho: p ? `已导出：${p}` : "已取消" });
+                  } catch (e) {
+                    setUi({ dataEcho: `导出失败：${e}` });
+                  }
+                })();
+              }}
+            >
+              导出数据
+            </button>
+            <button
+              className="set-export"
+              data-testid="import-snapshot"
+              onClick={() => {
+                void (async () => {
+                  try {
+                    const p = await data.importSnapshotDialog();
+                    if (!p) {
+                      setUi({ dataEcho: "已取消" });
+                      return;
+                    }
+                    const meta = await data.importSnapshotCheck(p);
+                    setUi({ importConfirm: { path: p, ...meta }, dataEcho: null });
+                  } catch (e) {
+                    setUi({ dataEcho: `文件无效：${e}` });
+                  }
+                })();
+              }}
+            >
+              导入数据
+            </button>
+          </span>
+        </div>
+        <div className="set-row">
           <span className="set-label">事件日志</span>
           <button
             className="set-export"
             data-testid="export-events"
             onClick={() => {
-              void data.exportEvents().then((p) => setExported(p)).catch(() => setExported("mock 环境无导出"));
+              void (async () => {
+                try {
+                  const p = await data.exportEventsDialog();
+                  setUi({ dataEcho: p ? `已导出：${p}` : "已取消" });
+                } catch (e) {
+                  setUi({ dataEcho: `导出失败：${e}` });
+                }
+              })();
             }}
           >
             导出 JSON
           </button>
         </div>
-        {exported && <div className="set-exported num" data-testid="export-path">{exported}</div>}
+        {dataEcho && <div className="set-exported num" data-testid="export-path">{dataEcho}</div>}
       </section>
 
       {/* 构建戳：核对"这份程序是不是最新构建" */}
