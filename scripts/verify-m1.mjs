@@ -270,6 +270,63 @@ ok(
   ok("确认后稿库进程激活", nowTitle === planTitle, `active=${nowTitle} 期望 ${planTitle}`);
 }
 
+// 9d. 稿库标题双态编辑：Esc 还原 / Enter 提交
+{
+  const row0 = page.locator("[data-testid=plan-row]").first();
+  const oldTitle = (await row0.locator(".plan-title").textContent()).trim();
+  await row0.locator("[data-testid=plan-title]").click();
+  await row0.locator("[data-testid=plan-title-editing]").waitFor();
+  await row0.locator("[data-testid=plan-title-editing]").fill("不应出现的名字");
+  await page.keyboard.press("Escape");
+  await sleep(300);
+  const afterEsc = (await row0.locator(".plan-title").textContent()).trim();
+  await row0.locator("[data-testid=plan-title]").click();
+  await row0.locator("[data-testid=plan-title-editing]").waitFor();
+  await row0.locator("[data-testid=plan-title-editing]").fill("改名稿库条目");
+  await page.keyboard.press("Enter");
+  await sleep(400);
+  const afterCommit = (await row0.locator(".plan-title").textContent()).trim();
+  ok(
+    "稿库编辑 Esc 还原 + Enter 提交",
+    afterEsc === oldTitle && afterCommit === "改名稿库条目",
+    `esc=${afterEsc} commit=${afterCommit} 原名=${oldTitle}`,
+  );
+}
+
+// 9e. 稿库删除沉降：点 ✕ 后行仍在（.leaving 收起中），~240ms 后才消失
+{
+  const before = await page.locator("[data-testid=plan-row]").count();
+  const row0 = page.locator("[data-testid=plan-row]").first();
+  await row0.locator("[data-testid=plan-del]").click();
+  await sleep(60);
+  const midCount = await page.locator("[data-testid=plan-row]").count();
+  const leaving = await page.locator("[data-testid=plan-row].leaving").count();
+  await sleep(600);
+  const after = await page.locator("[data-testid=plan-row]").count();
+  ok(
+    "稿库删除沉降（先收后删）",
+    midCount === before && leaving === 1 && after === before - 1,
+    `${before}→mid ${midCount}(leaving ${leaving})→${after}`,
+  );
+}
+
+// 9f. 稿库完成：划线画出（.completing）后行才沉降离场
+{
+  const before = await page.locator("[data-testid=plan-row]").count();
+  const row0 = page.locator("[data-testid=plan-row]").first();
+  await row0.locator("[data-testid=plan-done]").click();
+  await sleep(80); // 划线画出中（160ms），行仍在
+  const midCount = await page.locator("[data-testid=plan-row]").count();
+  const completing = await page.locator("[data-testid=plan-row].completing").count();
+  await sleep(700);
+  const after = await page.locator("[data-testid=plan-row]").count();
+  ok(
+    "稿库完成划线后沉降离场",
+    midCount === before && completing === 1 && after === before - 1,
+    `${before}→mid ${midCount}(completing ${completing})→${after}`,
+  );
+}
+
 // 附2：顶栏胶囊 20 连击（真实鼠标点击，回归点击稳定性）
 {
   let hits = 0;

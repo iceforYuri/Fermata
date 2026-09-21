@@ -408,12 +408,13 @@ pub fn plan_create(
     est_minutes: Option<i64>,
     scheduled_date: Option<&str>,
 ) -> Result<i64, String> {
-    let max_pos: Option<i64> = conn
+    // position 允许 REAL 分数位（v4），MAX 按 f64 读
+    let max_pos: Option<f64> = conn
         .query_row("SELECT MAX(position) FROM plans", [], |r| r.get(0))
         .map_err(|e| e.to_string())?;
     conn.execute(
         "INSERT INTO plans (title, est_minutes, scheduled_date, state, created_at, position) VALUES (?1, ?2, ?3, 'pool', ?4, ?5)",
-        rusqlite::params![title, est_minutes, scheduled_date, ts, max_pos.unwrap_or(0) + 1],
+        rusqlite::params![title, est_minutes, scheduled_date, ts, max_pos.unwrap_or(0.0) + 1.0],
     )
     .map_err(|e| e.to_string())?;
     let id = conn.last_insert_rowid();
@@ -478,9 +479,14 @@ pub fn plan_update(
 }
 
 pub fn plan_done(conn: &Connection, ts: i64, id: i64) -> Result<(), String> {
+    // 记下稠密名次（1-based，非稀疏 position 值）到 prev_position，回退插回原位用
     let n = conn
         .execute(
-            "UPDATE plans SET state = 'completed', completed_at = ?2 WHERE id = ?1 AND state = 'pool'",
+            "UPDATE plans SET
+               prev_position = (SELECT COUNT(*) FROM plans p2
+                                 WHERE p2.state = 'pool' AND p2.position < COALESCE(plans.position, 0)) + 1,
+               state = 'completed', completed_at = ?2
+             WHERE id = ?1 AND state = 'pool'",
             rusqlite::params![id, ts],
         )
         .map_err(|e| e.to_string())?;
@@ -502,6 +508,55 @@ pub fn plan_delete(conn: &Connection, ts: i64, id: i64) -> Result<(), String> {
         return Err(format!("计划 {id} 不在稿库中，不能删除"));
     }
     append_event(conn, ts, "plan_delete", None, json!({ "plan_id": id }))?;
+    Ok(())
+}
+
+/// 完成 → 放回稿库：completed → pool，completed_at 清空，插回 min(prev_position, 队列长度) 原位。
+/// **不改他人 position**：目标位取上/下邻居 position 的中值（REAL 分数位；INTEGER 亲和列无损存 REAL）；
+/// 无上邻居 = 下一位 − 1；无下邻居 = 上一位 + 1；都无 = 1。prev_position NULL（存量）→ 队尾。
+pub fn plan_reopen(conn: &Connection, ts: i64, id: i64) -> Result<(), String> {
+    let prev: Option<i64> = conn
+        .query_row(
+            "SELECT prev_position FROM plans WHERE id = ?1 AND state = 'completed'",
+            rusqlite::params![id],
+            |r| r.get(0),
+        )
+        .map_err(|e| match e {
+            rusqlite::Error::QueryReturnedNoRows => format!("计划 {id} 不在完成态，不能放回稿库"),
+            other => other.to_string(),
+        })?;
+    // (id, position)：position 经分数位插入后是 REAL，按 f64 读
+    let pool: Vec<(i64, f64)> = {
+        let mut stmt = conn
+            .prepare("SELECT id, COALESCE(position, 0) FROM plans WHERE state = 'pool' ORDER BY position, id")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, f64>(1)?)))
+            .map_err(|e| e.to_string())?
+            .filter_map(|r| r.ok())
+            .collect();
+        rows
+    };
+    let len = pool.len() as i64;
+    // 1-based 目标名次 = min(prev, len)，转 0-based 插入下标；prev NULL → 队尾
+    let idx0 = match prev {
+        Some(p) => ((p.min(len) - 1).max(0)) as usize,
+        None => pool.len(),
+    };
+    let before = if idx0 > 0 { Some(pool[idx0 - 1].1) } else { None };
+    let after = if idx0 < pool.len() { Some(pool[idx0].1) } else { None };
+    let new_pos = match (before, after) {
+        (Some(b), Some(a)) => (b + a) / 2.0,
+        (None, Some(a)) => a - 1.0,
+        (Some(b), None) => b + 1.0,
+        (None, None) => 1.0,
+    };
+    conn.execute(
+        "UPDATE plans SET state = 'pool', completed_at = NULL, position = ?2 WHERE id = ?1",
+        rusqlite::params![id, new_pos],
+    )
+    .map_err(|e| e.to_string())?;
+    append_event(conn, ts, "plan_reopen", None, json!({ "plan_id": id }))?;
     Ok(())
 }
 

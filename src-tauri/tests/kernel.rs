@@ -232,6 +232,34 @@ fn grid_cell_majority_ownership_and_untimed_completion() {
     assert_eq!(stats.total_ms, seg_sum, "大环总专注 == segments 闭合和");
     // 切换次数 = switch_in 计数（含跨午夜验收段的两次）= 6
     assert_eq!(stats.switch_count, 6);
+
+    // v1.4.1 整格全量清单：格 12（08:00–08:10，乙的长段 10:15 起、不覆盖）排 5 个占用者——
+    // 丁 5 分钟、戊 2 分钟、己 1.5 分钟、庚 1 分钟、辛 0.5 分钟（后三 <20%）
+    let mk = |name: &str| ops::process_create(&conn, t(0), name, None, Some(&day)).unwrap();
+    let (d4, e5, f6, g7, h8) = (mk("丁"), mk("戊"), mk("己"), mk("庚"), mk("辛"));
+    // 轮转切：丁[480,484) 戊[484,486) 己[486,487.5) 庚[487.5,488.5) 辛[488.5,489) 丁收[489,490)
+    ops::process_switch(&conn, t(480), d4, None).unwrap();
+    ops::process_switch(&conn, t(484), e5, None).unwrap();
+    ops::process_switch(&conn, t(486), f6, None).unwrap();
+    ops::process_switch(&conn, t(487) + 30_000, g7, None).unwrap();
+    ops::process_switch(&conn, t(488) + 30_000, h8, None).unwrap();
+    ops::process_switch(&conn, t(489), d4, None).unwrap();
+    ops::process_switch(&conn, t(490), a, None).unwrap(); // 收
+    let grid4 = queries::q_day_grid(&conn, &day).unwrap();
+    let cell12 = &grid4[12];
+    // 画布：≥20% 前二 = 丁(50%) 戊(20%)
+    assert_eq!(cell12.marks.len(), 2, "3+ 占用者仍只画两瓣");
+    assert_eq!(cell12.marks[0].process_id, d4);
+    assert_eq!(cell12.marks[1].process_id, e5);
+    // 清单：全部 5 个占用者，截前 4 + occupant_count=5；<20% 的己庚也在列
+    assert_eq!(cell12.occupant_count, 5, "格 12 共 5 个占用者");
+    assert_eq!(cell12.occupants.len(), 4, "清单截前 4");
+    let ids: Vec<i64> = cell12.occupants.iter().map(|o| o.process_id).collect();
+    assert_eq!(ids, vec![d4, e5, f6, g7], "按时长降序前 4（辛 0.5 分钟被截）");
+    assert!(cell12.occupants[2].share < 0.2, "己 15% 也列出（阈值只管画）");
+    // 钳制区间：丁两段并集 = [08:00, 08:04] ∪ [08:09, 08:10] → 钳制起止 08:00–08:10
+    assert_eq!(cell12.occupants[0].occ_start, t(480));
+    assert_eq!(cell12.occupants[0].occ_end, t(490));
 }
 
 // ================= v1.2 · 统一栈（ADR-0005） =================
@@ -336,4 +364,172 @@ fn switched_out_lands_queue_head() {
     let pc = db::get_process(&conn, c).unwrap();
     assert!(pd.queue_position.unwrap() > pc.queue_position.unwrap(), "新建仍落队尾");
     assert!(pc.queue_position.unwrap() > pa.queue_position.unwrap());
+}
+
+// ================= fix/plan-ops：计划四修 =================
+
+#[test]
+fn plan_reopen_and_day_view_filters_deleted() {
+    let conn = db::open_in_memory().unwrap();
+    let t0 = 1_800_000_000_000i64;
+    let day = db::day_of(t0);
+
+    let p1 = ops::plan_create(&conn, t0, "待改计划", Some(30), Some(&day)).unwrap();
+    let p2 = ops::plan_create(&conn, t0 + 1, "要删计划", None, Some(&day)).unwrap();
+
+    // 删除即消失：deleted 不出现在 q_day_view
+    ops::plan_delete(&conn, t0 + 2, p2).unwrap();
+    let dv = queries::q_day_view(&conn, &day).unwrap();
+    assert!(
+        dv.plans.iter().all(|p| p.id != p2),
+        "deleted 计划不得出现在 q_day_view"
+    );
+    assert!(dv.plans.iter().any(|p| p.id == p1), "pool 计划仍在");
+
+    // 完成 → 放回稿库：回 pool、completed_at 清空、插回原位
+    ops::plan_done(&conn, t0 + 3, p1).unwrap();
+    let dv = queries::q_day_view(&conn, &day).unwrap();
+    assert!(dv.not_done.iter().all(|p| p.id != p1), "完成态不在未做清单");
+    let prev: Option<i64> = conn
+        .query_row("SELECT prev_position FROM plans WHERE id = ?1", rusqlite::params![p1], |r| r.get(0))
+        .unwrap();
+    assert_eq!(prev, Some(1), "plan_done 记位 prev_position");
+
+    // 期间新增一条（落队尾），回退仍应插回原位（原位未越界）
+    let p3 = ops::plan_create(&conn, t0 + 35, "插队计划", None, Some(&day)).unwrap();
+    ops::plan_reopen(&conn, t0 + 4, p1).unwrap();
+    let order: Vec<String> = {
+        let mut stmt = conn.prepare("SELECT title FROM plans WHERE state = 'pool' ORDER BY position, id").unwrap();
+        stmt.query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect()
+    };
+    assert_eq!(order, vec!["待改计划", "插队计划"], "回退插回原位（队首），新增让位");
+    let (state, completed_at): (String, Option<i64>) = conn
+        .query_row("SELECT state, completed_at FROM plans WHERE id = ?1", rusqlite::params![p1], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap();
+    assert_eq!(state, "pool");
+    assert_eq!(completed_at, None);
+    let dv = queries::q_day_view(&conn, &day).unwrap();
+    assert!(dv.not_done.iter().any(|p| p.id == p1), "回退后回未做清单");
+
+    // 夹紧：prev_position 越界（期间队列变短）→ min(prev, len)
+    ops::plan_done(&conn, t0 + 5, p3).unwrap(); // p3 原位 2 → prev=2
+    ops::plan_done(&conn, t0 + 6, p1).unwrap(); // p1 原位 1 → prev=1；pool 空
+    ops::plan_reopen(&conn, t0 + 7, p3).unwrap(); // len=0 → 夹到唯一位
+    let order: Vec<i64> = {
+        let mut stmt = conn.prepare("SELECT id FROM plans WHERE state = 'pool' ORDER BY position, id").unwrap();
+        stmt.query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect()
+    };
+    assert_eq!(order, vec![p3], "空队列回退落唯一位");
+    ops::plan_reopen(&conn, t0 + 8, p1).unwrap(); // prev=1, len=1 → min=1 → 队首
+    let order: Vec<i64> = {
+        let mut stmt = conn.prepare("SELECT id FROM plans WHERE state = 'pool' ORDER BY position, id").unwrap();
+        stmt.query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect()
+    };
+    assert_eq!(order, vec![p1, p3], "夹紧到 min(prev,len)：p1 回队首");
+
+    // 分数位插入：reopen 不改他人 position；反复 done/reopen 相对顺序稳定
+    let pos_of = |id: i64| -> f64 {
+        conn.query_row("SELECT COALESCE(position,0) FROM plans WHERE id = ?1", rusqlite::params![id], |r| r.get(0))
+            .unwrap()
+    };
+    let p4 = ops::plan_create(&conn, t0 + 10, "丁", None, Some(&day)).unwrap();
+    let p5 = ops::plan_create(&conn, t0 + 11, "戊", None, Some(&day)).unwrap();
+    // pool: p1 p3 p4 p5；完成中间的 p3 再回退
+    let before: Vec<(i64, f64)> = vec![p1, p3, p4, p5].into_iter().map(|x| (x, pos_of(x))).collect();
+    ops::plan_done(&conn, t0 + 12, p3).unwrap();
+    ops::plan_reopen(&conn, t0 + 13, p3).unwrap();
+    assert_eq!(pos_of(p1), before[0].1, "他人 position 不被重写（p1）");
+    assert_eq!(pos_of(p4), before[2].1, "他人 position 不被重写（p4）");
+    assert_eq!(pos_of(p5), before[3].1, "他人 position 不被重写（p5）");
+    let order: Vec<i64> = {
+        let mut stmt = conn.prepare("SELECT id FROM plans WHERE state = 'pool' ORDER BY position, id").unwrap();
+        stmt.query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect()
+    };
+    assert_eq!(order, vec![p1, p3, p4, p5], "回退后相对顺序不变");
+    // 再来三轮 done/reopen 往返，顺序仍不变
+    for k in 0..3 {
+        ops::plan_done(&conn, t0 + 20 + k * 2, p3).unwrap();
+        ops::plan_reopen(&conn, t0 + 21 + k * 2, p3).unwrap();
+        let ord: Vec<i64> = {
+            let mut stmt = conn.prepare("SELECT id FROM plans WHERE state = 'pool' ORDER BY position, id").unwrap();
+            stmt.query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect()
+        };
+        assert_eq!(ord, vec![p1, p3, p4, p5], "往返 {k} 后顺序不变");
+    }
+
+    // 守卫：非完成态不能回退；事件已记
+    assert!(ops::plan_reopen(&conn, t0 + 30, p1).is_err(), "pool 态不能再 reopen");
+    let evts = queries::q_events(&conn, None).unwrap();
+    assert!(evts.iter().any(|e| e.kind == "plan_reopen"), "写 plan_reopen 事件");
+}
+
+// ================= 数据快照（feature/data-port） =================
+
+#[test]
+fn snapshot_roundtrip_preserves_ids_and_fractional_position() {
+    let conn = db::open_in_memory().unwrap();
+    let t0 = 1_800_000_000_000i64;
+    let day = db::day_of(t0);
+    let a = ops::process_create(&conn, t0, "甲进程", Some(2), Some(&day)).unwrap();
+    let b = ops::process_create(&conn, t0 + 1, "乙进程", None, Some(&day)).unwrap();
+    ops::process_switch(&conn, t0 + 10, a, None).unwrap();
+    ops::process_switch(&conn, t0 + 20, b, Some("甲的断点")).unwrap();
+    let p1 = ops::plan_create(&conn, t0 + 30, "计划甲", Some(30), Some(&day)).unwrap();
+    ops::plan_create(&conn, t0 + 31, "计划乙", None, Some(&day)).unwrap();
+    ops::plan_done(&conn, t0 + 32, p1).unwrap();
+    ops::plan_reopen(&conn, t0 + 33, p1).unwrap(); // 回原位 → 分数位 position
+    let pos_before: f64 = conn
+        .query_row("SELECT position FROM plans WHERE id = ?1", rusqlite::params![p1], |r| r.get(0))
+        .unwrap();
+
+    let snap = db::snapshot::build_snapshot(&conn).unwrap();
+    let ev_count = queries::q_events(&conn, None).unwrap().len();
+    assert!(ev_count > 0, "事件必须在快照里（统计的粮食）");
+
+    let conn2 = db::open_in_memory().unwrap();
+    db::snapshot::import_snapshot(&conn2, &snap).unwrap();
+
+    // 行级一致：进程 id/标题逐行相同；事件计数相同；分数位 position 不变
+    let procs: Vec<(i64, String)> = {
+        let mut s = conn2.prepare("SELECT id, title FROM processes ORDER BY id").unwrap();
+        s.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect()
+    };
+    assert_eq!(procs, vec![(a, "甲进程".to_string()), (b, "乙进程".to_string())], "id 与标题保真");
+    assert_eq!(queries::q_events(&conn2, None).unwrap().len(), ev_count);
+    let pos_after: f64 = conn2
+        .query_row("SELECT position FROM plans WHERE id = ?1", rusqlite::params![p1], |r| r.get(0))
+        .unwrap();
+    assert_eq!(pos_before, pos_after, "REAL 分数位 roundtrip 无损");
+    // settings/palette 也过来了
+    let theme: Option<String> = conn2
+        .query_row("SELECT value FROM settings WHERE key = 'theme'", [], |r| r.get(0))
+        .ok();
+    assert!(theme.is_some(), "settings 随快照迁移");
+}
+
+#[test]
+fn snapshot_invalid_rejected_and_db_untouched() {
+    let conn = db::open_in_memory().unwrap();
+    let t0 = 1_800_000_000_000i64;
+    let day = db::day_of(t0);
+    ops::plan_create(&conn, t0, "别让坏文件碰我", None, Some(&day)).unwrap();
+    let before: i64 = conn.query_row("SELECT COUNT(*) FROM plans", [], |r| r.get(0)).unwrap();
+
+    // 顶层非对象
+    let bad = serde_json::json!(["not", "snapshot"]);
+    assert!(db::snapshot::import_snapshot(&conn, &bad).is_err());
+    // 版本不符
+    let mut snap = db::snapshot::build_snapshot(&conn).unwrap();
+    snap["meta"]["format_version"] = serde_json::json!(99);
+    assert!(db::snapshot::import_snapshot(&conn, &snap).is_err());
+    // 缺表
+    let mut snap2 = db::snapshot::build_snapshot(&conn).unwrap();
+    snap2.as_object_mut().unwrap().remove("events");
+    assert!(db::snapshot::import_snapshot(&conn, &snap2).is_err());
+
+    let after: i64 = conn.query_row("SELECT COUNT(*) FROM plans", [], |r| r.get(0)).unwrap();
+    assert_eq!(before, after, "非法快照零副作用");
 }

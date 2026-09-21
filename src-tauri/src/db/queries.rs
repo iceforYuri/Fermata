@@ -786,7 +786,7 @@ pub fn q_day_view(conn: &Connection, day: &str) -> Result<DayView, String> {
     }
 
     let mut stmt = conn
-        .prepare("SELECT * FROM plans WHERE scheduled_date = ?1 ORDER BY position, id")
+        .prepare("SELECT * FROM plans WHERE scheduled_date = ?1 AND state != 'deleted' ORDER BY position, id")
         .map_err(|e| e.to_string())?;
     let plans: Vec<Plan> = stmt
         .query_map(rusqlite::params![day], |r| {
@@ -881,9 +881,21 @@ pub struct CellMark {
 }
 
 #[derive(Serialize)]
+pub struct GridOccupant {
+    pub process_id: i64,
+    pub color_tag: Option<i64>,
+    pub title: String,
+    pub occ_start: i64, // 格内钳制占用起点
+    pub occ_end: i64,
+    pub share: f64, // 占用率（不过滤，<20% 也列出——阈值只管画不画）
+}
+
+#[derive(Serialize)]
 pub struct GridCell {
     pub cell: i64, // 0..107，列主序（i = col*6 + row，每格 10 分钟）
-    pub marks: Vec<CellMark>, // 最多两枚：≥20% 的占用者取前二（对角分半）
+    pub marks: Vec<CellMark>, // 最多两枚：≥20% 的占用者取前二（对角分半）——只管画
+    pub occupants: Vec<GridOccupant>, // 全部占用者按 ms 降序截前 4——悬停清单
+    pub occupant_count: i64, // 该格占用者总数（>4 时前端收 "…等 N 项"）
 }
 
 /// 108 格日网格（v1.4：share=占用率，分母=格的 10 分钟；<20% 不返回、取前二）；
@@ -958,15 +970,30 @@ pub fn q_day_grid(conn: &Connection, day: &str) -> Result<Vec<GridCell>, String>
         let cell_s = win + i as i64 * CELL_MS;
         let mut ranked: Vec<(&i64, &Acc)> = m.iter().collect();
         ranked.sort_by(|a, b| b.1.ms.cmp(&a.1.ms));
+        // 悬停清单：全部占用者按 ms 降序截前 4（不过滤 share）
+        let occupant_count = ranked.len() as i64;
+        let mut occupants = Vec::new();
+        for (pid, a) in ranked.iter().take(4) {
+            let p = get_process(conn, **pid)?;
+            occupants.push(GridOccupant {
+                process_id: **pid,
+                color_tag: p.color_tag,
+                title: p.title,
+                occ_start: a.occ_s,
+                occ_end: a.occ_e,
+                share: a.ms as f64 / CELL_MS as f64,
+            });
+        }
+        // 画布标记：≥20% 取前二（对角分半）
         let mut marks = Vec::new();
-        for (pid, a) in ranked.into_iter().take(2) {
+        for (pid, a) in ranked.iter().take(2) {
             let share = a.ms as f64 / CELL_MS as f64;
             if share < MIN_SHARE {
                 break; // 后面的更小，一并不取
             }
-            let p = get_process(conn, *pid)?;
+            let p = get_process(conn, **pid)?;
             marks.push(CellMark {
-                process_id: *pid,
+                process_id: **pid,
                 color_tag: p.color_tag,
                 title: p.title,
                 occ_start: a.occ_s,
@@ -979,6 +1006,8 @@ pub fn q_day_grid(conn: &Connection, day: &str) -> Result<Vec<GridCell>, String>
         out.push(GridCell {
             cell: i as i64,
             marks,
+            occupants,
+            occupant_count,
         });
     }
     Ok(out)

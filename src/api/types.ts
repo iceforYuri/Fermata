@@ -40,6 +40,7 @@ export interface Plan {
   created_at: number;
   completed_at: number | null;
   position: number | null;
+  prev_position?: number | null; // plan_done 记位，plan_reopen 插回原位用
 }
 
 export interface FermataEvent {
@@ -129,9 +130,19 @@ export interface CellMark {
   is_start: boolean; // 该进程的段起点落此格（半圆朝向右下）
   is_end: boolean;   // 段止点落此格（半圆朝向左上）
 }
+export interface GridOccupant {
+  process_id: number;
+  color_tag: number | null;
+  title: string;
+  occ_start: number; // 格内钳制占用起点
+  occ_end: number;   // 占用止点（开口段钳到当下）
+  share: number;     // 占用率 0..1（不过滤，<20% 也列出）
+}
 export interface GridCell {
   cell: number;
-  marks: CellMark[]; // 最多两枚：≥20% 的占用者取前二（对角分半）
+  marks: CellMark[]; // 最多两枚：≥20% 的占用者取前二（对角分半）——只管画
+  occupants: GridOccupant[]; // 全部占用者按时长降序，截前 4——悬停清单
+  occupant_count: number;    // 该格占用者总数（>4 时浮窗收 "…等 N 项"）
 }
 
 /** 数据内核接口：Tauri 与 mock 双实现 */
@@ -157,6 +168,7 @@ export interface DataApi {
   ): Promise<void>;
   planDone(id: number): Promise<void>;
   planDelete(id: number): Promise<void>;
+  planReopen(id: number): Promise<void>;
   idleStart(runningPid?: number): Promise<void>;
   idleEnd(runningPid?: number): Promise<void>;
   restTrigger(pid: number | null, source: "ring_full" | "continuous", readingMs: number): Promise<void>;
@@ -189,4 +201,16 @@ export interface DataApi {
   qDayGrid(day: string): Promise<GridCell[]>;
   qFirstDay(): Promise<string | null>;
   exportEvents(): Promise<string>;
+  /** 全量快照：另存为对话框（取消 → null） */
+  exportSnapshotDialog(): Promise<string | null>;
+  /** 可测层：导出到指定路径 */
+  exportSnapshotTo(path: string): Promise<string>;
+  /** 事件日志导出（次要行）：另存为对话框 */
+  exportEventsDialog(): Promise<string | null>;
+  /** 打开对话框选快照（取消 → null） */
+  importSnapshotDialog(): Promise<string | null>;
+  /** 读+校验（不碰库），返回确认覆盖层摘要 */
+  importSnapshotCheck(path: string): Promise<{ processes: number; events: number; exported_at: number | null }>;
+  /** 备份+事务导入，返回回执 */
+  importSnapshotFrom(path: string): Promise<{ backup: string; processes: number; events: number }>;
 }

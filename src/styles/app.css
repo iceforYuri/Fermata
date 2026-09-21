@@ -756,6 +756,9 @@
 .inline-display {
   cursor: text;
 }
+.inline-display.disabled {
+  cursor: default;
+}
 
 /* ================= 完成档案浮层（页内玻璃，合规：只盖自家内容） ================= */
 .archive-backdrop {
@@ -1160,6 +1163,8 @@ body:has(.overlay-card) {
   padding: 14px 0 80px;
   /* v1.2.4 扩展：月/年视角同样隐藏原生滚动条（滚轮导航），与日视角一致 */
   scrollbar-width: none;
+  /* 计划操作锚点补偿自己做，关浏览器原生补偿（防双重补偿） */
+  overflow-anchor: none;
 }
 .stats-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .stats-measure {
@@ -1285,7 +1290,62 @@ body:has(.overlay-card) {
   font-size: var(--fs-body);
 }
 .dv-plan-title { flex: 1; min-width: 0; }
+.dv-reopen { opacity: 0; transition: opacity var(--dur-fast); }
+.dv-plan:hover .dv-reopen { opacity: 1; }
 .dv-tag { font-size: var(--fs-micro); color: var(--ink-faint); }
+
+/* ============ 计划行动效：划线画出/收回 · 删除沉降 · 开缝接纳 ============ */
+/* 划线：伪元素 scaleX 0→1 从左画出（160ms ease-out）；.done/.completing 戴上，摘掉即收回 */
+.dv-plan-title, .plan-title { position: relative; transition: color var(--dur) var(--ease-out); }
+.dv-plan-title::after, .plan-title::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 54%;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 160ms var(--ease-out);
+  pointer-events: none;
+}
+.dv-plan.done .dv-plan-title,
+.plan-row.completing .plan-title { color: var(--ink-faint); }
+.dv-plan.done .dv-plan-title::after,
+.plan-row.completing .plan-title::after { transform: scaleX(1); }
+
+/* 删除/离场：沉降收起（高度由 JS 量定后 →0，淡出同步），后续行随布局自然补位 */
+.plan-row.leaving, .dv-plan.leaving {
+  opacity: 0;
+  overflow: hidden;
+  padding-top: 0;
+  padding-bottom: 0;
+  pointer-events: none;
+  transition:
+    height 200ms var(--ease-out),
+    opacity 200ms var(--ease-out),
+    padding 200ms var(--ease-out);
+}
+.plan-row.completing { pointer-events: none; }
+
+/* 开缝接纳：新行从 0 高弹开（弹簧与拖拽让位同族） */
+@keyframes row-enter {
+  from { height: 0; opacity: 0; }
+}
+.plan-row.entering {
+  animation: row-enter 220ms cubic-bezier(0.34, 1.36, 0.64, 1);
+  overflow: hidden;
+}
+
+/* 数据联动型出入（「未做」区等非直接操作对象）：幽灵行沉降 / 量高弹开 */
+.leaving-anim {
+  overflow: hidden;
+  transition: height 200ms var(--ease-out), opacity 200ms var(--ease-out);
+}
+.leaving-anim.collapsing { opacity: 0; }
+.entering-anim {
+  overflow: hidden;
+  transition: height 220ms cubic-bezier(0.34, 1.36, 0.64, 1), opacity var(--dur-fast) var(--ease-out);
+}
 .plan-ops-inline { display: flex; gap: 8px; }
 .plan-ops-inline button { color: var(--ink-soft); }
 .plan-ops-inline button:hover { color: var(--ink); }
@@ -1333,9 +1393,55 @@ body:has(.overlay-card) {
   padding: 10px 12px;
   font-size: var(--fs-small);
 }
+/* ============ 导入确认覆盖层（页内玻璃 + 实心小卡，非模态窗） ============ */
+.import-confirm {
+  position: fixed;
+  inset: 44px 0 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+}
+.import-confirm .archive-backdrop { position: absolute; inset: 0; }
+.import-card {
+  position: relative;
+  z-index: 41;
+  width: 400px;
+  background: var(--paper-deep);
+  border: 1px solid var(--hairline);
+  border-radius: var(--card-radius);
+  box-shadow: 0 8px 24px rgba(38, 34, 30, 0.14);
+  padding: 20px 22px;
+  animation: archive-in var(--dur) var(--ease-out);
+}
+.import-card-title { font-size: var(--fs-body); font-weight: 600; }
+.import-card-sub { font-size: var(--fs-small); color: var(--ink-soft); margin-top: 8px; }
+.import-card-ops {
+  display: flex;
+  justify-content: flex-end;
+  gap: 18px;
+  margin-top: 18px;
+}
+.import-card-ops button {
+  font-size: var(--fs-body);
+  color: var(--ink-soft);
+}
+.import-card-ops button:hover { color: var(--ink); }
+.import-card-ops .import-go {
+  color: var(--ink);
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 1px;
+}
+.import-card-ops button:disabled { opacity: 0.4; }
+
 .dg-tip-title { font-weight: 600; }
 .dg-tip-time { color: var(--ink-soft); }
 .dg-tip-bp { color: var(--ink-faint); font-size: var(--fs-micro); margin-top: 2px; }
+/* 整格全量清单行（悬停浮窗 v1.4.1） */
+.dg-tip-row { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+.dg-tip-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; }
+.dg-tip-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dg-tip-row .dg-tip-time { flex: none; font-size: var(--fs-micro); }
+.dg-tip-more { color: var(--ink-faint); font-size: var(--fs-micro); padding-top: 4px; }
 
 /* 年视图 */
 .year-grid {
