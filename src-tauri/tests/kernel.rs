@@ -304,6 +304,33 @@ fn unified_stack_note_and_steps() {
     assert_eq!(bp.stack_top.as_ref().map(|t| t.title.as_str()), Some("步骤一"));
 }
 
+// ================= 条目改文（步骤/断点条通用） =================
+
+#[test]
+fn entry_rename_renames_step_and_note() {
+    let conn = db::open_in_memory().unwrap();
+    let t0 = 1_800_000_000_000i64;
+    let day = db::day_of(t0);
+    let p = ops::process_create(&conn, t0, "改名", None, Some(&day)).unwrap();
+    let s1 = ops::step_add(&conn, t0 + 1, p, "旧步骤名").unwrap();
+    ops::breakpoint_set(&conn, t0 + 2, p, "旧断点").unwrap();
+
+    // 改步骤 + 改断点条
+    ops::entry_rename(&conn, t0 + 3, s1, "新步骤名").unwrap();
+    let bp = queries::q_board(&conn, &day).unwrap().suspended.into_iter().find(|x| x.process.id == p).unwrap();
+    let note_id = bp.steps.iter().find(|x| x.kind == "note").unwrap().id;
+    ops::entry_rename(&conn, t0 + 4, note_id, "新断点").unwrap();
+
+    let bp = queries::q_board(&conn, &day).unwrap().suspended.into_iter().find(|x| x.process.id == p).unwrap();
+    assert_eq!(bp.stack_top.as_ref().map(|t| t.title.as_str()), Some("新断点"), "改栈顶断点条 = 改导语");
+    assert!(bp.steps.iter().any(|x| x.title == "新步骤名"));
+
+    // 空标题拒绝；事件记全
+    assert!(ops::entry_rename(&conn, t0 + 5, s1, "   ").is_err());
+    let evts = queries::q_events(&conn, None).unwrap();
+    assert_eq!(evts.iter().filter(|e| e.kind == "entry_rename").count(), 2);
+}
+
 // ================= v1.2 · 缺陷 B1：idle_end 守卫（恢复误删） =================
 
 #[test]

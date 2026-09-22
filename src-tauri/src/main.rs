@@ -183,6 +183,7 @@ fn main() {
             fermata_lib::commands::process_resume,
             fermata_lib::commands::breakpoint_set,
             fermata_lib::commands::entry_delete,
+            fermata_lib::commands::entry_rename,
             fermata_lib::commands::color_set,
             fermata_lib::commands::waiting_ai_set,
             fermata_lib::commands::step_add,

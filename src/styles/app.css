@@ -1124,6 +1124,15 @@ body:has(.overlay-card) {
   animation: bp-card-in var(--dur) var(--ease-out);
   transform-origin: top center;
 }
+/* 断点卡内的色标行：给新进程标色（点色即生效，卡片不关） */
+.bp-color {
+  margin-top: 10px;
+}
+.bp-color-label {
+  font-size: var(--fs-micro);
+  color: var(--ink-faint);
+  margin-bottom: 2px;
+}
 @keyframes bp-card-in {
   from { opacity: 0; transform: translateY(-6px) scaleY(0.94); }
   to { opacity: 1; transform: none; }

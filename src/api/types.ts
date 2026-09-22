@@ -155,6 +155,7 @@ export interface DataApi {
   processResume(pid: number): Promise<void>;
   breakpointSet(pid: number, text: string): Promise<void>; // = 压 note 栈顶
   entryDelete(stepId: number): Promise<void>;
+  entryRename(stepId: number, title: string): Promise<void>; // 步骤/断点条通用
   colorSet(pid: number, slot: number | null): Promise<void>;
   waitingAiSet(pid: number, on: boolean): Promise<void>;
   stepAdd(pid: number, title: string): Promise<number>;

@@ -1,13 +1,19 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { data, type BoardProcess } from "../api/data";
+import { act, markHex, useBoard } from "../store/board";
 
-/** 断点微弹窗：主窗直接点挂起行切换时的行旁小卡（Enter 确认 / Esc 取消整个切换） */
+/** 断点微弹窗：主窗直接点挂起行切换时的行旁小卡（Enter 确认 / Esc 取消整个切换）。
+ *  断点留给旧进程；色标行给新进程——点色即生效、卡片不关，Enter 仍只确认断点。 */
 export function BreakpointCard({
   oldTitle,
+  newPid,
   rect,
   onConfirm,
   onCancel,
 }: {
   oldTitle: string;
+  newPid: number;
   rect: DOMRect;
   onConfirm: (text: string) => void;
   onCancel: () => void;
@@ -15,7 +21,17 @@ export function BreakpointCard({
   const [v, setV] = useState("");
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => ref.current?.focus(), []);
-  return (
+  const bctx = useBoard();
+  const bd = bctx.board;
+  const newProc = bd
+    ? ([bd.running, ...bd.suspended, ...bd.completed].filter((x): x is BoardProcess => x !== null).find(
+        (x) => x.process.id === newPid,
+      )?.process ?? null)
+    : null;
+  const curColor = newProc?.color_tag ?? null;
+  const newTitle = newProc?.title ?? "新进程";
+  // portal 到 body：fixed 定位以视口为锚；留在版面里会被页面过渡的 transform 劫持坐标（D42 规则）
+  return createPortal(
     <div
       className="micro-card bp-card"
       data-testid="bp-card"
@@ -38,7 +54,32 @@ export function BreakpointCard({
         }}
         onBlur={onCancel}
       />
-    </div>
+      <div className="bp-color">
+        <div className="bp-color-label">给「{newTitle}」标个色</div>
+        <div className="color-row" data-testid="bp-color-row">
+          {[0, 1, 2, 3, 4, 5, 6].map((slot) => (
+            <span
+              key={slot}
+              className={`color-cell${curColor === slot ? " selected" : ""}`}
+              data-testid={`bp-color-${slot}`}
+              style={{ background: markHex(bctx, slot) ?? undefined }}
+              onMouseDown={(e) => e.preventDefault()} // 不抢输入框焦点（blur 会取消整张卡）
+              onClick={() => void act(() => data.colorSet(newPid, slot))}
+            />
+          ))}
+          <span
+            className={`color-cell none${curColor === null ? " selected" : ""}`}
+            data-testid="bp-color-none"
+            title="无色标"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => void act(() => data.colorSet(newPid, null))}
+          >
+            ∅
+          </span>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 

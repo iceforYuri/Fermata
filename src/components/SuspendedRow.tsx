@@ -112,7 +112,11 @@ export function SuspendedQueue({
       setDrag(null);
       if (!moved) {
         const main = (ev.target as HTMLElement).closest("[data-pid-main]");
-        if (main) onRequestSwitch(pid, main.getBoundingClientRect());
+        if (main) {
+          // 断点卡锚活跃行下方（与拖到活跃位同待遇），不锚被点行
+          const activeEl = document.querySelector("[data-testid='active-row'] .row-main");
+          onRequestSwitch(pid, activeEl?.getBoundingClientRect() ?? main.getBoundingClientRect());
+        }
         return;
       }
       if (cur.overActive) {

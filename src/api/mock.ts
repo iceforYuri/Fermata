@@ -538,6 +538,14 @@ export const mockData: DataApi = {
     }
   },
 
+  async entryRename(stepId, title) {
+    const st = state.steps.find((x) => x.id === stepId);
+    if (!st) throw new Error("条目不存在");
+    if (!title.trim()) throw new Error("条目文本不能为空");
+    st.title = title.trim();
+    ev("entry_rename", st.process_id, { step_id: stepId, title: st.title });
+  },
+
   async colorSet(pid, slot) {
     proc(pid).color_tag = slot;
     ev("color_set", pid, { slot });

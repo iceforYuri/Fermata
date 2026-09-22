@@ -260,3 +260,9 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 - 现象：pnpm tauri dev 起了 vite（14200），但窗口加载内嵌 dist/（tauri.localhost），不是 devUrl——前端改动不 build 则桌面端永远是旧界面（2026-09-21 排查坐实：CDP 页面 URL + 构建戳 + dist grep 三证）。
 - 待查：devUrl 为何没挂上（tauri.conf.json 配置无误、窗口为标准 WebviewUrl::App、--no-default-features 无关）。未深挖。
 - 临时措：run-dev.bat 改为先 pnpm build 再 tauri dev，构建失败即中止不弹旧界面。代价：每次启动 +数秒构建；devUrl 修复后撤掉此步恢复热更。
+
+### D54 · 断点卡锚点修正 + 卡内标色 + 条目改文（feature/board-polish）
+- 断点卡点击路径原来锚"被点行"（视觉上飘在队列中部），改锚活跃行下方（与拖到活跃位同待遇）；并 portal 到 body——页面过渡容器的 transform 会劫持 fixed 定位（实测系统性偏移 +28/+44），同 D42 规则。
+- 范围扩张留痕：进程页断点卡内加"给「新进程」标个色"（7 色 + 无色，点色即生效、卡片不关，Enter 仍只确认断点；Esc 取消切换不回滚已标色；点色 onMouseDown preventDefault 保输入框焦点）。AGENTS.md 后置项"切换浮层快捷标色"字面保留——那是 Alt+Q 浮层的事，本条是进程页。
+- 详情栏步骤栈条目可就地改文（InlineEdit 双态；空提交=放弃；编辑中禁拖行；拖行后吃掉尾随点击）。CONTEXT.md"条目均可删除"→"均可就地改文、删除"。
+- 卡片高度维持不变：活跃卡 min-height 112 可随长标题长高（实测 134），挂起行 64 等距不动、断点行单行省略（全文进详情栏）——等距是队列的版面纪律，且拖拽定位数学依赖 ROW_PITCH。

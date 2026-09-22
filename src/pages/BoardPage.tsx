@@ -178,6 +178,7 @@ export function BoardPage() {
       {pendingSwitch && (
         <BreakpointCard
           oldTitle={runningTitle}
+          newPid={pendingSwitch.pid}
           rect={pendingSwitch.rect}
           onConfirm={(text) => {
             const pid = pendingSwitch.pid;
