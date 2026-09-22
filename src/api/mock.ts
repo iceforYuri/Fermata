@@ -331,6 +331,11 @@ if (fixture === "rest") {
 
 // ---------- 内核行为 ----------
 
+// 探针通道（仅浏览器 mock）：验收脚本注入种子态用，Tauri 环境不会走到
+if (typeof window !== "undefined") {
+  (window as unknown as { __mock: MockState }).__mock = state;
+}
+
 function proc(pid: number): Process {
   const p = state.processes.find((x) => x.id === pid);
   if (!p) throw new Error(`进程 ${pid} 不存在`);
@@ -501,7 +506,7 @@ export const mockData: DataApi = {
     if (p.state !== "completed") throw new Error("不在完成态");
     p.state = "suspended";
     p.completed_at = null;
-    queueTail(pid);
+    queueTail(pid, p.board_date);
     state.suspendedSince[pid] = Date.now();
     ev("process_reopen", pid);
   },
