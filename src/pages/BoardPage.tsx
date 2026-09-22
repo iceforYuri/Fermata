@@ -115,7 +115,7 @@ export function BoardPage() {
         return;
       }
       if (at.overActive && board.running) {
-        // 激活语义：断点卡从原活跃行下方展开（与点击切换同待遇）
+        // 激活语义：落到活跃位时断点卡从活跃行下方展开（点击切换则贴被点行下方）
         const activeEl = innerRef.current?.querySelector("[data-testid='active-row'] .row-main");
         setPendingSwitch({ pid, rect: activeEl?.getBoundingClientRect() ?? new DOMRect(80, 200, 10, 10) });
         return;

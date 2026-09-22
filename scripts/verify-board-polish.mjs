@@ -10,17 +10,17 @@ await page.goto("http://127.0.0.1:14200");
 await page.waitForSelector("[data-testid=board-page]");
 await sleep(600);
 
-// --- 1. 断点卡锚活跃行 ---
+// --- 1. 断点卡贴被点行下方 ---
 await page.locator("[data-testid=suspended-row] .row-main").nth(2).click();
 await page.waitForSelector("[data-testid=bp-card]");
 await sleep(300);
 const geo = await page.evaluate(() => {
   const card = document.querySelector("[data-testid=bp-card]").getBoundingClientRect();
-  const active = document.querySelector("[data-testid=active-row] .row-main").getBoundingClientRect();
-  return { cardTop: card.top, cardLeft: card.left, activeBottom: active.bottom, activeLeft: active.left };
+  const clicked = document.querySelectorAll("[data-testid=suspended-row]")[2].querySelector(".row-main").getBoundingClientRect();
+  return { cardTop: card.top, cardLeft: card.left, clickedBottom: clicked.bottom, clickedLeft: clicked.left };
 });
-ok("断点卡贴活跃行下方", Math.abs(geo.cardTop - geo.activeBottom - 6) <= 8, `卡顶=${Math.round(geo.cardTop)} 活跃行底=${Math.round(geo.activeBottom)}`);
-ok("断点卡水平对齐活跃行", Math.abs(geo.cardLeft - geo.activeLeft) <= 4, `卡左=${Math.round(geo.cardLeft)} 行左=${Math.round(geo.activeLeft)}`);
+ok("断点卡贴被点行下方", Math.abs(geo.cardTop - geo.clickedBottom - 6) <= 8, `卡顶=${Math.round(geo.cardTop)} 被点行底=${Math.round(geo.clickedBottom)}`);
+ok("断点卡水平对齐被点行", Math.abs(geo.cardLeft - geo.clickedLeft) <= 4, `卡左=${Math.round(geo.cardLeft)} 行左=${Math.round(geo.clickedLeft)}`);
 
 // --- 2. 卡内标色：点色即生效、卡片不关、焦点不丢 ---
 const cellCount = await page.locator("[data-testid=bp-color-row] .color-cell").count();

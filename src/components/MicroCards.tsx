@@ -38,7 +38,8 @@ export function BreakpointCard({
       style={{
         position: "fixed",
         left: Math.min(rect.left, window.innerWidth - 340),
-        top: rect.bottom + 6,
+        // 贴被点行下方；贴近窗口底沿时钳住（卡高约 150px）
+        top: Math.min(rect.bottom + 6, window.innerHeight - 150),
       }}
     >
       <input
