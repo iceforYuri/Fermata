@@ -10,6 +10,7 @@ import { BreakpointCard, IdleConfirmCard } from "../components/MicroCards";
 import { NewProcessRow } from "../components/NewProcessRow";
 import { SuspendedQueue } from "../components/SuspendedRow";
 import { isOverActive, queueInsertAt } from "../components/dnd";
+import { useExiting } from "../components/useExiting";
 
 /**
  * 进程页（Tab 1）：报头 → 已完栏 → 折线 → 活跃行 → 挂起队列 → + 号。
@@ -24,6 +25,13 @@ export function BoardPage() {
   const [libDrag, setLibDrag] = useState<{ insertAt: number; overActive: boolean } | null>(null);
   const [idlePrompt, setIdlePrompt] = useState<{ pid: number; title: string } | null>(null);
   const innerRef = useRef<HTMLDivElement>(null);
+  // 出场动效：清空态后保持挂载播反场（用最后一帧数据渲染）
+  const bpExit = useExiting(!!pendingSwitch);
+  const lastPs = useRef(pendingSwitch);
+  if (pendingSwitch) lastPs.current = pendingSwitch;
+  const idleExit = useExiting(!!idlePrompt);
+  const lastIdle = useRef(idlePrompt);
+  if (idlePrompt) lastIdle.current = idlePrompt;
 
   // 空闲接线：以 DB 计时状态幂等（防重复事件）；确认卡只在本会话亲历 idle_start 后出现
   useEffect(() => {
@@ -175,24 +183,26 @@ export function BoardPage() {
       )}
       <NewProcessRow />
 
-      {pendingSwitch && (
+      {bpExit.mounted && lastPs.current && (
         <BreakpointCard
           oldTitle={runningTitle}
-          newPid={pendingSwitch.pid}
-          rect={pendingSwitch.rect}
+          newPid={lastPs.current.pid}
+          rect={lastPs.current.rect}
+          exiting={bpExit.exiting}
           onConfirm={(text) => {
-            const pid = pendingSwitch.pid;
+            const pid = lastPs.current!.pid;
             setPendingSwitch(null);
             void switchTo(pid, text || undefined);
           }}
           onCancel={() => setPendingSwitch(null)}
         />
       )}
-      {idlePrompt && (
+      {idleExit.mounted && lastIdle.current && (
         <IdleConfirmCard
-          title={idlePrompt.title}
+          title={lastIdle.current.title}
+          exiting={idleExit.exiting}
           onAnswer={(yes) => {
-            const pid = idlePrompt.pid;
+            const pid = lastIdle.current!.pid;
             setIdlePrompt(null);
             void answerIdleConfirm(pid, yes);
           }}

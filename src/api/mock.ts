@@ -331,6 +331,11 @@ if (fixture === "rest") {
 
 // ---------- 内核行为 ----------
 
+// 探针通道（仅浏览器 mock）：验收脚本注入种子态用，Tauri 环境不会走到
+if (typeof window !== "undefined") {
+  (window as unknown as { __mock: MockState }).__mock = state;
+}
+
 function proc(pid: number): Process {
   const p = state.processes.find((x) => x.id === pid);
   if (!p) throw new Error(`进程 ${pid} 不存在`);
@@ -358,8 +363,7 @@ function openSeg(pid: number) {
   }
 }
 
-function queueTail(pid: number) {
-  const day = todayStr();
+function queueTail(pid: number, day: string = todayStr()) {
   const max = Math.max(
     0,
     ...state.processes
@@ -502,7 +506,7 @@ export const mockData: DataApi = {
     if (p.state !== "completed") throw new Error("不在完成态");
     p.state = "suspended";
     p.completed_at = null;
-    queueTail(pid);
+    queueTail(pid, p.board_date);
     state.suspendedSince[pid] = Date.now();
     ev("process_reopen", pid);
   },
@@ -781,6 +785,32 @@ export const mockData: DataApi = {
         kind: "focus",
         note: null,
       }));
+  },
+
+  async qProcessDetail(pid, day) {
+    const p = proc(pid);
+    const steps = state.steps
+      .filter((x) => x.process_id === pid)
+      .sort((a, b) => a.position - b.position)
+      .map((x) => ({ ...x }));
+    const daySegs = state.segs
+      .filter((g) => g.pid === pid && dayOfTs(g.start) === day)
+      .sort((a, b) => a.start - b.start);
+    return {
+      process: { ...p },
+      steps,
+      stack_top: stackTop(pid),
+      segments: daySegs.map((g, i) => ({
+        id: pid * 1000 + i,
+        process_id: pid,
+        started_at: g.start,
+        ended_at: g.end,
+        day,
+        kind: "focus",
+        note: null,
+      })),
+      day_total_ms: daySegs.reduce((a, g) => a + (g.end ?? Date.now()) - g.start, 0),
+    };
   },
 
   async segmentNote() {},

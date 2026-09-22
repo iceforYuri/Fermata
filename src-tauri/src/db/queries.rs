@@ -468,6 +468,34 @@ pub fn q_segments(conn: &Connection, pid: i64, day: &str) -> Result<Vec<super::S
 }
 
 #[derive(Serialize)]
+pub struct ProcessDetail {
+    pub process: Process,
+    pub steps: Vec<Step>,
+    pub stack_top: Option<StackTop>,
+    pub segments: Vec<super::Segment>, // 所查看那一天的分段
+    pub day_total_ms: i64,
+}
+
+/// 进程详情（统计页玻璃卡，2026-09-22）：按 pid 直查，不绑定当天版面
+pub fn q_process_detail(conn: &Connection, pid: i64, day: &str) -> Result<ProcessDetail, String> {
+    let p: Process = conn
+        .query_row(
+            "SELECT * FROM processes WHERE id = ?1",
+            rusqlite::params![pid],
+            row_to_process,
+        )
+        .map_err(|e| e.to_string())?;
+    let steps = steps_of(conn, pid)?;
+    let stack_top = steps
+        .iter()
+        .find(|s| s.kind == "note" || !s.done)
+        .map(|s| StackTop { title: s.title.clone(), kind: s.kind.clone() });
+    let segments = q_segments(conn, pid, day)?;
+    let day_total_ms = q_process_day_total(conn, pid, day)?;
+    Ok(ProcessDetail { process: p, steps, stack_top, segments, day_total_ms })
+}
+
+#[derive(Serialize)]
 pub struct RestState {
     pub resting: bool,
     pub since: Option<i64>,

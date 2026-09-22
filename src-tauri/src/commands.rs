@@ -388,6 +388,12 @@ pub async fn q_segments(state: State<'_, DbState>, pid: i64, day: String) -> Res
 }
 
 #[tauri::command]
+pub async fn q_process_detail(state: State<'_, DbState>, pid: i64, day: String) -> Result<queries::ProcessDetail, String> {
+    let c = lock(&state)?;
+    queries::q_process_detail(&c, pid, &day)
+}
+
+#[tauri::command]
 pub async fn q_rest_state(state: State<'_, DbState>) -> Result<RestState, String> {
     let c = lock(&state)?;
     queries::q_rest_state(&c)

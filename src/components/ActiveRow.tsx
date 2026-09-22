@@ -6,6 +6,7 @@ import { completeWithUndo, togglePause } from "../store/actions";
 import { openDetail } from "../store/ui";
 import { fmtDur } from "../util";
 import { TimeRing } from "./TimeRing";
+import { useExiting } from "./useExiting";
 
 /**
  * 活跃行 112px：确认条脊 / 28px 标题 / 当前步骤槽（常显勾选框，勾选推进）/
@@ -14,6 +15,7 @@ import { TimeRing } from "./TimeRing";
 export function ActiveRow({ bp }: { bp: BoardProcess }) {
   const board = useBoard();
   const [sliceOpen, setSliceOpen] = useState(false);
+  const sliceExit = useExiting(sliceOpen);
   const ringWrapRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!sliceOpen) return;
@@ -147,11 +149,11 @@ export function ActiveRow({ bp }: { bp: BoardProcess }) {
               testid="time-ring"
             />
           </div>
-          {sliceOpen &&
+          {sliceExit.mounted &&
             // portal 到 body：逃出 .row 的 overflow:hidden 裁切与老化行的层叠上下文（D42 规则）
             createPortal(
               <div
-                className="slice-card"
+                className={`slice-card${sliceExit.exiting ? " exiting" : ""}`}
                 data-testid="slice-card"
                 style={(() => {
                   const r = ringWrapRef.current?.getBoundingClientRect();

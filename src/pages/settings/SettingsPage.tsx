@@ -3,6 +3,7 @@ import { data } from "../../api/data";
 import { system } from "../../api/system";
 import { act, effectiveTheme, useBoard } from "../../store/board";
 import { setUi, useUi } from "../../store/ui";
+import { useExiting } from "../../components/useExiting";
 
 /* ---------- 双态控件族（排版文字 → 原地变形；1px 下划线唯一编辑指示） ---------- */
 
@@ -227,6 +228,7 @@ export function SettingsPage() {
   const [loc, setLoc] = useState<string>("");
   const [locBusy, setLocBusy] = useState(false);
   const [locSlow, setLocSlow] = useState(false);
+  const locSlowExit = useExiting(locSlow);
   useEffect(() => {
     void data.qDataLocation().then(setLoc).catch(() => {});
   }, []);
@@ -370,8 +372,8 @@ export function SettingsPage() {
             {loc}
           </div>
         )}
-        {locSlow && (
-          <div className="loc-slow" data-testid="loc-slow">正在搬迁数据…</div>
+        {locSlowExit.mounted && (
+          <div className={`loc-slow${locSlowExit.exiting ? " exiting" : ""}`} data-testid="loc-slow">正在搬迁数据…</div>
         )}
         <div className="set-row">
           <span className="set-label">全量数据</span>

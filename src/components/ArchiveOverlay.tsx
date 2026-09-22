@@ -2,19 +2,22 @@ import { data } from "../api/data";
 import { act, markHex, useBoard } from "../store/board";
 import { setUi, useUi } from "../store/ui";
 import { fmtDur } from "../util";
+import { useExiting } from "./useExiting";
 
 /**
  * 完成档案：浮层子页面，版式同中列进程行（范围更小），周边页内玻璃遮盖；
  * 行保留色脊；点模糊区或再点已完栏收起；支持重新打开（回挂起队列尾部）。
+ * 出场：glass-out + card-out（useExiting 保持挂载播反场）。
  */
 export function ArchiveOverlay() {
   const { archiveOpen } = useUi();
+  const { mounted, exiting } = useExiting(archiveOpen);
   const board = useBoard();
-  if (!archiveOpen) return null;
+  if (!mounted) return null;
   const completed = board.board?.completed ?? [];
   return (
     <div
-      className="archive-backdrop"
+      className={`archive-backdrop${exiting ? " exiting" : ""}`}
       data-testid="archive"
       onClick={(e) => {
         if ((e.target as HTMLElement).classList.contains("archive-backdrop")) {

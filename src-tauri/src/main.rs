@@ -214,6 +214,7 @@ fn main() {
             fermata_lib::commands::q_palette,
             fermata_lib::commands::q_plans,
             fermata_lib::commands::q_segments,
+            fermata_lib::commands::q_process_detail,
             fermata_lib::commands::segment_note,
             fermata_lib::commands::process_rename,
             fermata_lib::commands::notes_set,

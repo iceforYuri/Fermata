@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { data, type DayView, type Plan } from "../../api/data";
-import { act, markHex, useBoard } from "../../store/board";
+import { act, markHex, todayStr, useBoard } from "../../store/board";
+import { completeFromStats } from "../../store/actions";
+import { openStatsDetail } from "../../store/ui";
 import { fmtDur } from "../../util";
 import { InlineEdit } from "../../components/InlineEdit";
 import { animateRowLeave, EnteringRow, ENTER_MS, LeavingRow } from "../../components/rowAnim";
@@ -171,7 +173,13 @@ export function DayViewSection({ day }: { day: string }) {
       <section className="dv-section" data-testid="dv-done">
         <div className="detail-label">已做</div>
         {view.done.map((p) => (
-          <div className="row dv-row" key={p.process_id} style={{ "--mc": markHex(board, p.color_tag) ?? undefined } as React.CSSProperties}>
+          <div
+            className="row dv-row clickable"
+            key={p.process_id}
+            style={{ "--mc": markHex(board, p.color_tag) ?? undefined } as React.CSSProperties}
+            data-testid="dv-done-row"
+            onClick={() => openStatsDetail(p.process_id, day)}
+          >
             <div className="spine" style={{ cursor: "default" }} />
             <div className="row-main">
               <div className="suspended-title">{p.title}</div>
@@ -183,10 +191,33 @@ export function DayViewSection({ day }: { day: string }) {
       </section>
 
       <section className="dv-section" data-testid="dv-ongoing">
-        <div className="detail-label">进行中</div>
+        <div className="detail-label">{day === todayStr() ? "进行中" : "未做完"}</div>
         {view.ongoing.map((p) => (
-          <div className="row dv-row" key={p.process_id} style={{ "--mc": markHex(board, p.color_tag) ?? undefined } as React.CSSProperties}>
-            <div className="spine" style={{ cursor: "default" }} />
+          <div
+            className="row dv-row clickable"
+            key={p.process_id}
+            style={{ "--mc": markHex(board, p.color_tag) ?? undefined } as React.CSSProperties}
+            data-testid="dv-ongoing-row"
+            onClick={() => openStatsDetail(p.process_id, day)}
+          >
+            {/* 色脊 = 补登完成（事件记当下，时长不回填；3 秒撤销同进程页） */}
+            <div
+              className="spine"
+              title="补登完成"
+              data-testid="dv-spine-complete"
+              onClick={(e) => {
+                e.stopPropagation();
+                void completeFromStats(
+                  p.process_id,
+                  p.title,
+                  board.board?.running?.process.id === p.process_id,
+                );
+              }}
+            >
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <path d="M2 6.2 4.8 9 10 3.2" />
+              </svg>
+            </div>
             <div className="row-main">
               <div className="suspended-title">{p.title}</div>
               {p.steps_total > 0 && (
@@ -196,7 +227,9 @@ export function DayViewSection({ day }: { day: string }) {
             <div className="row-tail"><span className="num">{fmtDur(p.ms)}</span></div>
           </div>
         ))}
-        {view.ongoing.length === 0 && <Empty line="没有进行中的进程" />}
+        {view.ongoing.length === 0 && (
+          <Empty line={day === todayStr() ? "没有进行中的进程" : "没有未做完的进程"} />
+        )}
       </section>
 
       <section className="dv-section" data-testid="dv-notdone">

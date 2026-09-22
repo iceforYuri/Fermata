@@ -19,6 +19,13 @@ export function RestpopPage() {
   const board = useBoard();
   const [nextOpen, setNextOpen] = useState(false);
   const [animKey, setAnimKey] = useState(0);
+  const [exiting, setExiting] = useState(false);
+  // 会关窗的选择：先播 150ms 反场再执行（窗口随之 hide）；重开时 animKey 重挂载自动复位
+  const closeWith = (fn: () => Promise<void>) => {
+    if (exiting) return;
+    setExiting(true);
+    setTimeout(() => void fn(), 150);
+  };
   useEffect(() => {
     let un: (() => void) | undefined;
     system.onOverlayVisibility((label, visible) => {
@@ -32,11 +39,11 @@ export function RestpopPage() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") void closeRestpopKeepResting(pid); // Esc = ✕
+      if (e.key === "Escape") closeWith(() => closeRestpopKeepResting(pid)); // Esc = ✕
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [pid]);
+  });
 
   const sourceText =
     rest.source === "continuous"
@@ -49,7 +56,7 @@ export function RestpopPage() {
   const restingView = rest.resting && (rest.choice === "rest" || rest.choice === "close");
 
   return (
-    <div className="overlay-card restpop restpop-enter" key={animKey} data-testid="restpop">
+    <div className={`overlay-card restpop restpop-enter${exiting ? " exiting" : ""}`} key={animKey} data-testid="restpop">
       <div className="restpop-head">
         <span className="restpop-source" data-testid="restpop-source">
           {rest.resting ? sourceText : "休止符"}
@@ -58,7 +65,7 @@ export function RestpopPage() {
           className="restpop-close"
           title="保持休息态"
           data-testid="restpop-close"
-          onClick={() => void closeRestpopKeepResting(pid)}
+          onClick={() => closeWith(() => closeRestpopKeepResting(pid))}
         >
           <svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" strokeWidth="1.3">
             <path d="M1.5 1.5l7 7M8.5 1.5l-7 7" />
@@ -70,7 +77,7 @@ export function RestpopPage() {
         <>
           <div className="restpop-title">时间到了。</div>
           <div className="restpop-btns">
-            <button data-testid="rest-defer" onClick={() => void deferRest(pid)}>
+            <button data-testid="rest-defer" onClick={() => closeWith(() => deferRest(pid))}>
               暂不休息
             </button>
             <button data-testid="rest-confirm" onClick={() => void chooseRest(pid)}>
@@ -87,7 +94,7 @@ export function RestpopPage() {
                   key={bp.process.id}
                   className="sw-row"
                   data-testid="restpop-next-row"
-                  onClick={() => void nextProcessFromRest(pid, bp.process.id)}
+                  onClick={() => closeWith(() => nextProcessFromRest(pid, bp.process.id))}
                 >
                   <span
                     className="sw-spine"
@@ -113,7 +120,7 @@ export function RestpopPage() {
           <button
             className="restpop-back"
             data-testid="rest-back"
-            onClick={() => void resumeFromRest(pid)}
+            onClick={() => closeWith(() => resumeFromRest(pid))}
           >
             我回来了
           </button>
