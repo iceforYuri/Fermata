@@ -20,6 +20,7 @@ const tauriData: DataApi = {
   processResume: (pid) => invoke("process_resume", { pid }),
   breakpointSet: (pid, text) => invoke("breakpoint_set", { pid, text }),
   entryDelete: (stepId) => invoke("entry_delete", { stepId }),
+  entryRename: (stepId, title) => invoke("entry_rename", { stepId, title }),
   colorSet: (pid, slot) => invoke("color_set", { pid, slot }),
   waitingAiSet: (pid, on) => invoke("waiting_ai_set", { pid, on }),
   stepAdd: (pid, title) => invoke("step_add", { pid, title }),

@@ -176,7 +176,8 @@ export function DayGridView({
                 <span className="dg-tip-name">{o.title}</span>
                 <span className="num dg-tip-time">
                   {fmtClock(o.occ_start)}–{fmtClock(o.occ_end)}
-                  {` · ${fmtDur(o.occ_end - o.occ_start)}`}
+                  {/* 时长=格内实际占用（share×10min），不是跨度——被打断的进程不再虚报 */}
+                  {` · ${fmtDur(Math.round(o.share * 600_000))}`}
                 </span>
               </div>
             ))}
@@ -193,7 +194,8 @@ export function DayGridView({
 }
 
 /** 格内标记（v1.4 占用率口径）：单枚 ≥80% 实心全圆；其余 45° 斜半圆
- *  （段起=色右下、段止=色左上、中段默认右下）；两进程同格 ≥20% 对角分半（主导右下、次者左上）。
+ *  （v1.4.2 朝向=相邻格有没有同进程占用：前无=段起右下、后无=段止左上、前后都有=中段右下）；
+ *  两进程同格 ≥20% 对角分半（主导右下、次者左上）。
  *  v1.4.1：悬停交互上移到整格（dg-cell），标记纯渲染。 */
 function CellMarks({
   day,
@@ -217,28 +219,30 @@ function CellMarks({
     );
   }
   // 半圆方向：冲突分半主导=右下/次者=左上；单枚段止=左上、其余右下
+  // 圆径 26 = 与实心全圆同规格（28 盒子是给描边留的出血，视觉圆心重合）
   const tri = (m: CellMark, i: number) => {
-    if (marks.length === 2) return i === 0 ? "0 26 L26 0 L26 26" : "0 26 L26 0 L0 0";
-    return m.is_end ? "0 26 L26 0 L0 0" : "0 26 L26 0 L26 26";
+    if (marks.length === 2) return i === 0 ? "0 28 L28 0 L28 28" : "0 28 L28 0 L0 0";
+    return m.is_end ? "0 28 L28 0 L0 0" : "0 28 L28 0 L28 28";
   };
   const uid = `${day}-${cell}`;
   return (
     <svg
       className="dg-half"
       data-testid="dg-dot"
-      width="26"
-      height="26"
-      viewBox="0 0 26 26"
+      width="28"
+      height="28"
+      viewBox="0 0 28 28"
+      style={{ margin: -1 }} // 盒子大 2px，负边距收回，占位与 26px 全圆一致
     >
       {marks.length === 1 && (
-        <circle cx="13" cy="13" r="11.6" fill="none" stroke={colorOf(marks[0].color_tag)} strokeWidth="1" opacity="0.45" />
+        <circle cx="14" cy="14" r="13" fill="none" stroke={colorOf(marks[0].color_tag)} strokeWidth="1" opacity="0.45" />
       )}
       {marks.map((m, i) => (
         <circle
           key={m.process_id}
-          cx="13"
-          cy="13"
-          r="11.6"
+          cx="14"
+          cy="14"
+          r="13"
           fill={colorOf(m.color_tag)}
           clipPath={`url(#halfclip-${uid}-${i})`}
         />

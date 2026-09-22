@@ -46,6 +46,7 @@ function DetailInner({ bp }: { bp: BoardProcess }) {
 
   // 步骤拖动排序（复用 4px 阈值的简版）
   const dragStep = useRef<number | null>(null);
+  const suppressClick = useRef(false); // 拖行松手后的尾随点击：吃掉，不进编辑
   const [stepOrder, setStepOrder] = useState<number[] | null>(null);
   const steps = stepOrder
     ? stepOrder.map((id) => bp.steps.find((s) => s.id === id)!).filter(Boolean)
@@ -100,10 +101,13 @@ function DetailInner({ bp }: { bp: BoardProcess }) {
             data-kind={s.kind}
             onPointerDown={(e) => {
               if ((e.target as HTMLElement).closest(".step-check")) return;
+              if ((e.target as HTMLElement).closest(".inline-edit")) return; // 编辑中：文字选择优先于拖行
               dragStep.current = s.id;
               const startY = e.clientY;
+              let moved = false;
               const move = (ev: PointerEvent) => {
                 if (Math.abs(ev.clientY - startY) < 4 && dragStep.current !== null) return;
+                moved = true;
                 const els = document.querySelectorAll<HTMLElement>("[data-testid='detail-step']");
                 const ids = bp.steps.map((x) => x.id).filter((id) => id !== s.id);
                 let insertAt = ids.length;
@@ -117,6 +121,7 @@ function DetailInner({ bp }: { bp: BoardProcess }) {
                 window.removeEventListener("pointermove", move);
                 window.removeEventListener("pointerup", up);
                 dragStep.current = null;
+                if (moved) suppressClick.current = true; // 拖行松手后的尾随点击：吃掉，不进编辑
                 setStepOrder((cur) => {
                   if (cur) void act(() => data.stepsReorder(p.id, cur));
                   return null;
@@ -139,7 +144,25 @@ function DetailInner({ bp }: { bp: BoardProcess }) {
                 </svg>
               </span>
             )}
-            <span className="step-text">{s.title}</span>
+            <span
+              onClickCapture={(e) => {
+                if (suppressClick.current) {
+                  suppressClick.current = false;
+                  e.stopPropagation();
+                  e.preventDefault();
+                }
+              }}
+            >
+              <InlineEdit
+                value={s.title}
+                editColor={color}
+                className="step-text"
+                testid={`entry-text-${s.id}`}
+                onCommit={(v) => {
+                  if (v && v !== s.title) void act(() => data.entryRename(s.id, v));
+                }}
+              />
+            </span>
             <button
               className="entry-del"
               data-testid="entry-del"

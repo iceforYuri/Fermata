@@ -233,6 +233,21 @@ pub fn entry_delete(conn: &Connection, ts: i64, step_id: i64) -> Result<(), Stri
     Ok(())
 }
 
+/// 改栈条目文本（步骤/断点条通用；空标题拒绝）
+pub fn entry_rename(conn: &Connection, ts: i64, step_id: i64, title: &str) -> Result<(), String> {
+    let title = title.trim();
+    if title.is_empty() {
+        return Err("条目文本不能为空".into());
+    }
+    let pid: i64 = conn
+        .query_row("SELECT process_id FROM steps WHERE id = ?1", rusqlite::params![step_id], |r| r.get(0))
+        .map_err(|e| format!("条目 {step_id} 不存在: {e}"))?;
+    conn.execute("UPDATE steps SET title = ?2 WHERE id = ?1", rusqlite::params![step_id, title])
+        .map_err(|e| e.to_string())?;
+    append_event(conn, ts, "entry_rename", Some(pid), json!({ "step_id": step_id, "title": title }))?;
+    Ok(())
+}
+
 pub fn color_set(conn: &Connection, ts: i64, pid: i64, slot: Option<i64>) -> Result<(), String> {
     get_process(conn, pid)?;
     if let Some(s) = slot {

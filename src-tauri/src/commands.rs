@@ -110,6 +110,19 @@ pub async fn entry_delete(app: AppHandle, state: State<'_, DbState>, step_id: i6
 }
 
 #[tauri::command]
+pub async fn entry_rename(
+    app: AppHandle,
+    state: State<'_, DbState>,
+    step_id: i64,
+    title: String,
+) -> Result<(), String> {
+    let c = lock(&state)?;
+    ops::entry_rename(&c, db::now_ms(), step_id, &title)?;
+    changed(&app);
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn step_add(app: AppHandle, state: State<'_, DbState>, pid: i64, title: String) -> Result<i64, String> {
     let c = lock(&state)?;
     let r = ops::step_add(&c, db::now_ms(), pid, &title)?;

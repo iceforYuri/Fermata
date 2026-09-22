@@ -921,14 +921,11 @@ pub fn q_day_grid(conn: &Connection, day: &str) -> Result<Vec<GridCell>, String>
         .filter_map(|r| r.ok())
         .collect::<Vec<_>>();
 
-    // cell -> pid -> 聚合（累计占用 / 占用区间并集 / 重叠最多段）
+    // cell -> pid -> 聚合（累计占用 / 占用区间并集）
     struct Acc {
         ms: i64,
         occ_s: i64,
         occ_e: i64,
-        best_s: i64,
-        best_e: i64,
-        best_ov: i64,
     }
     let mut cells: Vec<std::collections::HashMap<i64, Acc>> = (0..108)
         .map(|_| std::collections::HashMap::new())
@@ -953,21 +950,15 @@ pub fn q_day_grid(conn: &Connection, day: &str) -> Result<Vec<GridCell>, String>
             let ov = e - s;
             let a = cells[c]
                 .entry(*pid)
-                .or_insert(Acc { ms: 0, occ_s: s, occ_e: e, best_s: *seg_s, best_e: *seg_e, best_ov: 0 });
+                .or_insert(Acc { ms: 0, occ_s: s, occ_e: e });
             a.ms += ov;
             a.occ_s = a.occ_s.min(s);
             a.occ_e = a.occ_e.max(e);
-            if ov > a.best_ov {
-                a.best_ov = ov;
-                a.best_s = *seg_s;
-                a.best_e = *seg_e;
-            }
         }
     }
 
     let mut out = Vec::with_capacity(108);
     for (i, m) in cells.iter().enumerate() {
-        let cell_s = win + i as i64 * CELL_MS;
         let mut ranked: Vec<(&i64, &Acc)> = m.iter().collect();
         ranked.sort_by(|a, b| b.1.ms.cmp(&a.1.ms));
         // 悬停清单：全部占用者按 ms 降序截前 4（不过滤 share）
@@ -992,6 +983,10 @@ pub fn q_day_grid(conn: &Connection, day: &str) -> Result<Vec<GridCell>, String>
                 break; // 后面的更小，一并不取
             }
             let p = get_process(conn, **pid)?;
+            // 朝向=相邻格有没有同进程占用（v1.4.2：前无=段起、后无=段止、前后都有=中段）——
+            // 不按格内最长块判，被打断的格不再翻边
+            let prev_has = i > 0 && cells[i - 1].contains_key(*pid);
+            let next_has = i + 1 < 108 && cells[i + 1].contains_key(*pid);
             marks.push(CellMark {
                 process_id: **pid,
                 color_tag: p.color_tag,
@@ -999,8 +994,8 @@ pub fn q_day_grid(conn: &Connection, day: &str) -> Result<Vec<GridCell>, String>
                 occ_start: a.occ_s,
                 occ_end: a.occ_e,
                 share,
-                is_start: a.best_s >= cell_s && a.best_s < cell_s + CELL_MS,
-                is_end: a.best_e > cell_s && a.best_e <= cell_s + CELL_MS,
+                is_start: !prev_has,
+                is_end: !next_has,
             });
         }
         out.push(GridCell {
