@@ -262,6 +262,46 @@ fn grid_cell_majority_ownership_and_untimed_completion() {
     assert_eq!(cell12.occupants[0].occ_end, t(490));
 }
 
+// ================= v1.4.2 · 格朝向 = 相邻格占用判定 =================
+
+#[test]
+fn day_grid_orientation_by_neighbor_occupancy() {
+    let conn = db::open_in_memory().unwrap();
+    let base = {
+        let today = db::today_local();
+        let (s, _) = db::day_range(&today).unwrap();
+        s - 86_400_000
+    };
+    let t = |mins: i64| base + mins * 60_000;
+    let day = db::day_of(base);
+
+    // 甲：格 30 全格 + 格 31 被打断成三截 + 格 32 一截（格 N 起点 = 06:00+N×10min = t(360+10N)）
+    let a = ops::process_create(&conn, t(0), "甲", None, Some(&day)).unwrap();
+    let x = ops::process_create(&conn, t(0), "乙", None, Some(&day)).unwrap();
+    ops::process_switch(&conn, t(660), a, None).unwrap(); // 11:00 甲起（格 30 全格）
+    ops::process_switch(&conn, t(673), x, None).unwrap(); // 11:13 切乙（格 31 内打断）
+    ops::process_switch(&conn, t(674), a, None).unwrap(); // 11:14 切回甲
+    ops::process_switch(&conn, t(676), x, None).unwrap(); // 11:16 再切乙
+    ops::process_switch(&conn, t(677), a, None).unwrap(); // 11:17 切回甲
+    ops::process_switch(&conn, t(685), x, None).unwrap(); // 11:25 甲止于格 32 内
+
+    let grid = queries::q_day_grid(&conn, &day).unwrap();
+    let mark31 = grid[31].marks.iter().find(|m| m.process_id == a).expect("格 31 有甲");
+    assert!(!mark31.is_start && !mark31.is_end, "格 31 前后都有甲 → 中段（不翻边）");
+    let mark30 = grid[30].marks.iter().find(|m| m.process_id == a).expect("格 30 有甲");
+    assert!(mark30.is_start && !mark30.is_end, "格 30 前无后有 → 段起");
+    let mark32 = grid[32].marks.iter().find(|m| m.process_id == a).expect("格 32 有甲");
+    assert!(!mark32.is_start && mark32.is_end, "格 32 前有后无 → 段止");
+
+    // 孤立单格：既是段起也是段止（前端单枚逻辑 is_end 优先 → 左上）
+    let solo = ops::process_create(&conn, t(0), "孤立", None, Some(&day)).unwrap();
+    ops::process_switch(&conn, t(962), solo, None).unwrap(); // 16:02（格 60）
+    ops::process_switch(&conn, t(965), x, None).unwrap(); // 16:05
+    let grid2 = queries::q_day_grid(&conn, &day).unwrap();
+    let m = grid2[60].marks.iter().find(|m| m.process_id == solo).expect("格 60 有孤立");
+    assert!(m.is_start && m.is_end, "孤立单格 = 段起兼段止");
+}
+
 // ================= v1.2 · 统一栈（ADR-0005） =================
 
 #[test]

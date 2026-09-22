@@ -176,7 +176,8 @@ export function DayGridView({
                 <span className="dg-tip-name">{o.title}</span>
                 <span className="num dg-tip-time">
                   {fmtClock(o.occ_start)}–{fmtClock(o.occ_end)}
-                  {` · ${fmtDur(o.occ_end - o.occ_start)}`}
+                  {/* 时长=格内实际占用（share×10min），不是跨度——被打断的进程不再虚报 */}
+                  {` · ${fmtDur(Math.round(o.share * 600_000))}`}
                 </span>
               </div>
             ))}
@@ -193,7 +194,8 @@ export function DayGridView({
 }
 
 /** 格内标记（v1.4 占用率口径）：单枚 ≥80% 实心全圆；其余 45° 斜半圆
- *  （段起=色右下、段止=色左上、中段默认右下）；两进程同格 ≥20% 对角分半（主导右下、次者左上）。
+ *  （v1.4.2 朝向=相邻格有没有同进程占用：前无=段起右下、后无=段止左上、前后都有=中段右下）；
+ *  两进程同格 ≥20% 对角分半（主导右下、次者左上）。
  *  v1.4.1：悬停交互上移到整格（dg-cell），标记纯渲染。 */
 function CellMarks({
   day,
