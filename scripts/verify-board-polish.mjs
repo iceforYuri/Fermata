@@ -10,6 +10,13 @@ await page.goto("http://127.0.0.1:14200");
 await page.waitForSelector("[data-testid=board-page]");
 await sleep(600);
 
+// --- 0. 单行基线：活跃卡 112 / 挂起行 64 不被呼吸改动 ---
+const base = await page.evaluate(() => ({
+  active: Math.round(document.querySelector("[data-testid=active-row]").getBoundingClientRect().height),
+  suspended: Math.round(document.querySelector("[data-testid=suspended-row]").getBoundingClientRect().height),
+}));
+ok("单行基线：活跃卡 112 / 挂起行 64", base.active === 112 && base.suspended === 64, JSON.stringify(base));
+
 // --- 1. 断点卡贴被点行下方 ---
 await page.locator("[data-testid=suspended-row] .row-main").nth(2).click();
 await page.waitForSelector("[data-testid=bp-card]");
@@ -93,6 +100,45 @@ await sleep(400);
 const editAfterDrag = await page.locator("[data-testid$=-editing]").count();
 ok("拖行后不误进编辑", editAfterDrag === 0, `编辑框数=${editAfterDrag}`);
 await page.screenshot({ path: "docs/screenshots/v12/detail-entry-edit.png" });
+
+// --- 4. 长内容：挂起行恒 64 + 标题省略；活跃卡长高且上下有呼吸 ---
+await page.click("[data-testid=tab-board]"); // 回进程页（详情栏开着无所谓）
+await sleep(300);
+const LONG = "这是一个标题特别特别特别长的进程用来测试卡片会不会自动增加高度而不是固定不动";
+await page.click("[data-testid=new-row-input]");
+await page.keyboard.type(LONG);
+await page.keyboard.press("Enter");
+await sleep(600);
+const susProbe = await page.evaluate(() => {
+  const row = [...document.querySelectorAll("[data-testid=suspended-row]")].find((el) =>
+    el.querySelector(".suspended-title").textContent.includes("标题特别"),
+  );
+  if (!row) return null;
+  const t = row.querySelector(".suspended-title");
+  return { rowH: Math.round(row.getBoundingClientRect().height), ellipsized: t.scrollWidth > t.clientWidth };
+});
+ok("长标题挂起行恒 64 + 省略", !!susProbe && susProbe.rowH === 64 && susProbe.ellipsized, JSON.stringify(susProbe));
+
+// 激活它 → 活跃卡长高，上下呼吸 ≥10px
+const idx = await page.evaluate(() =>
+  [...document.querySelectorAll("[data-testid=suspended-row]")].findIndex((el) =>
+    el.querySelector(".suspended-title").textContent.includes("标题特别"),
+  ),
+);
+await page.locator("[data-testid=suspended-row] .row-main").nth(idx).click();
+await page.waitForSelector("[data-testid=bp-card]");
+await page.keyboard.press("Enter");
+await sleep(700);
+const actProbe = await page.evaluate(() => {
+  const row = document.querySelector("[data-testid=active-row]").getBoundingClientRect();
+  const main = document.querySelector("[data-testid=active-row] .row-main");
+  const first = main.firstElementChild.getBoundingClientRect();
+  const last = main.lastElementChild.getBoundingClientRect();
+  return { rowH: Math.round(row.height), topAir: Math.round(first.top - row.top), bottomAir: Math.round(row.bottom - last.bottom) };
+});
+ok("活跃卡多行长高", actProbe.rowH > 112, JSON.stringify(actProbe));
+ok("多行上下有呼吸（≥10px）", actProbe.topAir >= 10 && actProbe.bottomAir >= 10, JSON.stringify(actProbe));
+await page.screenshot({ path: "docs/screenshots/v12/active-multiline-air.png" });
 
 await browser.close();
 const failed = results.filter((r) => !r).length;
