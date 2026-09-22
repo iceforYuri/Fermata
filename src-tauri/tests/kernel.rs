@@ -671,3 +671,43 @@ fn data_location_switch_copy_and_adopt() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn regather_moves_board_date() {
+    let conn = db::open_in_memory().unwrap();
+    let t0 = 1_800_000_000_000i64;
+    let today = db::day_of(t0);
+    let tomorrow = db::day_of(t0 + 86_400_000);
+    let yesterday = db::day_of(t0 - 86_400_000);
+
+    let a = ops::process_create(&conn, t0, "甲", None, None).unwrap();
+    let b = ops::process_create(&conn, t0 + 1, "乙", None, None).unwrap();
+
+    // 过去拒绝（历史不改写）
+    assert!(ops::process_regather(&conn, t0 + 2, a, &yesterday).is_err(), "回归到过去应拒绝");
+
+    // 运行中拒绝（先切走）
+    ops::process_switch(&conn, t0 + 3, a, None).unwrap();
+    assert!(ops::process_regather(&conn, t0 + 4, a, &tomorrow).is_err(), "运行中回归应拒绝");
+
+    // 挂起 → 明天队尾
+    ops::process_switch(&conn, t0 + 5, b, None).unwrap(); // a 落挂起，b 运行
+    ops::process_regather(&conn, t0 + 6, a, &tomorrow).unwrap();
+    let da = queries::q_process_detail(&conn, a, &tomorrow).unwrap();
+    assert_eq!(da.process.board_date, tomorrow);
+    assert_eq!(da.process.state, "suspended");
+    assert_eq!(da.process.queue_position, Some(1));
+
+    // 完成态回归 = reopen 语义 + 改日期，接在目标日队尾
+    ops::process_complete(&conn, t0 + 7, b).unwrap();
+    ops::process_regather(&conn, t0 + 8, b, &tomorrow).unwrap();
+    let db2 = queries::q_process_detail(&conn, b, &today).unwrap();
+    assert_eq!(db2.process.state, "suspended");
+    assert_eq!(db2.process.board_date, tomorrow);
+    assert_eq!(db2.process.completed_at, None);
+    assert_eq!(db2.process.queue_position, Some(2));
+
+    // 事件留痕
+    let evs = events_snapshot(&conn);
+    assert!(evs.iter().any(|e| e.2 == "process_regather"), "回归应记事件");
+}

@@ -4,6 +4,7 @@ import { BigRing } from "./BigRing";
 import { DayViewSection } from "./DayViewSection";
 import { DayGridView } from "./DayGridView";
 import { YearView } from "./YearView";
+import { StatsDetailOverlay } from "./StatsDetailOverlay";
 
 type View = "year" | "month" | "day";
 const ORDER: Record<View, number> = { year: 0, month: 1, day: 2 };
@@ -116,6 +117,8 @@ export function StatsPage() {
           {renderView(view)}
         </div>
       </div>
+
+      <StatsDetailOverlay />
     </div>
   );
 }

@@ -170,6 +170,39 @@ pub fn process_reopen(conn: &Connection, ts: i64, pid: i64) -> Result<(), String
     Ok(())
 }
 
+/// 回归（2026-09-22）：改 board_date 到目标日并入该日队尾；完成态翻回挂起（等价 reopen 语义）。
+/// 过去日期拒绝（历史不改写）；运行中须先切走；同日非完成态幂等。步骤/断点/色标/个人记录原样带走。
+pub fn process_regather(conn: &Connection, ts: i64, pid: i64, day: &str) -> Result<(), String> {
+    let p = get_process(conn, pid)?;
+    if p.state == "running" {
+        return Err(format!("进程 {pid} 正在运行，先切走再回归"));
+    }
+    let today = day_of(ts);
+    if day < today.as_str() {
+        return Err("历史不改写：不能回归到过去".to_string());
+    }
+    if day == p.board_date && p.state != "completed" {
+        return Ok(()); // 已在目标日版面
+    }
+    let from = p.board_date.clone();
+    if p.state == "completed" {
+        set_state(conn, pid, "suspended")?;
+        conn.execute(
+            "UPDATE processes SET completed_at = NULL WHERE id = ?1",
+            rusqlite::params![pid],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    conn.execute(
+        "UPDATE processes SET board_date = ?2, queue_position = NULL WHERE id = ?1",
+        rusqlite::params![pid, day],
+    )
+    .map_err(|e| e.to_string())?;
+    push_queue_tail(conn, pid, day)?;
+    append_event(conn, ts, "process_regather", Some(pid), json!({ "from": from, "to": day }))?;
+    Ok(())
+}
+
 /// 暂停：运行中计时停止（不是状态切换）。仅在计时开口时合法。
 pub fn process_pause(conn: &Connection, ts: i64, pid: i64) -> Result<(), String> {
     let p = get_process(conn, pid)?;

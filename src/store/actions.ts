@@ -10,10 +10,18 @@ let toastTimer: ReturnType<typeof setTimeout> | null = null;
 /** 确认条点击：立即完成（事件即事实），3 秒撤销 toast */
 export async function completeWithUndo(bp: BoardProcess) {
   const p = bp.process;
-  const wasRunning = p.state === "running";
-  await act(() => data.processComplete(p.id));
+  await completeCore(p.id, p.title, p.state === "running");
+}
+
+/** 统计页色脊补登：同一完成+撤销通路（2026-09-22） */
+export async function completeFromStats(pid: number, title: string, wasRunning: boolean) {
+  await completeCore(pid, title, wasRunning);
+}
+
+async function completeCore(pid: number, title: string, wasRunning: boolean) {
+  await act(() => data.processComplete(pid));
   if (toastTimer) clearTimeout(toastTimer);
-  showToast({ pid: p.id, title: p.title, wasRunning, deadline: Date.now() + 3000 });
+  showToast({ pid, title, wasRunning, deadline: Date.now() + 3000 });
   toastTimer = setTimeout(() => {
     showToast(null);
     toastTimer = null;

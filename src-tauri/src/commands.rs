@@ -62,6 +62,14 @@ pub async fn process_reopen(app: AppHandle, state: State<'_, DbState>, pid: i64)
 }
 
 #[tauri::command]
+pub async fn process_regather(app: AppHandle, state: State<'_, DbState>, pid: i64, day: String) -> Result<(), String> {
+    let c = lock(&state)?;
+    ops::process_regather(&c, db::now_ms(), pid, &day)?;
+    changed(&app);
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn process_pause(app: AppHandle, state: State<'_, DbState>, pid: i64) -> Result<(), String> {
     let c = lock(&state)?;
     ops::process_pause(&c, db::now_ms(), pid)?;
@@ -385,6 +393,12 @@ pub async fn q_plans(state: State<'_, DbState>) -> Result<Vec<Plan>, String> {
 pub async fn q_segments(state: State<'_, DbState>, pid: i64, day: String) -> Result<Vec<Segment>, String> {
     let c = lock(&state)?;
     queries::q_segments(&c, pid, &day)
+}
+
+#[tauri::command]
+pub async fn q_process_detail(state: State<'_, DbState>, pid: i64, day: String) -> Result<queries::ProcessDetail, String> {
+    let c = lock(&state)?;
+    queries::q_process_detail(&c, pid, &day)
 }
 
 #[tauri::command]

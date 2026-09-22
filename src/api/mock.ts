@@ -358,8 +358,7 @@ function openSeg(pid: number) {
   }
 }
 
-function queueTail(pid: number) {
-  const day = todayStr();
+function queueTail(pid: number, day: string = todayStr()) {
   const max = Math.max(
     0,
     ...state.processes
@@ -505,6 +504,22 @@ export const mockData: DataApi = {
     queueTail(pid);
     state.suspendedSince[pid] = Date.now();
     ev("process_reopen", pid);
+  },
+
+  async processRegather(pid, day) {
+    const p = proc(pid);
+    if (p.state === "running") throw new Error("正在运行，先切走再回归");
+    if (day < todayStr()) throw new Error("历史不改写：不能回归到过去");
+    if (day === p.board_date && p.state !== "completed") return;
+    if (p.state === "completed") {
+      p.state = "suspended";
+      p.completed_at = null;
+    }
+    p.board_date = day;
+    p.queue_position = null;
+    queueTail(pid, day);
+    state.suspendedSince[pid] = Date.now();
+    ev("process_regather", pid, { to: day });
   },
 
   async processPause(pid) {
@@ -781,6 +796,32 @@ export const mockData: DataApi = {
         kind: "focus",
         note: null,
       }));
+  },
+
+  async qProcessDetail(pid, day) {
+    const p = proc(pid);
+    const steps = state.steps
+      .filter((x) => x.process_id === pid)
+      .sort((a, b) => a.position - b.position)
+      .map((x) => ({ ...x }));
+    const daySegs = state.segs
+      .filter((g) => g.pid === pid && dayOfTs(g.start) === day)
+      .sort((a, b) => a.start - b.start);
+    return {
+      process: { ...p },
+      steps,
+      stack_top: stackTop(pid),
+      segments: daySegs.map((g, i) => ({
+        id: pid * 1000 + i,
+        process_id: pid,
+        started_at: g.start,
+        ended_at: g.end,
+        day,
+        kind: "focus",
+        note: null,
+      })),
+      day_total_ms: daySegs.reduce((a, g) => a + (g.end ?? Date.now()) - g.start, 0),
+    };
   },
 
   async segmentNote() {},

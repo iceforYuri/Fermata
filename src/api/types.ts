@@ -119,6 +119,14 @@ export interface DayView {
   day: string; done: DayViewProcess[]; ongoing: DayViewProcess[];
   plans: Plan[]; not_done: Plan[]; suspended_costs: SuspendedCost[];
 }
+/** 统计页玻璃卡详情：按 pid 直查，不绑定当天版面；分段=所查看那一天 */
+export interface ProcessDetail {
+  process: Process;
+  steps: Step[];
+  stack_top: StackTop | null;
+  segments: Segment[];
+  day_total_ms: number;
+}
 /** 时间格内一枚可见标记（v1.4：占用率口径，share 分母=格的 10 分钟） */
 export interface CellMark {
   process_id: number;
@@ -151,6 +159,8 @@ export interface DataApi {
   processSwitch(pid: number, breakpoint?: string): Promise<void>;
   processComplete(pid: number): Promise<void>;
   processReopen(pid: number): Promise<void>;
+  /** 回归：改 board_date 到目标日并入队尾；完成态翻回挂起。仅今天/未来，过去拒绝 */
+  processRegather(pid: number, day: string): Promise<void>;
   processPause(pid: number): Promise<void>;
   processResume(pid: number): Promise<void>;
   breakpointSet(pid: number, text: string): Promise<void>; // = 压 note 栈顶
@@ -189,6 +199,7 @@ export interface DataApi {
   qPalette(): Promise<PaletteEntry[]>;
   qPlans(): Promise<Plan[]>;
   qSegments(pid: number, day: string): Promise<Segment[]>;
+  qProcessDetail(pid: number, day: string): Promise<ProcessDetail>;
   segmentNote(segmentId: number, note: string): Promise<void>;
   processRename(pid: number, title: string): Promise<void>;
   notesSet(pid: number, notes: string): Promise<void>;
