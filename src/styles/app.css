@@ -219,6 +219,10 @@
 .row.active {
   min-height: var(--h-active);
 }
+/* 多行时的呼吸：上下各 12px（单行仍由 min-height 112 垂直居中，视觉不变） */
+.row.active .row-main {
+  padding: 12px 14px;
+}
 .active-title {
   font-size: var(--fs-display);
   font-weight: 600;
@@ -355,6 +359,10 @@
   font-size: var(--fs-body);
   font-weight: 400;
   line-height: 1.3;
+  /* 严格单行省略：挂起行恒 64px 等距，全文去详情栏看（拖拽 ROW_PITCH 数学也依赖等距） */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .suspended-sub {
   display: flex;
@@ -1123,6 +1131,15 @@ body:has(.overlay-card) {
 .micro-card.bp-card {
   animation: bp-card-in var(--dur) var(--ease-out);
   transform-origin: top center;
+}
+/* 断点卡内的色标行：给新进程标色（点色即生效，卡片不关） */
+.bp-color {
+  margin-top: 10px;
+}
+.bp-color-label {
+  font-size: var(--fs-micro);
+  color: var(--ink-faint);
+  margin-bottom: 2px;
 }
 @keyframes bp-card-in {
   from { opacity: 0; transform: translateY(-6px) scaleY(0.94); }
@@ -1902,3 +1919,17 @@ body:has(.lib-rail:hover) .lib-hint-arrow { animation: hint-breathe 2.4s ease-in
 .slice-custom input::placeholder { color: var(--ink-ghost); }
 .slice-custom input:focus { border-bottom-color: var(--ink); } /* 1px 下划线唯一编辑指示 */
 .slice-custom-unit { color: var(--ink-faint); }
+
+/* 存储位置切换超 400ms 的交代层（玻璃遮罩 + 一行字，非模态） */
+.loc-slow {
+  position: fixed;
+  inset: 44px 0 0 0;
+  display: grid;
+  place-items: center;
+  backdrop-filter: blur(14px) saturate(1.1);
+  background: color-mix(in srgb, var(--paper) 55%, transparent);
+  color: var(--ink-soft);
+  font-size: var(--fs-body);
+  z-index: 50;
+  animation: glass-in var(--dur-fast) ease-out;
+}

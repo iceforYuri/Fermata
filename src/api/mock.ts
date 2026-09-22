@@ -538,6 +538,14 @@ export const mockData: DataApi = {
     }
   },
 
+  async entryRename(stepId, title) {
+    const st = state.steps.find((x) => x.id === stepId);
+    if (!st) throw new Error("条目不存在");
+    if (!title.trim()) throw new Error("条目文本不能为空");
+    st.title = title.trim();
+    ev("entry_rename", st.process_id, { step_id: stepId, title: st.title });
+  },
+
   async colorSet(pid, slot) {
     proc(pid).color_tag = slot;
     ev("color_set", pid, { slot });
@@ -959,21 +967,11 @@ export const mockData: DataApi = {
         const share = ms / CELL;
         if (share < MIN_SHARE) break; // 后面的更小，一并不取
         const p = proc(pid);
-        // 该进程覆盖此格的段（取重叠最多的一条定起止方向）
-        let best: Seg | null = null;
-        let bestOv = 0;
-        for (const g of state.segs) {
-          if (g.pid !== pid || dayOfTs(g.start) !== day) continue;
-          const gs = Math.max(g.start, ds, cs);
-          const ge = Math.min(g.end ?? now, now, ds + 18 * 3_600_000, cs + CELL);
-          const ov = Math.max(0, ge - gs);
-          if (ov > bestOv) {
-            bestOv = ov;
-            best = g;
-          }
-        }
         const { occStart, occEnd } = occOf(pid);
-        if (!best || occEnd <= occStart) continue;
+        if (occEnd <= occStart) continue;
+        // 朝向=相邻格有没有同进程占用（与 Rust v1.4.2 同口径：前无=段起、后无=段止）
+        const prevHas = c > 0 && (cellMs.get(c - 1)?.has(pid) ?? false);
+        const nextHas = c < 107 && (cellMs.get(c + 1)?.has(pid) ?? false);
         cells[c].marks.push({
           process_id: pid,
           color_tag: p.color_tag,
@@ -981,8 +979,8 @@ export const mockData: DataApi = {
           occ_start: occStart,
           occ_end: occEnd,
           share,
-          is_start: best.start >= cs && best.start < cs + CELL,
-          is_end: (best.end ?? now) > cs && (best.end ?? now) <= cs + CELL,
+          is_start: !prevHas,
+          is_end: !nextHas,
         });
       }
     }
@@ -1018,6 +1016,19 @@ export const mockData: DataApi = {
       processes: state.processes.length,
       events: state.events.length,
     };
+  },
+
+  async qDataLocation() {
+    return "C:\\Users\\you\\AppData\\Roaming\\com.fermata.app\\fermata.db";
+  },
+  async setDataLocation() {
+    return { path: "D:\\fermata-data\\fermata.db", adopted: false };
+  },
+  async setDataLocationTo(path: string) {
+    return { path: `${path}\\fermata.db`, adopted: false };
+  },
+  async resetDataLocation() {
+    return { path: "C:\\Users\\you\\AppData\\Roaming\\com.fermata.app\\fermata.db", adopted: true };
   },
 
   async qRestState() {

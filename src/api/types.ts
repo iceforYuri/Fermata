@@ -155,6 +155,7 @@ export interface DataApi {
   processResume(pid: number): Promise<void>;
   breakpointSet(pid: number, text: string): Promise<void>; // = 压 note 栈顶
   entryDelete(stepId: number): Promise<void>;
+  entryRename(stepId: number, title: string): Promise<void>; // 步骤/断点条通用
   colorSet(pid: number, slot: number | null): Promise<void>;
   waitingAiSet(pid: number, on: boolean): Promise<void>;
   stepAdd(pid: number, title: string): Promise<number>;
@@ -213,4 +214,12 @@ export interface DataApi {
   importSnapshotCheck(path: string): Promise<{ processes: number; events: number; exported_at: number | null }>;
   /** 备份+事务导入，返回回执 */
   importSnapshotFrom(path: string): Promise<{ backup: string; processes: number; events: number }>;
+  /** 当前数据库文件路径 */
+  qDataLocation(): Promise<string>;
+  /** 文件夹对话框选数据存储位置（取消 → null） */
+  setDataLocation(): Promise<{ path: string; adopted: boolean } | null>;
+  /** 可测层：直接切到目标目录 */
+  setDataLocationTo(path: string): Promise<{ path: string; adopted: boolean }>;
+  /** 回默认位置（AppData） */
+  resetDataLocation(): Promise<{ path: string; adopted: boolean }>;
 }

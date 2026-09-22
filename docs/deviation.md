@@ -249,3 +249,27 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 - **命令分两层**：对话框层（export_snapshot_dialog / import_snapshot_dialog / export_events_dialog）+ 可测层（export_snapshot_to / import_snapshot_check / import_snapshot_from）——系统对话框测试驱动不了，verify 走可测层；对话框层由人工验收。
 - 既有 export_events（直写 exports 目录）命令保留注册不删（向后兼容），UI 已切到对话框版。
 - 测试副作用注意：真机 exe 跑 verify 时备份文件落在真实 app_data/exports（verify 脚本已自清）；verify 用 FERMATA_DB_PATH 隔了临时库。
+
+### D52 · 数据存储位置可指定（feature/data-location）
+- 方向变更留痕：先议过"绿色优先（exe 同目录）"，用户否了（exe 会跑、同目录难管理）→ 定为设置页指定存储位置。指针文件解"数据库位置不能存在数据库里"的鸡生蛋问题。
+- 接续语义：目标目录已有 fermata.db → 直接切换不覆盖（那是用户的旧库）；没有 → WAL checkpoint 后整文件复制（不移动）。
+- 切换为热切换（换连接 + store-changed 全窗刷新）；超 400ms 才浮"正在搬迁数据…"玻璃行（spinner 属禁清单）。
+- 目录选择弹窗起始落在当前库所在目录（先看到"现在在哪儿"），取不到回落"文档"。
+
+### D53 · 桌面端 dev 不吃 vite、run-dev.bat 先 build
+- 现象：pnpm tauri dev 起了 vite（14200），但窗口加载内嵌 dist/（tauri.localhost），不是 devUrl——前端改动不 build 则桌面端永远是旧界面（2026-09-21 排查坐实：CDP 页面 URL + 构建戳 + dist grep 三证）。
+- 待查：devUrl 为何没挂上（tauri.conf.json 配置无误、窗口为标准 WebviewUrl::App、--no-default-features 无关）。未深挖。
+- 临时措：run-dev.bat 改为先 pnpm build 再 tauri dev，构建失败即中止不弹旧界面。代价：每次启动 +数秒构建；devUrl 修复后撤掉此步恢复热更。
+
+### D54 · 断点卡锚点修正 + 卡内标色 + 条目改文（feature/board-polish）
+- 断点卡"飘"的根因：页面过渡容器的 transform 劫持 fixed 定位（实测系统性偏移 +28/+44）。修法 = portal 到 body（同 D42 规则）；锚点保持点击路径贴**被点行**下方（用户纠偏：不是活跃行），拖到活跃位仍锚活跃行；加窗口底沿钳制。
+- 范围扩张留痕：进程页断点卡内加"给「新进程」标个色"（7 色 + 无色，点色即生效、卡片不关，Enter 仍只确认断点；Esc 取消切换不回滚已标色；点色 onMouseDown preventDefault 保输入框焦点）。AGENTS.md 后置项"切换浮层快捷标色"字面保留——那是 Alt+Q 浮层的事，本条是进程页。
+- 详情栏步骤栈条目可就地改文（InlineEdit 双态；空提交=放弃；编辑中禁拖行；拖行后吃掉尾随点击）。CONTEXT.md"条目均可删除"→"均可就地改文、删除"。
+- 卡片高度：活跃卡 min-height 112 随长内容长高，多行时 `.row.active .row-main` 加 12px 垂直呼吸（单行视觉不变）；挂起行严格 64 等距——断点行与标题都单行省略（标题此前漏了 nowrap，长标题会偷偷撑破等距和拖拽 ROW_PITCH 数学），全文进详情栏。
+
+### D55 · 日网格：浮窗时长口径 + 半圆朝向判定（feature/board-polish）
+- 浮窗时长从"跨度"（occ_end−occ_start）改为实际占用（share×10min）：被打断的进程区间并集会跨满整格，跨度虚报成 10m。
+- 半圆朝向从"格内最长块起止"改为"相邻格有没有同进程占用"（前无=段起右下、后无=段止左上、前后都有=中段右下）：打断格的最长块止于格内就翻左上，但进程下一格还在跑 → 视觉断茬。用户报告实例：格内 5.5m 三截 + 0.5m 扰动。
+- 填充阈值不动：55% 就是半圆，"空隙即数据"优先于视觉顺（用户定）。
+- mock 与 Rust 同口径同步改（q_day_grid / qDayGrid 两处）。
+- 顺带发现未治：大环微小瓣（<1px 弧长）在 12 点接缝处挤成梳齿——已挂起，待用户决定是否加可辨度阈值。

@@ -1,6 +1,7 @@
 //! 数据内核：连接管理、迁移、行类型、本地时间工具。
 //! 事实源是 append-only 的 events 表；其余表是物化状态。
 
+pub mod location;
 pub mod ops;
 pub mod queries;
 pub mod snapshot;
@@ -12,6 +13,9 @@ use std::sync::Mutex;
 
 /// tauri state：单连接互斥（SQLite 写串行化足够）
 pub struct DbState(pub Mutex<Connection>);
+
+/// tauri state：当前库文件路径（存储位置切换时随连接一起换）
+pub struct DbPathState(pub Mutex<std::path::PathBuf>);
 
 pub const MIGRATION_V1: &str = r#"
 CREATE TABLE processes (

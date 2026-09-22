@@ -183,6 +183,7 @@ fn main() {
             fermata_lib::commands::process_resume,
             fermata_lib::commands::breakpoint_set,
             fermata_lib::commands::entry_delete,
+            fermata_lib::commands::entry_rename,
             fermata_lib::commands::color_set,
             fermata_lib::commands::waiting_ai_set,
             fermata_lib::commands::step_add,
@@ -246,6 +247,10 @@ fn main() {
             fermata_lib::commands::import_snapshot_check,
             fermata_lib::commands::import_snapshot_from,
             fermata_lib::commands::import_snapshot_dialog,
+            fermata_lib::commands::q_data_location,
+            fermata_lib::commands::set_data_location_to,
+            fermata_lib::commands::set_data_location_dialog,
+            fermata_lib::commands::reset_data_location,
             fermata_lib::sys::debug_window_visible,
             debug_focus_check,
         ])
@@ -253,22 +258,25 @@ fn main() {
             let _ = fs::create_dir_all(LOG_DIR);
             log_line("[m2] Fermata dev 启动");
 
-            // 更名迁移（gika → Fermata）：环境变量优先（FERMATA_DB_PATH，兼容旧 GIKA_DB_PATH）；
-            // 默认路径下若旧 com.gika.dev 库在而新库不在 → 复制（不移动）旧库到新目录
-            let db_path = std::env::var("FERMATA_DB_PATH")
-                .or_else(|_| std::env::var("GIKA_DB_PATH"))
-                .map(std::path::PathBuf::from)
-                .unwrap_or_else(|_| {
-                    let dir = app
-                        .path()
-                        .app_data_dir()
-                        .unwrap_or_else(|_| std::path::PathBuf::from("."));
-                    migrate_legacy_db(&dir);
-                    dir.join("fermata.db")
-                });
+            // 数据库位置解析（优先级：环境变量 > 指针文件 > 默认 app_data_dir）；
+            // 更名迁移（gika → Fermata）只在默认路径上发生一次
+            let dir = app
+                .path()
+                .app_data_dir()
+                .unwrap_or_else(|_| std::path::PathBuf::from("."));
+            if std::env::var("FERMATA_DB_PATH").is_err()
+                && std::env::var("GIKA_DB_PATH").is_err()
+                && !fermata_lib::db::location::pointer_path(&dir).exists()
+            {
+                migrate_legacy_db(&dir);
+            }
+            let db_path = fermata_lib::db::location::resolve(&dir);
             match fermata_lib::db::open(&db_path) {
                 Ok(conn) => {
                     log_line(&format!("[m2] db ready: {}", db_path.display()));
+                    app.manage(fermata_lib::db::DbPathState(std::sync::Mutex::new(
+                        db_path.clone(),
+                    )));
                     app.manage(fermata_lib::db::DbState(std::sync::Mutex::new(conn)));
                 }
                 Err(e) => {

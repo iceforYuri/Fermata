@@ -20,6 +20,7 @@ const tauriData: DataApi = {
   processResume: (pid) => invoke("process_resume", { pid }),
   breakpointSet: (pid, text) => invoke("breakpoint_set", { pid, text }),
   entryDelete: (stepId) => invoke("entry_delete", { stepId }),
+  entryRename: (stepId, title) => invoke("entry_rename", { stepId, title }),
   colorSet: (pid, slot) => invoke("color_set", { pid, slot }),
   waitingAiSet: (pid, on) => invoke("waiting_ai_set", { pid, on }),
   stepAdd: (pid, title) => invoke("step_add", { pid, title }),
@@ -70,6 +71,10 @@ const tauriData: DataApi = {
   importSnapshotDialog: () => invoke("import_snapshot_dialog"),
   importSnapshotCheck: (path) => invoke("import_snapshot_check", { path }),
   importSnapshotFrom: (path) => invoke("import_snapshot_from", { path }),
+  qDataLocation: () => invoke("q_data_location"),
+  setDataLocation: () => invoke("set_data_location_dialog"),
+  setDataLocationTo: (path) => invoke("set_data_location_to", { targetDir: path }),
+  resetDataLocation: () => invoke("reset_data_location"),
 };
 
 export const data: DataApi = isTauri ? tauriData : mockData;

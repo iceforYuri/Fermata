@@ -9,7 +9,16 @@ cd /d F:\Code\20260917_gika
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":14200 " ^| findstr LISTENING') do taskkill /PID %%a /F 2>nul
 taskkill /IM fermata.exe /F 2>nul
 
-pnpm tauri dev
+rem NOTE: desktop window loads the embedded dist/, NOT the live vite server (devUrl issue pending fix).
+rem So rebuild frontend first, otherwise the window shows stale UI from the last build.
+echo [run-dev] building frontend (tsc + vite build)...
+call pnpm build
+if errorlevel 1 (
+  echo [run-dev] frontend build FAILED, aborting to avoid showing stale UI.
+  exit /b 1
+)
+
+call pnpm tauri dev
 
 rem dev 退出后的自清：杀掉应用实例、释放端口
 taskkill /IM fermata.exe /F 2>nul
