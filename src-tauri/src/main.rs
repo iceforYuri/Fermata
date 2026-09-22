@@ -179,7 +179,6 @@ fn main() {
             fermata_lib::commands::process_switch,
             fermata_lib::commands::process_complete,
             fermata_lib::commands::process_reopen,
-            fermata_lib::commands::process_regather,
             fermata_lib::commands::process_pause,
             fermata_lib::commands::process_resume,
             fermata_lib::commands::breakpoint_set,

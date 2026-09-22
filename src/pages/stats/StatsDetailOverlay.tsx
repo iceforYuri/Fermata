@@ -16,7 +16,8 @@ const STATE_LABEL: Record<string, string> = {
 
 /**
  * 统计页进程详情子页（2026-09-22）：页内玻璃遮盖 + 居中实心卡，按 pid 直查不绑定当天版面。
- * 只读展示：标题/断点/步骤栈/当日分段/个人记录；回归 = 回今天（默认）或日历卡选今天起的日期。
+ * 只读展示：标题/断点/步骤栈/当日分段/个人记录；回归 = 计划化——目标日稿库生成同名计划
+ * （源进程原地封存，历史不改写；计划拖上版即成新进程）。
  * portal 到 body：fixed 坐标不被页面过渡的 transform 劫持（同断点卡）。
  */
 export function StatsDetailOverlay() {
@@ -49,8 +50,10 @@ function StatsDetailInner({ pid, day, exiting }: { pid: number; day: string; exi
   }, [pid, day, board.tick]);
 
   const today = todayStr();
-  const regather = (target: string) => {
-    void act(() => data.processRegather(pid, target)).then(closeStatsDetail);
+  // 回归 = 计划化（2026-09-22 定稿）：目标日稿库生成同名计划（只带标题）；
+  // 源进程原地封存不动——历史不改写；计划拖上版即成新进程
+  const toPlan = (title: string, target: string) => {
+    void act(() => data.planCreate(title, undefined, target)).then(closeStatsDetail);
   };
 
   return createPortal(
@@ -63,14 +66,14 @@ function StatsDetailInner({ pid, day, exiting }: { pid: number; day: string; exi
     >
       <div className="archive-panel sd-panel">
         {calOpen ? (
-          <RegatherCalendar onPick={regather} onBack={() => setCalOpen(false)} />
+          <PlanCalendar onPick={(d) => detail && toPlan(detail.process.title, d)} onBack={() => setCalOpen(false)} />
         ) : detail ? (
           <DetailCard
             detail={detail}
             day={day}
             today={today}
             colorHex={markHex(board, detail.process.color_tag)}
-            onRegatherToday={() => regather(today)}
+            onPlanToday={() => toPlan(detail.process.title, today)}
             onOpenCal={() => setCalOpen(true)}
           />
         ) : null}
@@ -85,20 +88,21 @@ function DetailCard({
   day,
   today,
   colorHex,
-  onRegatherToday,
+  onPlanToday,
   onOpenCal,
 }: {
   detail: ProcessDetail;
   day: string;
   today: string;
   colorHex: string | null;
-  onRegatherToday: () => void;
+  onPlanToday: () => void;
   onOpenCal: () => void;
 }) {
   const p = detail.process;
   const closedSegs = detail.segments;
   const segTotal = closedSegs.reduce((a, s) => a + (s.ended_at ?? Date.now()) - s.started_at, 0);
-  const canRegather = p.board_date !== today || p.state === "completed";
+  // 今天版面上的挂起进程不给回归（它就在家里）；其余均可计划化
+  const canPlan = p.board_date !== today || p.state === "completed";
 
   return (
     <div className="sd-card" style={{ "--mc": colorHex ?? undefined } as React.CSSProperties}>
@@ -173,14 +177,14 @@ function DetailCard({
         </div>
       </section>
 
-      {canRegather && (
+      {canPlan && (
         <section className="detail-section">
           <div className="detail-label">回归</div>
           <div className="sd-actions">
-            <button className="back-today" data-testid="sd-regather-today" onClick={onRegatherToday}>
-              回归到今天
+            <button className="back-today" data-testid="sd-plan-today" onClick={onPlanToday}>
+              放到今天稿库
             </button>
-            <button className="back-today" data-testid="sd-regather-cal" onClick={onOpenCal}>
+            <button className="back-today" data-testid="sd-plan-cal" onClick={onOpenCal}>
               选一天…
             </button>
           </div>
@@ -191,10 +195,10 @@ function DetailCard({
 }
 
 /**
- * 回归日历卡：月历表格（无环），左右翻月不选年；
- * 过去日期置灰不可选（历史不改写），点今天/未来日期即回归。
+ * 回归日历卡（选计划的预定日）：月历表格（无环），左右翻月不选年；
+ * 过去日期置灰不可选（历史不改写），点今天/未来日期即生成计划。
  */
-function RegatherCalendar({ onPick, onBack }: { onPick: (day: string) => void; onBack: () => void }) {
+function PlanCalendar({ onPick, onBack }: { onPick: (day: string) => void; onBack: () => void }) {
   const today = todayStr();
   const [ty, tm] = today.split("-").map(Number);
   const [[y, m], setYm] = useState<[number, number]>([ty, tm]);
@@ -213,22 +217,22 @@ function RegatherCalendar({ onPick, onBack }: { onPick: (day: string) => void; o
   };
 
   return (
-    <div className="sd-card regather-card" data-testid="regather-cal">
-      <div className="regather-cal-head">
+    <div className="sd-card plan-cal-card" data-testid="plan-cal">
+      <div className="plan-cal-head">
         <button
-          className="regather-nav"
-          data-testid="regather-prev"
+          className="plan-cal-nav"
+          data-testid="plan-cal-prev"
           disabled={!canPrev}
           onClick={() => canPrev && shift(-1)}
         >
           ‹
         </button>
         <span className="num">{y} 年 {m} 月</span>
-        <button className="regather-nav" data-testid="regather-next" onClick={() => shift(1)}>
+        <button className="plan-cal-nav" data-testid="plan-cal-next" onClick={() => shift(1)}>
           ›
         </button>
       </div>
-      <div className="month-cal regather-cal">
+      <div className="month-cal plan-cal">
         <div className="month-cal-dow">
           {["一", "二", "三", "四", "五", "六", "日"].map((d) => (
             <span key={d}>{d}</span>
@@ -242,8 +246,8 @@ function RegatherCalendar({ onPick, onBack }: { onPick: (day: string) => void; o
             return (
               <div
                 key={i}
-                className={`cal-cell regather-cell${past ? " past" : ""}${ds === today ? " today" : ""}`}
-                data-testid="regather-cell"
+                className={`cal-cell plan-cal-cell${past ? " past" : ""}${ds === today ? " today" : ""}`}
+                data-testid="plan-cal-cell"
                 data-day={ds}
                 onClick={() => !past && onPick(ds)}
               >
@@ -253,7 +257,7 @@ function RegatherCalendar({ onPick, onBack }: { onPick: (day: string) => void; o
           })}
         </div>
       </div>
-      <button className="back-today regather-back" data-testid="regather-back" onClick={onBack}>
+      <button className="back-today plan-cal-back" data-testid="plan-cal-back" onClick={onBack}>
         返回详情
       </button>
     </div>

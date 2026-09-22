@@ -941,12 +941,12 @@
   gap: 18px;
 }
 
-/* 回归日历：月历表格无环，左右翻月不选年，过去置灰 */
-.regather-card {
+/* 回归日历（选计划预定日）：月历表格无环，左右翻月不选年，过去置灰 */
+.plan-cal-card {
   width: 340px;
   margin: 0 auto;
 }
-.regather-cal-head {
+.plan-cal-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -954,7 +954,7 @@
   color: var(--ink);
   margin-bottom: 10px;
 }
-.regather-nav {
+.plan-cal-nav {
   width: 26px;
   height: 26px;
   display: grid;
@@ -964,26 +964,26 @@
   font-size: 14px;
   transition: all var(--dur-fast);
 }
-.regather-nav:hover:not(:disabled) {
+.plan-cal-nav:hover:not(:disabled) {
   background: color-mix(in srgb, var(--ink) 6%, transparent);
   color: var(--ink);
 }
-.regather-nav:disabled {
+.plan-cal-nav:disabled {
   color: var(--ink-ghost);
   cursor: default;
 }
-.regather-cal .cal-cell {
+.plan-cal .cal-cell {
   height: 40px;
   justify-content: center;
 }
-.regather-cell.past {
+.plan-cal-cell.past {
   opacity: 0.3;
   cursor: default;
 }
-.regather-cell.past:hover {
+.plan-cal-cell.past:hover {
   background: none;
 }
-.regather-back {
+.plan-cal-back {
   margin-top: 12px;
 }
 

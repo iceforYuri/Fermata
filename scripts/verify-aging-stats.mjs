@@ -105,23 +105,23 @@ await sleep(1300);
 const backToUndone = await page.locator("[data-testid=dv-ongoing-row]", { hasText: "写周报" }).count();
 ok("撤销后行回「未做完」", backToUndone === 1);
 
-// ---------- D · 详情玻璃卡 + 回归 ----------
+// ---------- D · 详情玻璃卡 + 回归（计划化） ----------
 await page.locator("[data-testid=dv-ongoing-row]", { hasText: "写周报" }).click();
 await page.waitForSelector("[data-testid=stats-detail]");
 await sleep(500);
 const sdTitle = await page.locator("[data-testid=sd-title]").textContent();
-const hasSteps = (await page.locator("[data-testid=sd-steps]").count()) === 1;
-const hasSegs = (await page.locator("[data-testid=sd-segs]").count()) === 1;
-const hasRegather = (await page.locator("[data-testid=sd-regather-today]").count()) === 1;
-ok("详情玻璃卡：标题/步骤栈/分段/回归入口齐备", sdTitle.includes("写周报") && hasSteps && hasSegs && hasRegather,
+const hasPlanBtns =
+  (await page.locator("[data-testid=sd-plan-today]").count()) === 1 &&
+  (await page.locator("[data-testid=sd-plan-cal]").count()) === 1;
+ok("详情玻璃卡：回归区 = 放到今天稿库 / 选一天…", sdTitle.includes("写周报") && hasPlanBtns,
   `标题=${sdTitle}`);
 await page.screenshot({ path: `${SHOT}/stats-detail-card.png` });
 
-await page.click("[data-testid=sd-regather-cal]");
-await page.waitForSelector("[data-testid=regather-cal]");
+await page.click("[data-testid=sd-plan-cal]");
+await page.waitForSelector("[data-testid=plan-cal]");
 const cells = await page.evaluate((yd) => {
   const td = new Date(); const t = `${td.getFullYear()}-${String(td.getMonth() + 1).padStart(2, "0")}-${String(td.getDate()).padStart(2, "0")}`;
-  const all = [...document.querySelectorAll("[data-testid=regather-cell]")];
+  const all = [...document.querySelectorAll("[data-testid=plan-cal-cell]")];
   return {
     total: all.length,
     past: all.filter((c) => c.classList.contains("past")).length,
@@ -131,21 +131,37 @@ const cells = await page.evaluate((yd) => {
 }, yesterday);
 ok("回归日历：过去置灰、今天可选", cells.yesterdayPast === true && cells.todayNotPast, JSON.stringify(cells));
 await page.screenshot({ path: `${SHOT}/regather-calendar.png` });
-await page.click("[data-testid=regather-back]");
-await sleep(200);
+await page.click("[data-testid=plan-cal-back]");
+await sleep(250);
 
-await page.click("[data-testid=sd-regather-today]");
+await page.click("[data-testid=sd-plan-today]");
 await sleep(900);
-ok("回归到今天后卡片收起", (await page.locator("[data-testid=stats-detail]").count()) === 0);
+ok("放到今天稿库后卡片收起", (await page.locator("[data-testid=stats-detail]").count()) === 0);
+const planMade = await page.evaluate(() => {
+  const m = window.__mock;
+  const d = new Date();
+  const t = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const p = m.plans.find((x) => x.title === "写周报" && x.scheduled_date === t && x.state === "pool");
+  return p ? { id: p.id, scheduled_date: p.scheduled_date } : null;
+});
+ok("计划已生成（同名、预定日=今天、pool）", !!planMade, JSON.stringify(planMade));
+await sleep(1300); // DayViewSection 1Hz 重取
 const stillThere = await page.locator("[data-testid=dv-ongoing-row]", { hasText: "写周报" }).count();
-ok("昨天「未做完」已无此行（已回今天）", stillThere === 0);
+ok("源进程原地封存：昨天「未做完」仍在（历史不改写）", stillThere === 1);
 
-// 回进程页：写周报应回到挂起队列
+// 回进程页：版面上没有它（回归进的是稿库，不是版面）；稿库今日组应有
 await page.click("[data-testid=tab-board]");
 await sleep(1200);
-const back = await page.locator("[data-testid=suspended-row]", { hasText: "写周报" }).count();
-ok("进程页挂起队列找回「写周报」", back === 1);
-await page.screenshot({ path: `${SHOT}/regathered-on-board.png` });
+const onBoard = await page.locator("[data-testid=suspended-row]", { hasText: "写周报" }).count();
+ok("进程页版面没有「写周报」（不搬进程）", onBoard === 0);
+const inLib = await page.evaluate(() => {
+  const m = window.__mock;
+  const d = new Date();
+  const t = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return m.plans.some((x) => x.title === "写周报" && x.scheduled_date === t && x.state === "pool");
+});
+ok("稿库（今日剩余组数据源）有这条计划", inLib);
+await page.screenshot({ path: `${SHOT}/plan-not-on-board.png` });
 
 console.log(`\n${results.filter(Boolean).length}/${results.length} 通过`);
 await browser.close();

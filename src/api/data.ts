@@ -16,7 +16,6 @@ const tauriData: DataApi = {
   processSwitch: (pid, breakpoint) => invoke("process_switch", { pid, breakpoint }),
   processComplete: (pid) => invoke("process_complete", { pid }),
   processReopen: (pid) => invoke("process_reopen", { pid }),
-  processRegather: (pid, day) => invoke("process_regather", { pid, day }),
   processPause: (pid) => invoke("process_pause", { pid }),
   processResume: (pid) => invoke("process_resume", { pid }),
   breakpointSet: (pid, text) => invoke("breakpoint_set", { pid, text }),

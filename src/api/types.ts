@@ -159,8 +159,6 @@ export interface DataApi {
   processSwitch(pid: number, breakpoint?: string): Promise<void>;
   processComplete(pid: number): Promise<void>;
   processReopen(pid: number): Promise<void>;
-  /** 回归：改 board_date 到目标日并入队尾；完成态翻回挂起。仅今天/未来，过去拒绝 */
-  processRegather(pid: number, day: string): Promise<void>;
   processPause(pid: number): Promise<void>;
   processResume(pid: number): Promise<void>;
   breakpointSet(pid: number, text: string): Promise<void>; // = 压 note 栈顶

@@ -511,22 +511,6 @@ export const mockData: DataApi = {
     ev("process_reopen", pid);
   },
 
-  async processRegather(pid, day) {
-    const p = proc(pid);
-    if (p.state === "running") throw new Error("正在运行，先切走再回归");
-    if (day < todayStr()) throw new Error("历史不改写：不能回归到过去");
-    if (day === p.board_date && p.state !== "completed") return;
-    if (p.state === "completed") {
-      p.state = "suspended";
-      p.completed_at = null;
-    }
-    p.board_date = day;
-    p.queue_position = null;
-    queueTail(pid, day);
-    state.suspendedSince[pid] = Date.now();
-    ev("process_regather", pid, { to: day });
-  },
-
   async processPause(pid) {
     const p = proc(pid);
     if (p.state !== "running") throw new Error("不在运行");
