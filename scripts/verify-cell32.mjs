@@ -22,7 +22,7 @@ const cell32 = await page.evaluate(() => {
 });
 console.log("格32 clip:", JSON.stringify(cell32));
 // 右下半 = "M 0 26 L26 0 L26 26 Z"；左上 = "M 0 26 L26 0 L0 0 Z"
-const rightBottom = cell32.paths[0]?.includes("L26 26");
+const rightBottom = cell32.paths[0]?.includes("L28 28");
 console.log(rightBottom ? "✓ 格32 朝向右下（中段，不翻边）" : "✗ 格32 仍翻左上");
 
 // 悬停出浮窗：时长应为实际占用（≈5-6m），不是跨度 10m

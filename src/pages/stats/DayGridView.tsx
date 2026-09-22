@@ -219,28 +219,30 @@ function CellMarks({
     );
   }
   // 半圆方向：冲突分半主导=右下/次者=左上；单枚段止=左上、其余右下
+  // 圆径 26 = 与实心全圆同规格（28 盒子是给描边留的出血，视觉圆心重合）
   const tri = (m: CellMark, i: number) => {
-    if (marks.length === 2) return i === 0 ? "0 26 L26 0 L26 26" : "0 26 L26 0 L0 0";
-    return m.is_end ? "0 26 L26 0 L0 0" : "0 26 L26 0 L26 26";
+    if (marks.length === 2) return i === 0 ? "0 28 L28 0 L28 28" : "0 28 L28 0 L0 0";
+    return m.is_end ? "0 28 L28 0 L0 0" : "0 28 L28 0 L28 28";
   };
   const uid = `${day}-${cell}`;
   return (
     <svg
       className="dg-half"
       data-testid="dg-dot"
-      width="26"
-      height="26"
-      viewBox="0 0 26 26"
+      width="28"
+      height="28"
+      viewBox="0 0 28 28"
+      style={{ margin: -1 }} // 盒子大 2px，负边距收回，占位与 26px 全圆一致
     >
       {marks.length === 1 && (
-        <circle cx="13" cy="13" r="11.6" fill="none" stroke={colorOf(marks[0].color_tag)} strokeWidth="1" opacity="0.45" />
+        <circle cx="14" cy="14" r="13" fill="none" stroke={colorOf(marks[0].color_tag)} strokeWidth="1" opacity="0.45" />
       )}
       {marks.map((m, i) => (
         <circle
           key={m.process_id}
-          cx="13"
-          cy="13"
-          r="11.6"
+          cx="14"
+          cy="14"
+          r="13"
           fill={colorOf(m.color_tag)}
           clipPath={`url(#halfclip-${uid}-${i})`}
         />
