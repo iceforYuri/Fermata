@@ -1,23 +1,29 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { data } from "../api/data";
 import { refreshBoard } from "../store/board";
 import { setUi, useUi } from "../store/ui";
+import { useExiting } from "./useExiting";
 
 /**
  * 导入确认覆盖层（宪法 6：主窗内覆盖层，非模态窗）：
  * 页内玻璃遮罩（backdrop-filter 只盖自家内容）+ 中央实心小卡。
  * 确认 = 自动备份当前库 → 事务导入 → 回执进设置页数据组；取消 = 零副作用。
+ * 出场：glass-out + card-out（useExiting 播反场；期间用最后一帧数据保持渲染）。
  */
 export function ImportConfirmOverlay() {
   const { importConfirm } = useUi();
+  const { mounted, exiting } = useExiting(!!importConfirm);
   const [busy, setBusy] = useState(false);
-  if (!importConfirm) return null;
+  const last = useRef(importConfirm);
+  if (importConfirm) last.current = importConfirm;
+  if (!mounted || !last.current) return null;
+  const ic = importConfirm ?? last.current;
 
   const close = () => setUi({ importConfirm: null });
   const confirm = async () => {
     setBusy(true);
     try {
-      const r = await data.importSnapshotFrom(importConfirm.path);
+      const r = await data.importSnapshotFrom(ic.path);
       await refreshBoard();
       setUi({
         importConfirm: null,
@@ -30,16 +36,16 @@ export function ImportConfirmOverlay() {
     }
   };
 
-  const exportedAt = importConfirm.exported_at
-    ? new Date(importConfirm.exported_at).toLocaleString("zh-CN", { hour12: false })
+  const exportedAt = ic.exported_at
+    ? new Date(ic.exported_at).toLocaleString("zh-CN", { hour12: false })
     : "未知时间";
   return (
-    <div className="import-confirm" data-testid="import-confirm">
+    <div className={`import-confirm${exiting ? " exiting" : ""}`} data-testid="import-confirm">
       <div className="archive-backdrop" onClick={close} />
       <div className="import-card" data-testid="import-card">
         <div className="import-card-title">将替换当前全部数据</div>
         <div className="import-card-sub">
-          快照：{importConfirm.processes} 进程 · {importConfirm.events} 事件 · 导出于 {exportedAt}
+          快照：{ic.processes} 进程 · {ic.events} 事件 · 导出于 {exportedAt}
         </div>
         <div className="import-card-sub">是否先备份当前数据？（确认即自动备份到 exports）</div>
         <div className="import-card-ops">

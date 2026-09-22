@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { data, type ProcessDetail } from "../../api/data";
 import { act, markHex, todayStr, useBoard } from "../../store/board";
 import { closeStatsDetail, useUi } from "../../store/ui";
 import { fmtClock, fmtDur } from "../../util";
+import { useExiting } from "../../components/useExiting";
 import { dayStr } from "./MonthCalendar";
 
 const STATE_LABEL: Record<string, string> = {
@@ -20,13 +21,18 @@ const STATE_LABEL: Record<string, string> = {
  */
 export function StatsDetailOverlay() {
   const { statsDetail } = useUi();
-  if (!statsDetail) return null;
+  const { mounted, exiting } = useExiting(!!statsDetail);
+  // 反场期间 store 已清空：用最后一帧的 pid/day 保持渲染
+  const last = useRef(statsDetail);
+  if (statsDetail) last.current = statsDetail;
+  if (!mounted || !last.current) return null;
+  const sd = statsDetail ?? last.current;
   return (
-    <StatsDetailInner key={`${statsDetail.pid}:${statsDetail.day}`} pid={statsDetail.pid} day={statsDetail.day} />
+    <StatsDetailInner key={`${sd.pid}:${sd.day}`} pid={sd.pid} day={sd.day} exiting={exiting} />
   );
 }
 
-function StatsDetailInner({ pid, day }: { pid: number; day: string }) {
+function StatsDetailInner({ pid, day, exiting }: { pid: number; day: string; exiting: boolean }) {
   const board = useBoard();
   const [detail, setDetail] = useState<ProcessDetail | null>(null);
   const [calOpen, setCalOpen] = useState(false);
@@ -49,7 +55,7 @@ function StatsDetailInner({ pid, day }: { pid: number; day: string }) {
 
   return createPortal(
     <div
-      className="archive-backdrop"
+      className={`archive-backdrop${exiting ? " exiting" : ""}`}
       data-testid="stats-detail"
       onClick={(e) => {
         if ((e.target as HTMLElement).classList.contains("archive-backdrop")) closeStatsDetail();

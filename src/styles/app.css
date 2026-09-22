@@ -1304,6 +1304,29 @@ body:has(.overlay-card) {
   from { opacity: 0; transform: translateY(-6px) scaleY(0.94); }
   to { opacity: 1; transform: none; }
 }
+
+/* ================= 弹层出场动效（2026-09-22：与进场对称，反场更快——快而不催） ================= */
+/* exiting = useExiting 保持挂载 ~140ms 播反场后卸载；期间禁交互 */
+.exiting { pointer-events: none !important; }
+@keyframes glass-out { to { opacity: 0; } }
+@keyframes card-out { to { opacity: 0; transform: translateY(-8px); } }
+@keyframes bp-card-out { to { opacity: 0; transform: translateY(-4px) scaleY(0.96); } }
+@keyframes toast-out { to { opacity: 0; transform: translate(-50%, 6px); } }
+@keyframes idle-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes idle-out { to { opacity: 0; transform: translateY(6px); } }
+@keyframes restpop-out { to { opacity: 0; transform: translateY(8px); } }
+
+.archive-backdrop.exiting { animation: glass-out var(--dur-fast) ease-in forwards; }
+.archive-backdrop.exiting .archive-panel { animation: card-out var(--dur-fast) ease-in forwards; }
+.import-confirm.exiting .archive-backdrop { animation: glass-out var(--dur-fast) ease-in forwards; }
+.import-confirm.exiting .import-card { animation: card-out var(--dur-fast) ease-in forwards; }
+.micro-card.exiting { animation: bp-card-out var(--dur-fast) ease-in forwards; }
+.slice-card.exiting { animation: bp-card-out var(--dur-fast) ease-in forwards; }
+.undo-toast.exiting { animation: toast-out var(--dur-fast) ease-in forwards; }
+.micro-card.idle-card { animation: idle-in var(--dur) var(--ease-out); } /* 原本无进场，一并补齐 */
+.micro-card.idle-card.exiting { animation: idle-out var(--dur-fast) ease-in forwards; }
+.restpop.exiting { animation: restpop-out 160ms ease-in forwards; }
+.loc-slow.exiting { animation: glass-out var(--dur-fast) ease-in forwards; }
 .idle-card {
   position: fixed;
   right: 22px;
