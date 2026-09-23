@@ -671,3 +671,28 @@ fn data_location_switch_copy_and_adopt() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn aging_current_stint_only() {
+    let conn = db::open_in_memory().unwrap();
+    let t0 = 1_800_000_000_000i64;
+    let day = db::day_of(t0);
+    let s = 1_000i64; // 秒
+
+    let a = ops::process_create(&conn, t0, "甲", None, None).unwrap();
+    let b = ops::process_create(&conn, t0 + 20 * s, "乙", None, None).unwrap();
+    // 甲挂起 10s 后被捞回（清零），30s 时又因切乙而再挂上
+    ops::process_switch(&conn, t0 + 10 * s, a, None).unwrap();
+    ops::process_switch(&conn, t0 + 30 * s, b, None).unwrap();
+    // 等AI 时段照算（它只是不参与呈现）
+    ops::waiting_ai_set(&conn, t0 + 40 * s, a, true).unwrap();
+    let ms = queries::q_suspended_ms_at(&conn, a, &day, t0 + 130 * s).unwrap();
+    assert_eq!(ms, 100_000, "当前段=30s 挂上起算，等AI 不截断");
+
+    // 捞回即清零：甲在 150s 被切入，之后老化为 0；乙在那时挂上
+    ops::process_switch(&conn, t0 + 150 * s, a, None).unwrap();
+    let ms_a = queries::q_suspended_ms_at(&conn, a, &day, t0 + 200 * s).unwrap();
+    assert_eq!(ms_a, 0, "运行中无老化");
+    let ms_b = queries::q_suspended_ms_at(&conn, b, &day, t0 + 250 * s).unwrap();
+    assert_eq!(ms_b, 100_000, "乙的当前段从 150s 挂起算");
+}

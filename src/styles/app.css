@@ -1367,7 +1367,7 @@ body:has(.overlay-card) {
 }
 .stats-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .stats-measure {
-  width: clamp(480px, 45%, 720px);
+  width: clamp(560px, 60%, 920px); /* 2026-09-22 放宽：原 45%/720 太窄 */
   margin: 0 auto;
   display: flex;
   flex-direction: column;

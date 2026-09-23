@@ -402,12 +402,13 @@ function dayTotal(pid: number): number {
     .reduce((acc, g) => acc + Math.max(0, (g.end ?? now) - g.start), 0);
 }
 
+/** 老化（当前段口径，2026-09-22 改）：距上一次挂上至今；等AI 时段照算（不参与呈现） */
 function aging(p: Process): number | null {
   if (p.state !== "suspended" && p.state !== "waiting_ai") return null;
-  const base = state.agingBase[p.id] ?? 0;
-  if (p.state === "waiting_ai") return base; // 等AI 不计老化
   const since = state.suspendedSince[p.id];
-  return base + (since ? Date.now() - since : 0);
+  if (since) return Date.now() - since;
+  // 等AI 种子无开口起点：用冻结值兜底（种子注释「等AI 前只有 5 分钟老化」）
+  return state.agingBase[p.id] ?? 0;
 }
 
 function ringElapsed(pid: number): number {
