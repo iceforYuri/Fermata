@@ -53,6 +53,7 @@ const tauriData: DataApi = {
   qPlans: () => invoke("q_plans"),
   qSegments: (pid, day) => invoke("q_segments", { pid, day }),
   qProcessDetail: (pid, day) => invoke("q_process_detail", { pid, day }),
+  qNotesDigest: () => invoke("q_notes_digest"),
   segmentNote: (segmentId, note) => invoke("segment_note", { segmentId, note }),
   processRename: (pid, title) => invoke("process_rename", { pid, title }),
   notesSet: (pid, notes) => invoke("notes_set", { pid, notes }),

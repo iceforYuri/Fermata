@@ -106,7 +106,7 @@ function buildRich(): MockState {
       state,
       prev_state: opts.prev_state ?? null,
       color_tag: opts.color_tag ?? null,
-      notes: null,
+      notes: null, notes_updated_at: null,
       created_at: opts.created_at ?? now,
       activated_count: opts.activated_count ?? 1,
       completed_at: opts.completed_at ?? null,
@@ -246,7 +246,7 @@ function buildRich(): MockState {
       const [title, color] = HIST[rnd() % HIST.length];
       const p: Process = {
         id: s.nextId++, title, state: "completed", prev_state: null,
-        color_tag: color, notes: null,
+        color_tag: color, notes: null, notes_updated_at: null,
         created_at: 0, activated_count: 1,
         completed_at: 0, queue_position: null, board_date: ds,
       };
@@ -258,6 +258,22 @@ function buildRich(): MockState {
       s.events.push({ id: s.events.length + 1, ts: start.getTime(), kind: "switch_in", process_id: p.id, payload: "{}" });
     }
   }
+
+  // 个人记录种子：本月两条带戳（汇总主组）+ 上月一条无色无戳（回退排入日归月、灰点）
+  mails.notes = "财务那封其实一句话就能回，拖了一下午是心理账。";
+  mails.notes_updated_at = now - 2 * H;
+  weekly.notes = "周报骨架 = 三个数字 + 一个风险。下周先写数字。";
+  weekly.notes_updated_at = now - 26 * H;
+  const legacyDs = (() => {
+    const d = new Date(now - 40 * DAY_MS);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
+  s.processes.push({
+    id: s.nextId++, title: "整理旧档案", state: "completed", prev_state: null,
+    color_tag: null, notes: "那时还没落戳的老记录。", notes_updated_at: null,
+    created_at: now - 40 * DAY_MS, activated_count: 1, completed_at: now - 39 * DAY_MS,
+    queue_position: null, board_date: legacyDs,
+  });
   return s;
 }
 
@@ -299,7 +315,7 @@ function buildGridMulti(): MockState {
   const end = a + 4 * 60_000;                 // 昨天 12:04
   const mkp = (title: string, color: number | null, s0: number, s1: number) => {
     const p: Process = {
-      id: s.nextId++, title, state: "completed", prev_state: null, color_tag: color, notes: null,
+      id: s.nextId++, title, state: "completed", prev_state: null, color_tag: color, notes: null, notes_updated_at: null,
       created_at: now - 26 * 3_600_000, activated_count: 1, completed_at: now - 25 * 3_600_000,
       queue_position: null, board_date: t,
     };
@@ -402,12 +418,13 @@ function dayTotal(pid: number): number {
     .reduce((acc, g) => acc + Math.max(0, (g.end ?? now) - g.start), 0);
 }
 
+/** 老化（当前段口径，2026-09-22 改）：距上一次挂上至今；等AI 时段照算（不参与呈现） */
 function aging(p: Process): number | null {
   if (p.state !== "suspended" && p.state !== "waiting_ai") return null;
-  const base = state.agingBase[p.id] ?? 0;
-  if (p.state === "waiting_ai") return base; // 等AI 不计老化
   const since = state.suspendedSince[p.id];
-  return base + (since ? Date.now() - since : 0);
+  if (since) return Date.now() - since;
+  // 等AI 种子无开口起点：用冻结值兜底（种子注释「等AI 前只有 5 分钟老化」）
+  return state.agingBase[p.id] ?? 0;
 }
 
 function ringElapsed(pid: number): number {
@@ -461,7 +478,7 @@ export const mockData: DataApi = {
       state: "suspended",
       prev_state: null,
       color_tag: colorTag ?? null,
-      notes: null,
+      notes: null, notes_updated_at: null,
       created_at: Date.now(),
       activated_count: 0,
       completed_at: null,
@@ -1078,6 +1095,20 @@ export const mockData: DataApi = {
 
   async notesSet(pid, notes) {
     proc(pid).notes = notes;
+    proc(pid).notes_updated_at = Date.now();
+  },
+
+  async qNotesDigest() {
+    return state.processes
+      .filter((p) => p.notes && p.notes.trim() !== "")
+      .map((p) => ({
+        process_id: p.id,
+        title: p.title,
+        color_tag: p.color_tag,
+        notes: p.notes!,
+        notes_updated_at: p.notes_updated_at ?? null,
+        board_date: p.board_date,
+      }));
   },
 };
 

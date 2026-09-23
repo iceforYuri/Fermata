@@ -16,6 +16,8 @@ interface UiState {
   dataEcho: string | null;
   /** 统计页进程详情子页（玻璃卡）：pid + 所查看的日期；null=关 */
   statsDetail: { pid: number; day: string } | null;
+  /** 个人记录子页（玻璃）：开/关 */
+  notesOpen: boolean;
 }
 
 let state: UiState = {
@@ -27,6 +29,7 @@ let state: UiState = {
   importConfirm: null,
   dataEcho: null,
   statsDetail: null,
+  notesOpen: false,
 };
 
 const listeners = new Set<() => void>();
@@ -71,6 +74,14 @@ export function openStatsDetail(pid: number, day: string) {
 
 export function closeStatsDetail() {
   setUi({ statsDetail: null });
+}
+
+export function openNotes() {
+  setUi({ notesOpen: true });
+}
+
+export function closeNotes() {
+  setUi({ notesOpen: false });
 }
 
 export function closeDetail() {

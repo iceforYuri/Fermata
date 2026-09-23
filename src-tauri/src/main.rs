@@ -157,7 +157,7 @@ fn migrate_legacy_db(new_dir: &std::path::Path) {
 }
 
 fn main() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -215,6 +215,7 @@ fn main() {
             fermata_lib::commands::q_plans,
             fermata_lib::commands::q_segments,
             fermata_lib::commands::q_process_detail,
+            fermata_lib::commands::q_notes_digest,
             fermata_lib::commands::segment_note,
             fermata_lib::commands::process_rename,
             fermata_lib::commands::notes_set,
@@ -275,6 +276,12 @@ fn main() {
             match fermata_lib::db::open(&db_path) {
                 Ok(conn) => {
                     log_line(&format!("[m2] db ready: {}", db_path.display()));
+                    // 启动兜底：崩溃/强杀开口段按最后事件闭合；running 非休息则自动重开（gap 不计）
+                    match fermata_lib::db::ops::recover_after_restart(&conn, fermata_lib::db::now_ms()) {
+                        Ok(n) if n > 0 => log_line(&format!("[boot] 崩溃兜底：闭合 {n} 条开口段")),
+                        Ok(_) => {}
+                        Err(e) => log_line(&format!("[boot] recover FAILED: {e}")),
+                    }
                     app.manage(fermata_lib::db::DbPathState(std::sync::Mutex::new(
                         db_path.clone(),
                     )));
@@ -321,8 +328,26 @@ fn main() {
             }
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running fermata");
+        .build(tauri::generate_context!())
+        .expect("error while building fermata");
+    app.run(|app_handle, event| {
+        if let tauri::RunEvent::Exit = event {
+            // 优雅退出收尾：闭合全部开口段 + app_exit 事件（只来一次）
+            use std::sync::atomic::{AtomicBool, Ordering};
+            static DONE: AtomicBool = AtomicBool::new(false);
+            if DONE.swap(true, Ordering::SeqCst) {
+                return;
+            }
+            let st = app_handle.state::<fermata_lib::db::DbState>();
+            let guard = st.0.lock().map_err(|e| e.to_string());
+            if let Ok(c) = guard {
+                match fermata_lib::db::ops::app_exit(&c, fermata_lib::db::now_ms()) {
+                    Ok(()) => log_line("[exit] app_exit：开口段已收口"),
+                    Err(e) => log_line(&format!("[exit] app_exit FAILED: {e}")),
+                }
+            }
+        }
+    });
 }
 
 /// 验收用：任意预建窗口的不抢焦点断言（PoC 原语A 的通用化）

@@ -40,9 +40,16 @@ export async function undoComplete() {
   });
 }
 
-/** 切换进程：环未满即提前切走，按 ring_elapsed 精确记 slice_aborted */
+/** 切换进程：休息中切走 = 显式回来（先收 rest_end 再切）；环未满即提前切走记 slice_aborted */
 export async function switchTo(pid: number, breakpoint?: string) {
   const b = getBoard();
+  // 休息旁路收口（2026-09-23）：切换浮层/板面都经此入口——rest_end 只记事件不 reopen
+  // （旧进程段由 switch 自己合），弹窗随之收起；与"翻下一篇"同语义
+  if (b.rest.resting) {
+    await data.restEnd(undefined);
+    await system.hideRestpop();
+    setPendingRest(null);
+  }
   const running = b.board?.running;
   if (running && running.process.id !== pid && running.timer_open) {
     const elapsed =

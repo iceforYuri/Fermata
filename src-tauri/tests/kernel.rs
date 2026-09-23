@@ -671,3 +671,92 @@ fn data_location_switch_copy_and_adopt() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn aging_current_stint_only() {
+    let conn = db::open_in_memory().unwrap();
+    let t0 = 1_800_000_000_000i64;
+    let day = db::day_of(t0);
+    let s = 1_000i64; // 秒
+
+    let a = ops::process_create(&conn, t0, "甲", None, None).unwrap();
+    let b = ops::process_create(&conn, t0 + 20 * s, "乙", None, None).unwrap();
+    // 甲挂起 10s 后被捞回（清零），30s 时又因切乙而再挂上
+    ops::process_switch(&conn, t0 + 10 * s, a, None).unwrap();
+    ops::process_switch(&conn, t0 + 30 * s, b, None).unwrap();
+    // 等AI 时段照算（它只是不参与呈现）
+    ops::waiting_ai_set(&conn, t0 + 40 * s, a, true).unwrap();
+    let ms = queries::q_suspended_ms_at(&conn, a, &day, t0 + 130 * s).unwrap();
+    assert_eq!(ms, 100_000, "当前段=30s 挂上起算，等AI 不截断");
+
+    // 捞回即清零：甲在 150s 被切入，之后老化为 0；乙在那时挂上
+    ops::process_switch(&conn, t0 + 150 * s, a, None).unwrap();
+    let ms_a = queries::q_suspended_ms_at(&conn, a, &day, t0 + 200 * s).unwrap();
+    assert_eq!(ms_a, 0, "运行中无老化");
+    let ms_b = queries::q_suspended_ms_at(&conn, b, &day, t0 + 250 * s).unwrap();
+    assert_eq!(ms_b, 100_000, "乙的当前段从 150s 挂起算");
+}
+
+#[test]
+fn notes_set_stamps_and_digest() {
+    let conn = db::open_in_memory().unwrap();
+    let t0 = 1_800_000_000_000i64;
+    let a = ops::process_create(&conn, t0, "甲", None, None).unwrap();
+    let _b = ops::process_create(&conn, t0 + 1, "乙", None, None).unwrap();
+
+    ops::notes_set(&conn, t0 + 2, a, "第一版心得").unwrap();
+    ops::notes_set(&conn, t0 + 3, a, "   ").unwrap(); // 空白：不进汇总
+    ops::notes_set(&conn, t0 + 4, a, "最终版心得").unwrap();
+
+    let d = queries::q_notes_digest(&conn).unwrap();
+    assert_eq!(d.len(), 1, "只有非空记录进汇总");
+    assert_eq!(d[0].process_id, a);
+    assert_eq!(d[0].notes_updated_at, Some(t0 + 4), "写入即落戳");
+    assert_eq!(d[0].notes, "最终版心得");
+
+    // 事件 payload 带全文（LLM 汇总的口粮）
+    let evs = events_snapshot(&conn);
+    let last = evs.iter().rev().find(|e| e.2 == "notes_set").unwrap();
+    assert!(last.4.as_deref().unwrap_or("").contains("最终版心得"), "notes_set 事件应带全文");
+}
+
+#[test]
+fn app_exit_closes_all_and_restart_recovery() {
+    let conn = db::open_in_memory().unwrap();
+    let t0 = 1_800_000_000_000i64;
+    let s = 1_000i64;
+
+    let a = ops::process_create(&conn, t0, "甲", None, None).unwrap();
+    let _b = ops::process_create(&conn, t0 + 1, "乙", None, None).unwrap();
+    ops::process_switch(&conn, t0 + 2, a, None).unwrap(); // a running，开口
+
+    // 优雅退出：合全部开口 + app_exit
+    ops::app_exit(&conn, t0 + 10 * s).unwrap();
+    let open_n: i64 = conn.query_row("SELECT COUNT(*) FROM segments WHERE ended_at IS NULL", [], |r| r.get(0)).unwrap();
+    assert_eq!(open_n, 0, "退出后无开口");
+    assert!(events_snapshot(&conn).iter().any(|e| e.2 == "app_exit"));
+
+    // 启动恢复（优雅退出后）：无兜底对象不写 app_start；running 无开口 → 自动重开
+    let n = ops::recover_after_restart(&conn, t0 + 3600 * s).unwrap();
+    assert_eq!(n, 0, "优雅退出后无兜底对象");
+    let open_a: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM segments WHERE ended_at IS NULL AND process_id = ?1",
+        rusqlite::params![a], |r| r.get(0)).unwrap();
+    assert_eq!(open_a, 1, "running 自动重开");
+    assert!(!events_snapshot(&conn).iter().any(|e| e.2 == "app_start"), "无崩溃不写 app_start");
+
+    // 崩溃兜底：开口段按最后事件时刻（钳到段起）闭合，写 app_start；随后再次自动重开
+    let n = ops::recover_after_restart(&conn, t0 + 7200 * s).unwrap();
+    assert_eq!(n, 1, "兜底闭合 1 条");
+    let seg2_end: Option<i64> = conn.query_row(
+        "SELECT ended_at FROM segments WHERE process_id = ?1 ORDER BY id DESC LIMIT 1 OFFSET 1",
+        rusqlite::params![a], |r| r.get(0)).ok().flatten();
+    assert_eq!(seg2_end, Some(t0 + 3600 * s), "最后事件早于段起：钳到段起");
+    assert!(events_snapshot(&conn).iter().any(|e| e.2 == "app_start"));
+
+    // 休息中不自动重开
+    ops::rest_start(&conn, t0 + 7300 * s, Some(a)).unwrap();
+    let _ = ops::recover_after_restart(&conn, t0 + 7400 * s).unwrap();
+    let open_n: i64 = conn.query_row("SELECT COUNT(*) FROM segments WHERE ended_at IS NULL", [], |r| r.get(0)).unwrap();
+    assert_eq!(open_n, 0, "休息中不自动重开");
+}
