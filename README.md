@@ -1,5 +1,13 @@
 <div align="center">
 
+# Fermata
+
+**把一天排成一页版面。**
+
+![Fermata 进程页](docs/screenshots/release/readme-board.png)
+
+</div>
+
 普通任务列表记录"该做什么"，Fermata 额外记录"做到哪了"。
 它为全天与 AI 协作、频繁切换的人而造：内核是一台任务调度器——挂起、恢复、断点、计时、休止符；报纸式排版只是这层调度的呈现。数据全在本机，无账号、无云、无遥测。
 
