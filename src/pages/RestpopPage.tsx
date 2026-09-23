@@ -20,7 +20,9 @@ export function RestpopPage() {
   const [nextOpen, setNextOpen] = useState(false);
   const [animKey, setAnimKey] = useState(0);
   const [exiting, setExiting] = useState(false);
-  // 会关窗的选择：先播 150ms 反场再执行（窗口随之 hide）；重开时 animKey 重挂载自动复位
+  // 会关窗的选择：先播 150ms 反场再执行（窗口随之 hide）
+  // 注意：本窗口常驻不销毁，key 重挂载只重建 DOM 不重置 useState——所以必须在 show 事件里显式复位 exiting，
+  // 否则 restpop-out 的 forwards 定格 opacity:0 会带进下一次弹出（v1.3 教训：弹窗二次弹出全透明）
   const closeWith = (fn: () => Promise<void>) => {
     if (exiting) return;
     setExiting(true);
@@ -29,7 +31,10 @@ export function RestpopPage() {
   useEffect(() => {
     let un: (() => void) | undefined;
     system.onOverlayVisibility((label, visible) => {
-      if (label === "restpop" && visible) setAnimKey((k) => k + 1); // 每次 show 重播进场
+      if (label === "restpop" && visible) {
+        setAnimKey((k) => k + 1); // 每次 show 重播进场
+        setExiting(false); // 出场态显式复位（常驻窗口组件不销毁）
+      }
     }).then((f) => (un = f));
     return () => un?.();
   }, []);

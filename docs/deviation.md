@@ -295,3 +295,8 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 ### D60 · 休息旁路收口 + 退出/启动的分段收口（feature/stats-polish）
 **决策**：① `switchTo` 统一入口：休息中切走先 `rest_end`（仅事件不 reopen）再切换——把 04「切换浮层直接切到别的进程 = 显式开工」从文字落成代码（此前实现漏了这条，休息态被 Alt+Q 旁路、休息钟与计时器双跑）；② 优雅退出（RunEvent::Exit）写 `app_exit` + 闭合全部开口段；③ 启动 `recover_after_restart`：崩溃/强杀开口段按最后事件时刻闭合（写 `app_start`），running 非休息自动重开（启动即回来，gap 不计）。
 **理由**：用户实库证据——休息区间内 5 小段真实计时（旁路）+ 701 分钟跨夜幽灵段（无退出收尾）。幽灵段 #305 已按 24:00 一次性截断（库备份 fermata.db.bak-20260923）；跨午夜幽灵在 ②③ 后绝迹，真·通宵段不做跨天切分。
+
+### D61 · 休止符二次弹出全透明（fix/restpop-exit-stuck）
+**根因**：常驻预建浮层 + 组件级 `exiting` state + `restpop-out` 的 forwards 定格——首次关闭后 `exiting` 滞留 true；`key` 重挂载只重建 DOM 不重置 useState，二次弹出时 exiting 规则继续钉死 opacity:0，弹窗"显示但什么都看不见"。
+**修法**：show 事件（onOverlayVisibility）里显式 `setExiting(false)`。
+**教训**：常驻窗口的出场态必须由 show 事件复位，不能依赖组件生命周期；验收出场动效必须验"第二次弹出"（首版探针只验了单次关闭，漏了）。
