@@ -11,3 +11,4 @@ publish/
 src-tauri/readme-demo.db
 scripts/input-probe/target/
 docs/screenshots/poc/poc-runtime.log
+rundev*.log
