@@ -1,7 +1,7 @@
 //! 变更操作：状态机 + 事件 + segments 维护。
 //! 所有函数显式接收 ts（epoch ms），保证种子与测试的确定性。
 
-use super::{append_event, close_open_segment, day_of, get_process, last_timer_closer, open_segment, timer_open};
+use super::{append_event, close_all_open_segments, close_open_segment, day_of, get_process, last_timer_closer, open_segment, timer_open};
 use rusqlite::Connection;
 use serde_json::json;
 
@@ -735,8 +735,7 @@ pub fn setting_get(conn: &Connection, key: &str) -> Option<String> {
 }
 
 /// 空闲回归确认：yes = 把空闲段回补进该进程 focus（合并回原 segment）
-pub fn idle_confirm(conn: &Connection, ts: i64, pid: i64, yes: bool) -> Result<(), String> {
-    if yes {
+pub fn idle_confirm(conn: &Connection, ts: i64, pid: i64, yes: bool) -> Result<(), String> {    if yes {
         // 合并：删掉空闲后新开的段，把空闲前闭合的段重新打开（开口起点回吞空闲区间）
         let open_id: Option<i64> = conn
             .query_row(
@@ -771,4 +770,61 @@ pub fn slice_override(conn: &Connection, ts: i64, pid: i64, minutes: i64) -> Res
     get_process(conn, pid)?;
     append_event(conn, ts, "slice_override", Some(pid), serde_json::json!({ "minutes": minutes }))?;
     Ok(())
+}
+
+/// 优雅退出收尾（2026-09-23）：闭合全部开口段 + app_exit 事件。调用侧保证只来一次。
+pub fn app_exit(conn: &Connection, ts: i64) -> Result<(), String> {
+    let n = close_all_open_segments(conn, ts)?;
+    append_event(conn, ts, "app_exit", None, json!({ "closed": n }))?;
+    Ok(())
+}
+
+/// 启动兜底 + 重启恢复（2026-09-23，返回兜底闭合数）：
+/// 1) 崩溃/强杀留下的开口段，以最后一条事件的时刻闭合（再往前无法考证），写 app_start；
+/// 2) running 进程非休息态且无开口 → 重新开口（启动即回来，gap 不计）。
+pub fn recover_after_restart(conn: &Connection, ts: i64) -> Result<usize, String> {
+    let last_ts: Option<i64> = conn
+        .query_row("SELECT MAX(ts) FROM events", [], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT s.id, s.started_at FROM segments s
+             JOIN processes p ON p.id = s.process_id
+             WHERE s.ended_at IS NULL AND p.state = 'running'",
+        )
+        .map_err(|e| e.to_string())?;
+    let opens: Vec<(i64, i64)> = stmt
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+    let recovered = opens.len();
+    if recovered > 0 {
+        let close_at = last_ts.unwrap_or(ts);
+        for (sid, started) in &opens {
+            conn.execute(
+                "UPDATE segments SET ended_at = ?2 WHERE id = ?1",
+                rusqlite::params![sid, close_at.max(*started)],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+        append_event(conn, ts, "app_start", None, json!({ "recovered": recovered, "closed_at": close_at }))?;
+    }
+    // 重启恢复：running 且无开口且非休息 → 重新开口（启动即回来）
+    let resting = super::queries::q_rest_state(conn)?.resting;
+    if !resting {
+        let running: Option<i64> = conn
+            .query_row(
+                "SELECT id FROM processes WHERE state = 'running' LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
+            .ok();
+        if let Some(pid) = running {
+            if !timer_open(conn, pid)? {
+                open_segment(conn, pid, ts)?;
+            }
+        }
+    }
+    Ok(recovered)
 }

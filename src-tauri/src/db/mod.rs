@@ -409,6 +409,17 @@ pub fn close_open_segment(conn: &Connection, pid: i64, ts: i64) -> Result<bool, 
     Ok(n > 0)
 }
 
+/// 闭合全部开口段（优雅退出收尾用），返回闭合数
+pub fn close_all_open_segments(conn: &Connection, ts: i64) -> Result<i64, String> {
+    let n = conn
+        .execute(
+            "UPDATE segments SET ended_at = ?1 WHERE ended_at IS NULL",
+            rusqlite::params![ts],
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(n as i64)
+}
+
 /// 打开计时开口（若已有开口则不动，幂等）
 pub fn open_segment(conn: &Connection, pid: i64, ts: i64) -> Result<(), String> {
     let open: i64 = conn

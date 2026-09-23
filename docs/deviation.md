@@ -291,3 +291,7 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 ### D59 · run-dev.bat 改纯预览（去掉 tauri dev 看门狗）
 **决策**：bat = `pnpm build` + `cargo build` + 直接拉起 `target/debug/fermata.exe`；不再走 `pnpm tauri dev`。后者的 `beforeDevCommand` 会起 vite 服务器、Rust 文件监视会一变就重启进程——用户遇到的"窗口关闭重新弹出"即此看门狗，与前端 HMR 无关。
 **理由**：用户要的是"构建一次、静态预览、改完自己重跑"；热重载开发路径保留为手动 `pnpm tauri dev`（D53 的 devUrl 问题照旧挂着，不受影响）。
+
+### D60 · 休息旁路收口 + 退出/启动的分段收口（feature/stats-polish）
+**决策**：① `switchTo` 统一入口：休息中切走先 `rest_end`（仅事件不 reopen）再切换——把 04「切换浮层直接切到别的进程 = 显式开工」从文字落成代码（此前实现漏了这条，休息态被 Alt+Q 旁路、休息钟与计时器双跑）；② 优雅退出（RunEvent::Exit）写 `app_exit` + 闭合全部开口段；③ 启动 `recover_after_restart`：崩溃/强杀开口段按最后事件时刻闭合（写 `app_start`），running 非休息自动重开（启动即回来，gap 不计）。
+**理由**：用户实库证据——休息区间内 5 小段真实计时（旁路）+ 701 分钟跨夜幽灵段（无退出收尾）。幽灵段 #305 已按 24:00 一次性截断（库备份 fermata.db.bak-20260923）；跨午夜幽灵在 ②③ 后绝迹，真·通宵段不做跨天切分。
