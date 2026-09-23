@@ -707,15 +707,15 @@ pub fn process_rename(conn: &Connection, ts: i64, pid: i64, title: &str) -> Resu
     Ok(())
 }
 
-/// 个人记录（详情栏沉底自由文本）
+/// 个人记录（详情栏沉底自由文本）：写入即落更新戳；全文入事件日志（LLM 每日汇总的口粮）
 pub fn notes_set(conn: &Connection, ts: i64, pid: i64, notes: &str) -> Result<(), String> {
     get_process(conn, pid)?;
     conn.execute(
-        "UPDATE processes SET notes = ?2 WHERE id = ?1",
-        rusqlite::params![pid, notes],
+        "UPDATE processes SET notes = ?2, notes_updated_at = ?3 WHERE id = ?1",
+        rusqlite::params![pid, notes, ts],
     )
     .map_err(|e| e.to_string())?;
-    append_event(conn, ts, "notes_set", Some(pid), serde_json::json!({})).ok();
+    append_event(conn, ts, "notes_set", Some(pid), serde_json::json!({ "notes": notes })).ok();
     Ok(())
 }
 

@@ -696,3 +696,26 @@ fn aging_current_stint_only() {
     let ms_b = queries::q_suspended_ms_at(&conn, b, &day, t0 + 250 * s).unwrap();
     assert_eq!(ms_b, 100_000, "乙的当前段从 150s 挂起算");
 }
+
+#[test]
+fn notes_set_stamps_and_digest() {
+    let conn = db::open_in_memory().unwrap();
+    let t0 = 1_800_000_000_000i64;
+    let a = ops::process_create(&conn, t0, "甲", None, None).unwrap();
+    let _b = ops::process_create(&conn, t0 + 1, "乙", None, None).unwrap();
+
+    ops::notes_set(&conn, t0 + 2, a, "第一版心得").unwrap();
+    ops::notes_set(&conn, t0 + 3, a, "   ").unwrap(); // 空白：不进汇总
+    ops::notes_set(&conn, t0 + 4, a, "最终版心得").unwrap();
+
+    let d = queries::q_notes_digest(&conn).unwrap();
+    assert_eq!(d.len(), 1, "只有非空记录进汇总");
+    assert_eq!(d[0].process_id, a);
+    assert_eq!(d[0].notes_updated_at, Some(t0 + 4), "写入即落戳");
+    assert_eq!(d[0].notes, "最终版心得");
+
+    // 事件 payload 带全文（LLM 汇总的口粮）
+    let evs = events_snapshot(&conn);
+    let last = evs.iter().rev().find(|e| e.2 == "notes_set").unwrap();
+    assert!(last.4.as_deref().unwrap_or("").contains("最终版心得"), "notes_set 事件应带全文");
+}

@@ -442,6 +442,39 @@ pub fn q_process_detail(conn: &Connection, pid: i64, day: &str) -> Result<Proces
 }
 
 #[derive(Serialize)]
+pub struct NoteEntry {
+    pub process_id: i64,
+    pub title: String,
+    pub color_tag: Option<i64>,
+    pub notes: String,
+    pub notes_updated_at: Option<i64>, // 无戳（存量）→ 前端回退排入日归月
+    pub board_date: String,
+}
+
+/// 个人记录汇总（玻璃子页，2026-09-22）：全部非空记录；归月/排序在前端（按更新戳，无戳回退排入日）
+pub fn q_notes_digest(conn: &Connection) -> Result<Vec<NoteEntry>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, title, color_tag, notes, notes_updated_at, board_date
+             FROM processes WHERE notes IS NOT NULL AND TRIM(notes) != '' ORDER BY id",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |r| {
+            Ok(NoteEntry {
+                process_id: r.get("id")?,
+                title: r.get("title")?,
+                color_tag: r.get("color_tag")?,
+                notes: r.get("notes")?,
+                notes_updated_at: r.get("notes_updated_at")?,
+                board_date: r.get("board_date")?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    Ok(rows.filter_map(|r| r.ok()).collect())
+}
+
+#[derive(Serialize)]
 pub struct RestState {
     pub resting: bool,
     pub since: Option<i64>,

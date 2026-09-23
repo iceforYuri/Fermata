@@ -987,6 +987,77 @@
   margin-top: 12px;
 }
 
+/* 个人记录子页 + 入口（2026-09-22） */
+.notes-entry {
+  display: block;
+  margin: 22px auto 0;
+  font-size: var(--fs-small);
+  color: var(--ink-soft);
+  border-bottom: 1px solid transparent;
+  transition: color var(--dur-fast), border-color var(--dur-fast);
+}
+.notes-entry:hover {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+.notes-panel {
+  width: clamp(460px, 50%, 720px);
+}
+.notes-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.notes-summary-slot {
+  font-size: var(--fs-micro);
+  color: var(--ink-ghost); /* 月度汇总排版位（v1.x 接 LLM） */
+}
+.note-row {
+  display: flex;
+  gap: 10px;
+  padding: 7px 2px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background var(--dur-fast);
+}
+.note-row:hover {
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+.note-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-top: 8px;
+}
+.note-body {
+  flex: 1;
+  min-width: 0;
+}
+.note-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.note-title {
+  font-size: var(--fs-micro);
+  color: var(--ink-soft);
+}
+.note-time {
+  font-size: var(--fs-micro);
+  color: var(--ink-faint);
+}
+.note-time.legacy {
+  color: var(--ink-ghost);
+}
+.note-text {
+  font-size: var(--fs-body);
+  color: var(--ink);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* ================= 休息页（液态玻璃整页） ================= */
 .rest-page {
   position: absolute;

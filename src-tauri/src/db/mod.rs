@@ -249,6 +249,17 @@ fn migrate(conn: &Connection) -> Result<(), String> {
         )
         .map_err(|e| e.to_string())?;
     }
+
+    // v5（feature/stats-polish）：processes.notes_updated_at —— 个人记录落戳（汇总区按此归月）
+    if applied < 5 {
+        conn.execute_batch("ALTER TABLE processes ADD COLUMN notes_updated_at INTEGER;")
+            .map_err(|e| format!("迁移 v5 失败: {e}"))?;
+        conn.execute(
+            "INSERT INTO schema_migrations (version, applied_at) VALUES (5, ?1)",
+            rusqlite::params![now_ms()],
+        )
+        .map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 
@@ -279,6 +290,7 @@ pub struct Process {
     pub queue_position: Option<i64>,
     pub board_date: String,
     pub notes: Option<String>,
+    pub notes_updated_at: Option<i64>,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -345,6 +357,7 @@ pub fn row_to_process(r: &rusqlite::Row) -> rusqlite::Result<Process> {
         queue_position: r.get("queue_position")?,
         board_date: r.get("board_date")?,
         notes: r.get("notes").ok(),
+        notes_updated_at: r.get("notes_updated_at").ok(),
     })
 }
 
