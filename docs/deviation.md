@@ -287,3 +287,7 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 ### D58 · 个人记录落戳 + notes_set 事件带全文（feature/stats-polish）
 **决策**：`processes` 加 `notes_updated_at`（迁移 v5），`notes_set` 写入即落戳；事件 payload 从空 `json!({})` 改为携带全文。
 **理由**：记录汇总区需要"何时写的"；事件日志即记录流水（LLM 每日汇总的口粮），与标题/断点同级敏感度的本地数据，不另建表。存量无戳记录前端回退按排入日归月。
+
+### D59 · run-dev.bat 改纯预览（去掉 tauri dev 看门狗）
+**决策**：bat = `pnpm build` + `cargo build` + 直接拉起 `target/debug/fermata.exe`；不再走 `pnpm tauri dev`。后者的 `beforeDevCommand` 会起 vite 服务器、Rust 文件监视会一变就重启进程——用户遇到的"窗口关闭重新弹出"即此看门狗，与前端 HMR 无关。
+**理由**：用户要的是"构建一次、静态预览、改完自己重跑"；热重载开发路径保留为手动 `pnpm tauri dev`（D53 的 devUrl 问题照旧挂着，不受影响）。
