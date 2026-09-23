@@ -14,6 +14,10 @@ interface UiState {
   importConfirm: { path: string; processes: number; events: number; exported_at: number | null } | null;
   /** 设置页数据组的行内回执（导出路径 / 导入结果 / 错误） */
   dataEcho: string | null;
+  /** 统计页进程详情子页（玻璃卡）：pid + 所查看的日期；null=关 */
+  statsDetail: { pid: number; day: string } | null;
+  /** 个人记录子页（玻璃）：开/关 */
+  notesOpen: boolean;
 }
 
 let state: UiState = {
@@ -24,6 +28,8 @@ let state: UiState = {
   toast: null,
   importConfirm: null,
   dataEcho: null,
+  statsDetail: null,
+  notesOpen: false,
 };
 
 const listeners = new Set<() => void>();
@@ -60,6 +66,22 @@ export function toggleLeft() {
 export function openDetail(pid: number) {
   const narrow = window.innerWidth <= window.innerHeight * 1.15; // 接近 1:1
   setUi({ rightPid: pid, leftOpen: narrow ? false : state.leftOpen });
+}
+
+export function openStatsDetail(pid: number, day: string) {
+  setUi({ statsDetail: { pid, day } });
+}
+
+export function closeStatsDetail() {
+  setUi({ statsDetail: null });
+}
+
+export function openNotes() {
+  setUi({ notesOpen: true });
+}
+
+export function closeNotes() {
+  setUi({ notesOpen: false });
 }
 
 export function closeDetail() {

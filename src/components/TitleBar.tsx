@@ -75,10 +75,10 @@ export const TitleBar = memo(function TitleBar() {
 
   const switchTab = (next: Tab) => {
     if (next === tab) return;
-    const { leftOpen, rightPid, archiveOpen } = getUi();
-    if (leftOpen || rightPid !== null || archiveOpen) {
-      // 面板开着：先收（140ms）再滑
-      setUi({ leftOpen: false, rightPid: null, archiveOpen: false });
+    const { leftOpen, rightPid, archiveOpen, statsDetail, notesOpen } = getUi();
+    if (leftOpen || rightPid !== null || archiveOpen || statsDetail || notesOpen) {
+      // 面板/子页开着：先收（140ms）再滑
+      setUi({ leftOpen: false, rightPid: null, archiveOpen: false, statsDetail: null, notesOpen: false });
       setTimeout(() => setUi({ tab: next }), 140);
     } else {
       setUi({ tab: next }); // 无面板：立即切

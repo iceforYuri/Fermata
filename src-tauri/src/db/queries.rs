@@ -179,7 +179,9 @@ pub fn q_process_day_total_at(conn: &Connection, pid: i64, day: &str, now: i64) 
     Ok(total.max(0))
 }
 
-/// 挂起时长（ms，老化口径）：当天处于 suspended 且非 waiting_ai 的时长，从事件流重建。
+/// 老化（ms，2026-09-22 改口径）：**当前这段挂起**——距上一次挂上（process_create /
+/// switch_out / process_reopen）至今；捞回（switch_in / complete）即清零重计。
+/// 等AI 是挂起子状态，时段照算（它只是不参与呈现：不褪色、标签不加深）。
 pub fn q_suspended_ms(conn: &Connection, pid: i64, day: &str) -> Result<i64, String> {
     q_suspended_ms_at(conn, pid, day, now_ms())
 }
@@ -189,87 +191,31 @@ pub fn q_suspended_ms_at(conn: &Connection, pid: i64, day: &str, as_of: i64) -> 
     let now = as_of.min(end);
     let mut stmt = conn
         .prepare(
-            "SELECT ts, kind, payload FROM events
+            "SELECT ts, kind FROM events
              WHERE process_id = ?1 AND ts < ?2
-               AND kind IN ('process_create','switch_in','switch_out','waiting_ai_set','process_complete','process_reopen')
+               AND kind IN ('process_create','switch_in','switch_out','process_complete','process_reopen')
              ORDER BY id",
         )
         .map_err(|e| e.to_string())?;
-    let rows: Vec<(i64, String, Option<String>)> = stmt
-        .query_map(rusqlite::params![pid, end], |r| {
-            Ok((r.get(0)?, r.get(1)?, r.get(2)?))
-        })
+    let rows: Vec<(i64, String)> = stmt
+        .query_map(rusqlite::params![pid, end], |r| Ok((r.get(0)?, r.get(1)?)))
         .map_err(|e| e.to_string())?
         .filter_map(|r| r.ok())
         .collect();
 
-    // 初始状态：第一条事件之前不存在
-    let mut suspended_since: Option<i64> = None;
-    let mut waiting_ai = false;
-    let mut total = 0i64;
-
-    let enter = |since: &mut Option<i64>, ts: i64| {
-        *since = Some(ts);
-    };
-
-    for (ts, kind, payload) in &rows {
-        let ts = *ts;
-        let close_interval = |since: &mut Option<i64>, until: i64, total: &mut i64| {
-            if let Some(s) = since.take() {
-                let a = s.max(start);
-                let b = until.min(now);
-                if b > a {
-                    *total += b - a;
-                }
-            }
-        };
+    // 当前段起点：最后一次"挂上"；捞回即清零
+    let mut since: Option<i64> = None;
+    for (ts, kind) in &rows {
         match kind.as_str() {
-            "process_create" | "switch_out" | "process_reopen" => {
-                waiting_ai = false;
-                enter(&mut suspended_since, ts);
-            }
-            "waiting_ai_set" => {
-                let on: bool = payload
-                    .as_deref()
-                    .and_then(|p| serde_json::from_str::<serde_json::Value>(p).ok())
-                    .and_then(|v| v.get("on").and_then(|b| b.as_bool()))
-                    .unwrap_or(false);
-                if on {
-                    // 等AI 不参与老化：挂起区间在此截断
-                    close_interval(&mut suspended_since, ts, &mut total);
-                    waiting_ai = true;
-                } else {
-                    waiting_ai = false;
-                    // 还原到 suspended 才继续计老化
-                    let restored = payload
-                        .as_deref()
-                        .and_then(|p| serde_json::from_str::<serde_json::Value>(p).ok())
-                        .and_then(|v| {
-                            v.get("restored").and_then(|s| s.as_str()).map(String::from)
-                        })
-                        .unwrap_or_else(|| "suspended".into());
-                    if restored == "suspended" {
-                        enter(&mut suspended_since, ts);
-                    }
-                }
-            }
-            "switch_in" | "process_complete" => {
-                close_interval(&mut suspended_since, ts, &mut total);
-                waiting_ai = false;
-            }
+            "process_create" | "switch_out" | "process_reopen" => since = Some(*ts),
+            "switch_in" | "process_complete" => since = None,
             _ => {}
         }
     }
-    // 尾部开口区间（仍挂起中）
-    if let Some(s) = suspended_since {
-        if !waiting_ai {
-            let a = s.max(start);
-            if now > a {
-                total += now - a;
-            }
-        }
-    }
-    Ok(total)
+    Ok(match since {
+        Some(s) => (now - s.max(start)).max(0),
+        None => 0,
+    })
 }
 
 /// 时间片统计：当天 slice_complete / slice_aborted 计数
@@ -461,6 +407,67 @@ pub fn q_segments(conn: &Connection, pid: i64, day: &str) -> Result<Vec<super::S
                 day: r.get("day")?,
                 kind: r.get("kind")?,
                 note: r.get("note")?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    Ok(rows.filter_map(|r| r.ok()).collect())
+}
+
+#[derive(Serialize)]
+pub struct ProcessDetail {
+    pub process: Process,
+    pub steps: Vec<Step>,
+    pub stack_top: Option<StackTop>,
+    pub segments: Vec<super::Segment>, // 所查看那一天的分段
+    pub day_total_ms: i64,
+}
+
+/// 进程详情（统计页玻璃卡，2026-09-22）：按 pid 直查，不绑定当天版面
+pub fn q_process_detail(conn: &Connection, pid: i64, day: &str) -> Result<ProcessDetail, String> {
+    let p: Process = conn
+        .query_row(
+            "SELECT * FROM processes WHERE id = ?1",
+            rusqlite::params![pid],
+            row_to_process,
+        )
+        .map_err(|e| e.to_string())?;
+    let steps = steps_of(conn, pid)?;
+    let stack_top = steps
+        .iter()
+        .find(|s| s.kind == "note" || !s.done)
+        .map(|s| StackTop { title: s.title.clone(), kind: s.kind.clone() });
+    let segments = q_segments(conn, pid, day)?;
+    let day_total_ms = q_process_day_total(conn, pid, day)?;
+    Ok(ProcessDetail { process: p, steps, stack_top, segments, day_total_ms })
+}
+
+#[derive(Serialize)]
+pub struct NoteEntry {
+    pub process_id: i64,
+    pub title: String,
+    pub color_tag: Option<i64>,
+    pub notes: String,
+    pub notes_updated_at: Option<i64>, // 无戳（存量）→ 前端回退排入日归月
+    pub board_date: String,
+}
+
+/// 个人记录汇总（玻璃子页，2026-09-22）：全部非空记录；归月/排序在前端（按更新戳，无戳回退排入日）
+pub fn q_notes_digest(conn: &Connection) -> Result<Vec<NoteEntry>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, title, color_tag, notes, notes_updated_at, board_date
+             FROM processes WHERE notes IS NOT NULL AND TRIM(notes) != '' ORDER BY id",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |r| {
+            Ok(NoteEntry {
+                process_id: r.get("id")?,
+                title: r.get("title")?,
+                color_tag: r.get("color_tag")?,
+                notes: r.get("notes")?,
+                notes_updated_at: r.get("notes_updated_at")?,
+                board_date: r.get("board_date")?,
             })
         })
         .map_err(|e| e.to_string())?;

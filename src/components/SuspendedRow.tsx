@@ -2,12 +2,14 @@ import { useState } from "react";
 import { data, type BoardProcess } from "../api/data";
 import { act, markHex, useBoard } from "../store/board";
 import { completeWithUndo } from "../store/actions";
-import { agingOpacity, fmtDur } from "../util";
+import { openDetail } from "../store/ui";
+import { agingInk, agingOpacity, fmtDur } from "../util";
 import { ROW_PITCH, SQUEEZE, isOverActive, queueInsertAt } from "./dnd";
 
 /**
  * 挂起行 64px：标题 15 / 导语小字（栈顶条目）/ 老化"挂 23m" /
- * 对数渐褪，hover 复活手型；点击=断点小卡切换；拖动=排序（先塌陷后开缝+落点虚影）；
+ * 老化双轴：行线性渐褪（4h 触底 0.45）+"挂 xx"反向加深（4h 到顶浓墨，hover 复活不及它）；
+ * 点击=断点小卡切换+详情栏同开；拖动=排序（先塌陷后开缝+落点虚影）；
  * 拖过折线到活跃位=切换（虚影覆盖活跃位）。
  */
 export function SuspendedRow({
@@ -23,12 +25,16 @@ export function SuspendedRow({
   const p = bp.process;
   const color = markHex(board, p.color_tag);
   const waiting = p.state === "waiting_ai";
-  const opacity = waiting ? 1 : agingOpacity(bp.aging_ms ?? 0);
+  // 老化双轴：行褪（--age-op，施于卡片边框/染底与标题等小字）+ 标签沉（--age-ink，只施于「挂 xx」）
+  const ageOp = waiting ? 1 : agingOpacity(bp.aging_ms ?? 0);
+  const ageInk = waiting ? 0.38 : agingInk(bp.aging_ms ?? 0);
 
   return (
     <div
       className={`row suspended${color ? "" : " no-mark"}`}
-      style={{ "--mc": color ?? undefined, opacity, ...style } as React.CSSProperties}
+      style={
+        { "--mc": color ?? undefined, "--age-op": ageOp, "--age-ink": ageInk, ...style } as React.CSSProperties
+      }
       data-testid="suspended-row"
       data-pid={p.id}
       data-state={p.state}
@@ -113,7 +119,11 @@ export function SuspendedQueue({
       if (!moved) {
         const main = (ev.target as HTMLElement).closest("[data-pid-main]");
         // 点击：断点卡贴被点行下方（portal 到 body，fixed 坐标不被页面过渡的 transform 劫持）
-        if (main) onRequestSwitch(pid, main.getBoundingClientRect());
+        // + 右侧详情栏同步推出，钉在被点这件上（Enter 切换后详情不跳，它恰好变活跃）
+        if (main) {
+          openDetail(pid);
+          onRequestSwitch(pid, main.getBoundingClientRect());
+        }
         return;
       }
       if (cur.overActive) {

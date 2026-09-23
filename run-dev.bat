@@ -1,25 +1,26 @@
 @echo off
-rem Fermata dev mode helper.
-rem 注意：tauri dev 会监听源文件、一变就重新编译并拉起窗口——这是开发看门狗，不用时请直接关窗/Ctrl+C。
-rem 本脚本退出时自动清理应用与端口，不留驻后台。
+rem Fermata preview runner: full build (tsc + vite build + cargo) then launch the embedded binary.
+rem No vite server, no file watcher, NO hot reload -- the window only changes when you rerun this script.
+rem For hot-reload development use: pnpm tauri dev (see D53/D59 in docs/deviation.md).
 set PATH=C:\Users\ice\.cargo\bin;E:\node.js\node_global;E:\node.js;%PATH%
 cd /d F:\Code\20260917_gika
 
-:clean
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":14200 " ^| findstr LISTENING') do taskkill /PID %%a /F 2>nul
+rem close any previous instance (same process name as the installed build; state lives in the DB, closing is harmless)
 taskkill /IM fermata.exe /F 2>nul
 
-rem NOTE: desktop window loads the embedded dist/, NOT the live vite server (devUrl issue pending fix).
-rem So rebuild frontend first, otherwise the window shows stale UI from the last build.
 echo [run-dev] building frontend (tsc + vite build)...
 call pnpm build
 if errorlevel 1 (
-  echo [run-dev] frontend build FAILED, aborting to avoid showing stale UI.
+  echo [run-dev] frontend build FAILED, aborting.
   exit /b 1
 )
 
-call pnpm tauri dev
+echo [run-dev] building app binary (cargo, re-embeds dist)...
+call cargo build --manifest-path src-tauri\Cargo.toml
+if errorlevel 1 (
+  echo [run-dev] cargo build FAILED, aborting.
+  exit /b 1
+)
 
-rem dev 退出后的自清：杀掉应用实例、释放端口
-taskkill /IM fermata.exe /F 2>nul
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":14200 " ^| findstr LISTENING') do taskkill /PID %%a /F 2>nul
+echo [run-dev] launching preview...
+start "" src-tauri\target\debug\fermata.exe

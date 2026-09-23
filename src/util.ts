@@ -15,10 +15,20 @@ export function fmtMmSs(ms: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-/** 老化渐褪曲线：1 → 0.45，对数前快后慢（8h 触底） */
+/**
+ * 老化双轴（2026-09-22 改，原对数 8h 渐褪）：
+ * 行渐褪 1 → 0.45、标签墨深 0.38 → 1，同一根线性时间轴，4h（240m）触底/到顶。
+ * 标签起点 0.38 = --ink-faint 的不透明度， fresh 观感与改前一致。
+ */
 export function agingOpacity(agingMs: number): number {
   const m = agingMs / 60_000;
-  return Math.max(0.45, 1 - (0.55 * Math.log(1 + m / 8)) / Math.log(1 + 480 / 8));
+  return Math.max(0.45, 1 - (0.55 * m) / 240);
+}
+
+/** 「挂 xx」标签墨深：淡墨 → 浓墨（与行渐褪同轴反向；hover 复活不及它） */
+export function agingInk(agingMs: number): number {
+  const m = agingMs / 60_000;
+  return Math.min(1, 0.38 + (0.62 * m) / 240);
 }
 
 export function dateHeader(d = new Date()): string {

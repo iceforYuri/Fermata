@@ -14,6 +14,7 @@ export interface Process {
   completed_at: number | null;
   queue_position: number | null;
   board_date: string;
+  notes_updated_at?: number | null; // v5 起：写记录落戳；存量为 null/缺省
 }
 
 export interface Step {
@@ -119,6 +120,23 @@ export interface DayView {
   day: string; done: DayViewProcess[]; ongoing: DayViewProcess[];
   plans: Plan[]; not_done: Plan[]; suspended_costs: SuspendedCost[];
 }
+/** 统计页玻璃卡详情：按 pid 直查，不绑定当天版面；分段=所查看那一天 */
+export interface ProcessDetail {
+  process: Process;
+  steps: Step[];
+  stack_top: StackTop | null;
+  segments: Segment[];
+  day_total_ms: number;
+}
+/** 个人记录汇总条目（玻璃子页）：非空记录；notes_updated_at 无戳回退 board_date 归月 */
+export interface NoteEntry {
+  process_id: number;
+  title: string;
+  color_tag: number | null;
+  notes: string;
+  notes_updated_at: number | null;
+  board_date: string;
+}
 /** 时间格内一枚可见标记（v1.4：占用率口径，share 分母=格的 10 分钟） */
 export interface CellMark {
   process_id: number;
@@ -189,6 +207,8 @@ export interface DataApi {
   qPalette(): Promise<PaletteEntry[]>;
   qPlans(): Promise<Plan[]>;
   qSegments(pid: number, day: string): Promise<Segment[]>;
+  qProcessDetail(pid: number, day: string): Promise<ProcessDetail>;
+  qNotesDigest(): Promise<NoteEntry[]>;
   segmentNote(segmentId: number, note: string): Promise<void>;
   processRename(pid: number, title: string): Promise<void>;
   notesSet(pid: number, notes: string): Promise<void>;
