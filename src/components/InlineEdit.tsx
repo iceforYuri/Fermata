@@ -54,7 +54,7 @@ export function InlineEdit({
   if (!editing) {
     return (
       <span
-        className={`inline-display${disabled ? " disabled" : ""} ${className}`}
+        className={`inline-display${disabled ? " disabled" : ""}${multiline ? " multiline" : ""} ${className}`}
         data-testid={testid}
         onClick={() => {
           if (!disabled) setEditing(true);
