@@ -300,3 +300,7 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 **根因**：常驻预建浮层 + 组件级 `exiting` state + `restpop-out` 的 forwards 定格——首次关闭后 `exiting` 滞留 true；`key` 重挂载只重建 DOM 不重置 useState，二次弹出时 exiting 规则继续钉死 opacity:0，弹窗"显示但什么都看不见"。
 **修法**：show 事件（onOverlayVisibility）里显式 `setExiting(false)`。
 **教训**：常驻窗口的出场态必须由 show 事件复位，不能依赖组件生命周期；验收出场动效必须验"第二次弹出"（首版探针只验了单次关闭，漏了）。
+
+### D62 · 稿库「今日剩余」只收 无预定日 + 恰为今天（fix/library-today-scope）
+**决策**：原先口径 `!scheduled_date || scheduled_date <= today` 把所有逾期未做的计划永远滚进今日剩余；改为 `=== today`（无预定日照旧）。
+**理由**：用户实报——"今日剩余"混进大量过去的剩余。逾期的计划不进稿库，留在统计页那天的计划区（那里 ✓/✕/改都在）；稿库只装"今天和以后"。
