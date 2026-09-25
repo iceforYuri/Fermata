@@ -788,6 +788,12 @@
 .inline-display {
   cursor: text;
 }
+/* 多行展示态：保留换行（HTML 默认折叠空白，个人记录换行曾被压成一行） */
+.inline-display.multiline {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 .inline-display.disabled {
   cursor: default;
 }
