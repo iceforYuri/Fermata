@@ -39,6 +39,7 @@ Fermata 是一个 Windows 桌面效率工具：把一天排成一页版面，管
 - 事件日志 append-only，从第一天记全（统计与未来 AI 批注的粮食）
 - 环境：本机访问外网走代理 `http://127.0.0.1:7897`（npm/pnpm/cargo 网络失败时先配代理再重试）
 - git：本目录为独立仓库；每完成一个子任务提交一次，提交信息用词汇表用语
+- 发版协议：release 分支从 dev 切出，版本号 bump 在 release 分支上做；**发布 PR 按序合并，上一个未合不开下一个**；万一叠了（main 已有旧版 bump），把 main 合入该 release 分支解锁 PR——版本号冲突一律"新号赢"，冲突文件固定是 package.json / tauri.conf.json / Cargo.toml / Cargo.lock / README 安装表；合并后回合 main→dev
 - 分支模型（2026-09-20 用户定）：`dev` = 开发记录与合并主线；`main` = 发布分支，仅在用户完全确认后由 dev 合入；新功能从 dev 开 `feature/<名>` 分支，完成回归后合回 dev
 
 ## 视觉底座（已定，不可改）
