@@ -31,7 +31,8 @@ export function LibraryPanel() {
     }
   }, [plans]);
   const today = todayStr();
-  const todayPlans = plans.filter((p) => !p.scheduled_date || p.scheduled_date <= today);
+  // 今日剩余 = 无预定日 + 预定日恰为今天；过去的计划不进稿库（归统计页那天的计划区，历史不改写）
+  const todayPlans = plans.filter((p) => !p.scheduled_date || p.scheduled_date === today);
   const futurePlans = plans.filter((p) => p.scheduled_date && p.scheduled_date > today);
 
   const group = (title: string, items: Plan[]) => (
