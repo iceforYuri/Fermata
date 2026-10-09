@@ -6,12 +6,12 @@ import { DonutRing } from "./DonutRing";
 import { fmtDur } from "../../util";
 
 /** 大环：每进程一片（无色=中性灰），图例=进程名+时长；核心数字：总专注/切换次数/最长单段 */
-export function BigRing({ day }: { day: string }) {
+export function BigRing({ day, refreshKey = 0 }: { day: string; refreshKey?: number }) {
   const board = useBoard();
   const [stats, setStats] = useState<DayStats | null>(null);
   useEffect(() => {
     void data.qDayStats(day).then(setStats);
-  }, [day]);
+  }, [day, refreshKey]);
 
   if (!stats) return null;
   const shares = stats.slices.map((s) => ({ color_tag: s.color_tag, ms: s.ms }));

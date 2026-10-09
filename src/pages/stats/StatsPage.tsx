@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { dayStr, MonthCalendar } from "./MonthCalendar";
 import { BigRing } from "./BigRing";
 import { DayViewSection } from "./DayViewSection";
@@ -6,6 +6,7 @@ import { DayGridView } from "./DayGridView";
 import { YearView } from "./YearView";
 import { StatsDetailOverlay } from "./StatsDetailOverlay";
 import { NotesEntry, NotesOverlay } from "./NotesOverlay";
+import { useUi } from "../../store/ui";
 
 type View = "year" | "month" | "day";
 const ORDER: Record<View, number> = { year: 0, month: 1, day: 2 };
@@ -13,14 +14,30 @@ const ORDER: Record<View, number> = { year: 0, month: 1, day: 2 };
 /**
  * 统计页（Tab 2）：视角胶囊钉住不动；视角切换 = 纵向钻取滑动（成对进出 240ms，
  * 下钻新页下方升起/旧页上让，上钻反向）。月历不滚动；日=纵向增量滚动；年=月环。
+ * 2026-10-09：主三页常驻挂载，组件不会随 tab 进出重生——进 tab 时统一发刷新令牌：
+ * 锚点若还是出厂默认的"今天"且已跨天 → 跟到新今天；各视图按 refreshKey 重取数。
  */
 export function StatsPage() {
   const today = dayStr(new Date());
+  const { tab } = useUi();
   const [view, setView] = useState<View>("month");
   const [outgoing, setOutgoing] = useState<{ view: View; dir: 1 | -1 } | null>(null);
   const [anchor, setAnchor] = useState(today); // 锚点日期，切视角保留
+  const [refreshKey, setRefreshKey] = useState(0);
   const [ay, am] = anchor.split("-").map(Number);
   const outTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevTab = useRef(tab);
+  const defaultToday = useRef(today); // 出厂默认锚：锚点还停在它上面才允许跨天跟随
+
+  useEffect(() => {
+    const entered = tab === "stats" && prevTab.current !== "stats";
+    prevTab.current = tab;
+    if (!entered) return;
+    const fresh = dayStr(new Date());
+    setAnchor((a) => (a === defaultToday.current && a !== fresh ? fresh : a));
+    defaultToday.current = fresh;
+    setRefreshKey((k) => k + 1);
+  }, [tab]);
 
   const drillTo = (next: View) => {
     if (next === view) return;
@@ -46,15 +63,16 @@ export function StatsPage() {
             </div>
             <MonthCalendar
               anchor={anchor}
+              refreshKey={refreshKey}
               onSelect={(d) => setAnchor(d)}
               onDrill={(d) => {
                 setAnchor(d);
                 drillTo("day");
               }}
             />
-            <BigRing day={anchor} />
+            <BigRing day={anchor} refreshKey={refreshKey} />
             <DayViewSection day={anchor} />
-            <NotesEntry anchor={anchor} />
+            <NotesEntry anchor={anchor} refreshKey={refreshKey} />
           </div>
         </div>
       );
@@ -64,6 +82,7 @@ export function StatsPage() {
         <div className="view-stretch" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
           <DayGridView
             day={anchor}
+            refreshKey={refreshKey}
             onAnchor={setAnchor}
             onBackToMonth={() => drillTo("month")}
             enter={outgoing !== null}
@@ -77,6 +96,7 @@ export function StatsPage() {
         <div className="stats-measure">
           <YearView
             year={ay}
+            refreshKey={refreshKey}
             onYear={(y) => setAnchor(`${y}-01-01`)}
             onDrillMonth={(y, m) => {
               setAnchor(`${y}-${String(m).padStart(2, "0")}-01`);

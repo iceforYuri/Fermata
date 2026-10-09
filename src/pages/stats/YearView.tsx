@@ -5,17 +5,19 @@ import { DonutRing } from "./DonutRing";
 /** 年视图：12 月环网格，纵向滚动，只显示有记录的年份范围；点月环下钻月视角 */
 export function YearView({
   year,
+  refreshKey = 0,
   onYear,
   onDrillMonth,
 }: {
   year: number;
+  refreshKey?: number;
   onYear: (y: number) => void;
   onDrillMonth: (y: number, m: number) => void;
 }) {
   const [ov, setOv] = useState<YearOverview | null>(null);
   useEffect(() => {
     void data.qYearOverview(year).then(setOv);
-  }, [year]);
+  }, [year, refreshKey]);
   if (!ov) return null;
 
   const byMonth = new Map(ov.months.map((m) => [m.month, m.shares]));
