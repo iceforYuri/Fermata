@@ -839,7 +839,7 @@ dependencies = [
 
 [[package]]
 name = "fermata"
-version = "1.4.2"
+version = "1.4.3"
 dependencies = [
  "chrono",
  "rusqlite",

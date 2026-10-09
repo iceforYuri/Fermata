@@ -13,10 +13,12 @@ export function dayStr(d: Date): string {
  */
 export function MonthCalendar({
   anchor,
+  refreshKey = 0,
   onSelect,
   onDrill,
 }: {
   anchor: string;
+  refreshKey?: number; // 进统计 tab 的刷新令牌（StatsPage 发）
   onSelect: (day: string) => void;
   onDrill: (day: string) => void;
 }) {
@@ -24,7 +26,7 @@ export function MonthCalendar({
   const [shares, setShares] = useState<DayShares[]>([]);
   useEffect(() => {
     void data.qMonthCalendar(y, m).then(setShares);
-  }, [y, m]);
+  }, [y, m, refreshKey]);
 
   const today = dayStr(new Date());
   const byDay = new Map(shares.map((s) => [s.day, s.shares]));

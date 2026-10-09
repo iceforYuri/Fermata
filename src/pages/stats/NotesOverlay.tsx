@@ -28,7 +28,7 @@ function timeText(e: NoteEntry): string {
  * 全部时间的非空记录按月分组倒序；无序列表、色标点当项目符号；点行开该进程详情卡。
  * 顶部预留「月度汇总」位（v1.x 接 LLM，当前只留排版钩子）。
  */
-export function NotesEntry({ anchor }: { anchor: string }) {
+export function NotesEntry({ anchor, refreshKey = 0 }: { anchor: string; refreshKey?: number }) {
   const [counts, setCounts] = useState<{ total: number; month: number }>({ total: 0, month: 0 });
   useEffect(() => {
     let alive = true;
@@ -40,7 +40,7 @@ export function NotesEntry({ anchor }: { anchor: string }) {
     return () => {
       alive = false;
     };
-  }, [anchor]);
+  }, [anchor, refreshKey]);
   if (counts.total === 0) return null;
   return (
     <button className="notes-entry" data-testid="notes-entry" onClick={openNotes}>

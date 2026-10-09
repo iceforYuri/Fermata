@@ -33,12 +33,14 @@ function enterGap(): number {
  */
 export function DayGridView({
   day,
+  refreshKey = 0,
   onAnchor,
   onBackToMonth,
   enter = false,
   enterDir = 1,
 }: {
   day: string;
+  refreshKey?: number; // 进统计 tab 的刷新令牌（StatsPage 发）：today 沿重算、已装载天直查重取
   onAnchor: (day: string) => void;
   onBackToMonth: () => void;
   enter?: boolean;      // 钻取进场（先隐藏态定位锚日，再播升起动画）
@@ -152,6 +154,7 @@ export function DayGridView({
           key={d}
           day={d}
           today={today}
+          refreshKey={refreshKey}
           scrollRoot={scrollRef}
           onBackToMonth={onBackToMonth}
           onHover={setHover}
@@ -261,12 +264,14 @@ function CellMarks({
 function DayUnit({
   day,
   today,
+  refreshKey = 0,
   scrollRoot,
   onBackToMonth,
   onHover,
 }: {
   day: string;
   today: string;
+  refreshKey?: number;
   scrollRoot: React.RefObject<HTMLDivElement | null>;
   onBackToMonth: () => void;
   onHover: (h: { cell: GridCell; x: number; y: number } | null) => void;
@@ -274,14 +279,20 @@ function DayUnit({
   const board = useBoard();
   const [cells, setCells] = useState<GridCell[] | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const loadedRef = useRef(false);
 
-  // 按天懒加载：接近视口才查
+  // 按天懒加载：接近视口才查；刷新令牌到来时已装载的天直查重取（未装载的仍等视口）
   useEffect(() => {
+    if (loadedRef.current) {
+      void data.qDayGrid(day).then(setCells);
+      return;
+    }
     const el = ref.current;
     if (!el) return;
     const obs = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
+          loadedRef.current = true;
           void data.qDayGrid(day).then(setCells);
           obs.disconnect();
         }
@@ -290,7 +301,7 @@ function DayUnit({
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [day, scrollRoot]);
+  }, [day, scrollRoot, refreshKey]);
 
   const isFuture = day > today;
   const hasData = cells?.some((c) => c.marks.length > 0) ?? false;
