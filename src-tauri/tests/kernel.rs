@@ -760,3 +760,88 @@ fn app_exit_closes_all_and_restart_recovery() {
     let open_n: i64 = conn.query_row("SELECT COUNT(*) FROM segments WHERE ended_at IS NULL", [], |r| r.get(0)).unwrap();
     assert_eq!(open_n, 0, "休息中不自动重开");
 }
+
+#[test]
+fn rest_end_resolves_running_pid_when_omitted() {
+    let conn = db::open_in_memory().unwrap();
+    let t0 = 1_800_000_000_000i64;
+    let s = 1_000i64;
+
+    let a = ops::process_create(&conn, t0, "甲", None, None).unwrap();
+    ops::process_switch(&conn, t0 + s, a, None).unwrap(); // running + 开口
+    ops::rest_start(&conn, t0 + 10 * s, Some(a)).unwrap(); // 休息停表，state 仍 running
+
+    // 跨天遗留场景：休息页从"今天版面"取 running=None，rest_end 只能服务端兜底
+    ops::rest_end(&conn, t0 + 20 * s, None).unwrap();
+    assert!(db::timer_open(&conn, a).unwrap(), "rest_end(None) 应兜底重开唯一 running 的计时");
+
+    // 手动 pause 停的不动（reopen 条件不变）
+    ops::process_pause(&conn, t0 + 30 * s, a).unwrap();
+    ops::rest_end(&conn, t0 + 40 * s, None).unwrap();
+    assert!(!db::timer_open(&conn, a).unwrap(), "手动 pause 停的不被 rest_end 重开");
+}
+
+#[test]
+fn cross_day_restart_auto_suspends_ghost_running() {
+    let conn = db::open_in_memory().unwrap();
+    // t0 = 本地 2027-01-15 12:00（+08），+13h 铁定跨天
+    let t0 = 1_800_000_000_000i64;
+    let s = 1_000i64;
+
+    let a = ops::process_create(&conn, t0, "甲", None, None).unwrap();
+    ops::process_switch(&conn, t0 + s, a, None).unwrap(); // running + 开口
+    ops::app_exit(&conn, t0 + 10 * s).unwrap(); // 优雅退出：段闭合，state 仍 running
+
+    // 次日启动：不恢复计时，自动挂起
+    let t_next = t0 + 13 * 3600 * s;
+    assert_ne!(db::day_of(t0), db::day_of(t_next), "前置：确已跨天");
+    ops::recover_after_restart(&conn, t_next).unwrap();
+    let st: String = conn
+        .query_row("SELECT state FROM processes WHERE id = ?1", rusqlite::params![a], |r| r.get(0))
+        .unwrap();
+    assert_eq!(st, "suspended", "隔夜 running 应被自动挂起");
+    assert!(!db::timer_open(&conn, a).unwrap(), "跨天不恢复计时");
+    assert!(events_snapshot(&conn).iter().any(|e| e.2 == "auto_suspend"), "留 auto_suspend 痕");
+    let qp: Option<i64> = conn
+        .query_row("SELECT queue_position FROM processes WHERE id = ?1", rusqlite::params![a], |r| r.get(0))
+        .unwrap();
+    assert!(qp.is_some(), "自动挂起应落原版面队列尾");
+
+    // 同日重启仍恢复计时（不被跨天逻辑误伤）
+    let b = ops::process_create(&conn, t_next + s, "乙", None, None).unwrap();
+    ops::process_switch(&conn, t_next + 2 * s, b, None).unwrap();
+    ops::app_exit(&conn, t_next + 10 * s).unwrap();
+    ops::recover_after_restart(&conn, t_next + 60 * s).unwrap();
+    assert!(db::timer_open(&conn, b).unwrap(), "同日重启仍自动重开");
+    let st_b: String = conn
+        .query_row("SELECT state FROM processes WHERE id = ?1", rusqlite::params![b], |r| r.get(0))
+        .unwrap();
+    assert_eq!(st_b, "running");
+}
+
+#[test]
+fn year_month_aggregate_clamps_negative_segments() {
+    let conn = db::open_in_memory().unwrap();
+    let t0 = 1_800_000_000_000i64; // 本地正午，时界安全
+    let day = db::day_of(t0);
+    let y: i64 = day[0..4].parse().unwrap();
+    let m: i64 = day[5..7].parse().unwrap();
+
+    let a = ops::process_create(&conn, t0, "甲", Some(2), None).unwrap();
+    ops::process_switch(&conn, t0, a, None).unwrap();
+    ops::app_exit(&conn, t0 + 60_000).unwrap(); // 正常 1 分钟段
+    // 坏数据：负时长段（旧版种子残留的真实形态，见 deviation D63）
+    conn.execute(
+        "INSERT INTO segments (process_id, started_at, ended_at, day, kind) VALUES (?1, ?2, ?3, ?4, 'focus')",
+        rusqlite::params![a, t0 + 3_600_000, t0, day],
+    )
+    .unwrap();
+
+    let cal = queries::q_month_calendar(&conn, y, m).unwrap();
+    let cal_total: i64 = cal.iter().flat_map(|d| d.shares.iter().map(|s| s.ms)).sum();
+    assert_eq!(cal_total, 60_000, "月历聚合：负段钳 0");
+
+    let ov = queries::q_year_overview(&conn, y).unwrap();
+    let y_total: i64 = ov.months.iter().flat_map(|mm| mm.shares.iter().map(|s| s.ms)).sum();
+    assert_eq!(y_total, 60_000, "年视图聚合：负段钳 0");
+}

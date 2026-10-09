@@ -658,8 +658,18 @@ pub fn rest_start(conn: &Connection, ts: i64, pid: Option<i64>) -> Result<(), St
     Ok(())
 }
 
-/// 离开休息态（我回来了/继续）：进程仍运行且计时因休息而停则重开
+/// 离开休息态（我回来了/继续）：进程仍运行且计时因休息而停则重开。
+/// pid 缺省兜底（2026-10-09）：休息页的 pid 取自"今天版面"的 running，跨天遗留的 running
+/// 不在版面上会传 None——计时真相在 DB，直接找唯一 running。
 pub fn rest_end(conn: &Connection, ts: i64, pid: Option<i64>) -> Result<(), String> {
+    let pid = match pid {
+        Some(p) => Some(p),
+        None => conn
+            .query_row("SELECT id FROM processes WHERE state = 'running' LIMIT 1", [], |r| {
+                r.get(0)
+            })
+            .ok(),
+    };
     let reopen = match pid {
         Some(p) => {
             let proc = get_process(conn, p)?;
@@ -781,7 +791,10 @@ pub fn app_exit(conn: &Connection, ts: i64) -> Result<(), String> {
 
 /// 启动兜底 + 重启恢复（2026-09-23，返回兜底闭合数）：
 /// 1) 崩溃/强杀留下的开口段，以最后一条事件的时刻闭合（再往前无法考证），写 app_start；
-/// 2) running 进程非休息态且无开口 → 重新开口（启动即回来，gap 不计）。
+/// 2) running 进程非休息态且无开口 → 重新开口（启动即回来，gap 不计）；
+/// 3) 跨天遗留收口（2026-10-09）：最后事件不在今天 → 隔夜 running 是幽灵
+///    （版面/切换浮层/调度都按 board_date=昨天 看不见它），自动挂起且不恢复计时
+///    （宪法第 2 条：时间的默认值是"不计"）；同日重启才走 2)。
 pub fn recover_after_restart(conn: &Connection, ts: i64) -> Result<usize, String> {
     let last_ts: Option<i64> = conn
         .query_row("SELECT MAX(ts) FROM events", [], |r| r.get(0))
@@ -809,6 +822,35 @@ pub fn recover_after_restart(conn: &Connection, ts: i64) -> Result<usize, String
             .map_err(|e| e.to_string())?;
         }
         append_event(conn, ts, "app_start", None, json!({ "recovered": recovered, "closed_at": close_at }))?;
+    }
+    // 跨天遗留收口：隔夜 running 自动挂起（计时已在上面按最后事件闭合；这里收状态）。
+    // 事件的 ts 记启动当下、payload 记最后可考证时刻；老化/挂起成本的"挂上"口径不含
+    // auto_suspend —— 它仍从昨天真实的 switch_out/create 起算，不美化。
+    let cross_day = last_ts.map_or(false, |t| day_of(t) != day_of(ts));
+    if cross_day {
+        let mut stmt = conn
+            .prepare("SELECT id, board_date FROM processes WHERE state = 'running'")
+            .map_err(|e| e.to_string())?;
+        let ghosts: Vec<(i64, String)> = stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .map_err(|e| e.to_string())?
+            .filter_map(|r| r.ok())
+            .collect();
+        for (pid, board_date) in ghosts {
+            conn.execute(
+                "UPDATE processes SET state = 'suspended' WHERE id = ?1",
+                rusqlite::params![pid],
+            )
+            .map_err(|e| e.to_string())?;
+            push_queue_tail(conn, pid, &board_date)?;
+            append_event(
+                conn,
+                ts,
+                "auto_suspend",
+                Some(pid),
+                json!({ "reason": "cross_day", "last_event_ts": last_ts }),
+            )?;
+        }
     }
     // 重启恢复：running 且无开口且非休息 → 重新开口（启动即回来）
     let resting = super::queries::q_rest_state(conn)?.resting;

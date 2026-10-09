@@ -622,12 +622,12 @@ pub struct DayShares {
     pub shares: Vec<ShareByColor>,
 }
 
-/// 月历：逐日色标聚合（只回有记录的日子）
+/// 月历：逐日色标聚合（只回有记录的日子）；负时长段（坏数据）逐段钳 0，与 q_day_stats 同口径
 pub fn q_month_calendar(conn: &Connection, year: i64, month: i64) -> Result<Vec<DayShares>, String> {
     let prefix = format!("{year:04}-{month:02}-");
     let mut stmt = conn
         .prepare(
-            "SELECT s.day, p.color_tag, SUM(COALESCE(s.ended_at, ?2) - s.started_at)
+            "SELECT s.day, p.color_tag, SUM(MAX(COALESCE(s.ended_at, ?2) - s.started_at, 0))
              FROM segments s JOIN processes p ON p.id = s.process_id
              WHERE s.kind = 'focus' AND s.day LIKE ?1 || '%'
              GROUP BY s.day, p.color_tag ORDER BY s.day",
@@ -672,12 +672,12 @@ pub struct YearOverview {
     pub available_years: Vec<i64>,
 }
 
-/// 年视图：逐月色标聚合 + 有记录的年份范围
+/// 年视图：逐月色标聚合 + 有记录的年份范围；负时长段（坏数据）逐段钳 0，与 q_day_stats 同口径
 pub fn q_year_overview(conn: &Connection, year: i64) -> Result<YearOverview, String> {
     let prefix = format!("{year:04}-");
     let mut stmt = conn
         .prepare(
-            "SELECT substr(s.day, 6, 2) AS m, p.color_tag, SUM(COALESCE(s.ended_at, ?2) - s.started_at)
+            "SELECT substr(s.day, 6, 2) AS m, p.color_tag, SUM(MAX(COALESCE(s.ended_at, ?2) - s.started_at, 0))
              FROM segments s JOIN processes p ON p.id = s.process_id
              WHERE s.kind = 'focus' AND s.day LIKE ?1 || '%'
              GROUP BY m, p.color_tag ORDER BY m",

@@ -880,7 +880,7 @@ export const mockData: DataApi = {
       const [y, m] = d.split("-").map(Number);
       if (y !== year || m !== month) continue;
       const p = proc(g.pid);
-      const ms = (g.end ?? Date.now()) - g.start;
+      const ms = Math.max((g.end ?? Date.now()) - g.start, 0); // 负时长段钳 0，与 Rust 同口径
       if (!byDay.has(d)) byDay.set(d, new Map());
       const row = byDay.get(d)!;
       row.set(p.color_tag, (row.get(p.color_tag) ?? 0) + ms);
@@ -900,7 +900,7 @@ export const mockData: DataApi = {
       years.add(y);
       if (y !== year) continue;
       const p = proc(g.pid);
-      const ms = (g.end ?? Date.now()) - g.start;
+      const ms = Math.max((g.end ?? Date.now()) - g.start, 0); // 负时长段钳 0，与 Rust 同口径
       if (!byMonth.has(m)) byMonth.set(m, new Map());
       const row = byMonth.get(m)!;
       row.set(p.color_tag, (row.get(p.color_tag) ?? 0) + ms);
