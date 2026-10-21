@@ -11,6 +11,7 @@ import { UndoToast } from "./UndoToast";
 import { TABS } from "./TitleBar";
 import { setUi, useUi, type Tab } from "../store/ui";
 import { useBoard } from "../store/board";
+import { invoke } from "@tauri-apps/api/core";
 import { useScheduler } from "../store/scheduler";
 
 const ORDER: Tab[] = ["board", "stats", "settings"];
@@ -137,6 +138,22 @@ export function MobileShell() {
           );
         })}
       </nav>
+
+      {/* PoC 门 4 临时入口（M4m 同步落地后移除） */}
+      <button
+        className="m-poc-webdav"
+        aria-label="WebDAV 环回测试"
+        onClick={async () => {
+          try {
+            const r = await invoke("webdav_probe", { url: "http://10.0.2.2:8877/fermata-poc.txt" });
+            console.error("[webdav-poc] OK " + JSON.stringify(r));
+          } catch (e) {
+            console.error("[webdav-poc] FAIL " + String(e));
+          }
+        }}
+      >
+        ↻
+      </button>
 
       <ArchiveOverlay />
       <ImportConfirmOverlay />

@@ -663,3 +663,22 @@ pub async fn reset_data_location(
     changed(&app);
     Ok(serde_json::json!({ "path": default_db.to_string_lossy(), "adopted": true }))
 }
+
+/// PoC 门 4（临时）：WebDAV 推/拉闭环探针——PUT → GET 比对 → DELETE。
+#[tauri::command]
+pub async fn webdav_probe(url: String) -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::new();
+    let payload = format!("fermata-poc {}", crate::db::now_ms());
+    let t0 = std::time::Instant::now();
+    client.put(&url).body(payload.clone()).send().await.map_err(|e| format!("PUT 失败: {e}"))?;
+    let put_ms = t0.elapsed().as_millis();
+    let t1 = std::time::Instant::now();
+    let got = client
+        .get(&url)
+        .send().await.map_err(|e| format!("GET 失败: {e}"))?
+        .text().await.map_err(|e| format!("读响应失败: {e}"))?;
+    let get_ms = t1.elapsed().as_millis();
+    let matched = got.trim_end() == payload;
+    let delete_ok = client.delete(&url).send().await.map(|r| r.status().is_success()).unwrap_or(false);
+    Ok(serde_json::json!({ "put_ms": put_ms, "get_ms": get_ms, "matched": matched, "delete_ok": delete_ok }))
+}

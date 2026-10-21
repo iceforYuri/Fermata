@@ -9,7 +9,7 @@
 | 1. 构建安装运行 | ✅ 模拟器通过（真机待用户插线） | docs/screenshots/mobile-poc-boot.png（进程页空态完整渲染：报头/已完栏/稿库 rail/空态文案） |
 | 2. 息屏计时 + 到点提醒（架构改：时间戳记账 + AlarmManager，无常驻服务） | ✅ 模拟器通过（真机待用户） | logcat：闹钟 120000ms 触发误差 56ms；接收器跑在系统新拉起的进程；息屏期间计时连续 |
 | 3. 通知暂停/继续按钮 | ✅ 模拟器通过（真实点击 + adb 双路径） | 截图 mobile-poc-notif-paused.png（已暂停·累计450s·按钮翻转为继续）；logcat onReceive→pause→resume |
-| 4. WebDAV 推/拉闭环 | ⏳ 未开始（先用本机临时 WebDAV 服务验机制） | — |
+| 4. WebDAV 推/拉闭环 | ✅ 模拟器通过（真机+坚果云凭据待用户） | logcat：[webdav-poc] OK put 291ms / get 44ms / matched / delete_ok；本机 wsgidav 匿名读写服务 + 模拟器 10.0.2.2 回环 |
 
 ## 工具链落点（全部本机、用户态、无需管理员）
 
@@ -26,6 +26,10 @@
 - **Android 14+ 精确闹钟（SCHEDULE_EXACT_ALARM）默认不授予**：直接 setExactAndAllowWhileIdle 会 SecurityException 崩 onCreate。已修为 canScheduleExactAlarms() 检查 + 不精确回退；M2m 需要设置页引导用户授权（系统设置入口）。
 - **隐式 Intent 投递不到无 intent-filter 的静态接收器**：通知按钮必须用显式组件 Intent（Intent(ctx, KeeperReceiver::class.java)）。接收器现为 exported=true（PoC 妥协：adb 直发测试路径需要；M2m 接线完成后应回 false，PendingIntent 以应用身份投递不受影响）。
 - Keeper.kt / KeeperReceiver.kt 位于 gen/android/app（生成工程内手写件）；MainActivity 的 PoC 接线（启动即开会话）将在 M2m 改为「有运行进程才发会话通知」。
+
+- **reqwest 0.13 改名**：TLS 特性 rustls-tls → rustls（rustls-platform-verifier 走系统证书仓，Android 可用）。
+- **wsgidav 起服务**：用 Scripts 目录的 wsgidav.exe（python -m wsgidav 无 __main__）；匿名读写模式够 PoC 用。
+- PoC 门 4 的临时入口：MobileShell 右上 ↻ 钮（标记「M4m 同步落地后移除」）；webdav_probe 命令同理。
 
 ## 踩坑记录（重要）
 
