@@ -479,6 +479,7 @@ pub async fn export_snapshot_to(state: State<'_, DbState>, path: String) -> Resu
 
 /// 对话框层：另存为（默认文档目录 + fermata-YYYY-MM-DD.fermata.json）
 #[tauri::command]
+#[cfg(desktop)]
 pub async fn export_snapshot_dialog(
     app: AppHandle,
     state: State<'_, DbState>,
@@ -538,6 +539,7 @@ pub async fn import_snapshot_from(
 
 /// 对话框层：打开快照文件（.json 过滤，文档目录起）
 #[tauri::command]
+#[cfg(desktop)]
 pub async fn import_snapshot_dialog(app: AppHandle) -> Result<Option<String>, String> {
     let mut d = app.dialog().file().add_filter("Fermata 快照", &["json"]);
     if let Ok(dir) = app.path().document_dir() {
@@ -551,6 +553,7 @@ pub async fn import_snapshot_dialog(app: AppHandle) -> Result<Option<String>, St
 
 /// 事件日志导出（保留为次要行）：改走另存为对话框，不再默认写 exports 目录
 #[tauri::command]
+#[cfg(desktop)]
 pub async fn export_events_dialog(
     app: AppHandle,
     state: State<'_, DbState>,
@@ -615,6 +618,7 @@ pub async fn set_data_location_to(
 
 /// 对话框层：系统文件夹选择 → 切换
 #[tauri::command]
+#[cfg(desktop)]
 pub async fn set_data_location_dialog(
     app: AppHandle,
     state: State<'_, DbState>,
