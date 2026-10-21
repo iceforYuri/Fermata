@@ -12,7 +12,6 @@ import { RowMenu } from "./RowMenu";
 import { TABS } from "./TitleBar";
 import { setUi, useUi, getUi, type Tab } from "../store/ui";
 import { act, getBoard, useBoard } from "../store/board";
-import { invoke } from "@tauri-apps/api/core";
 import { statsSwipe } from "../mobile-stats";
 import { keeper } from "../api/keeper";
 import { isMobile } from "../mobile";
@@ -316,45 +315,7 @@ export function MobileShell() {
         })}
       </nav>
 
-      {/* PoC 门 4 临时入口（M4m 同步落地后移除） */}
-      <button
-        className="m-poc-webdav"
-        aria-label="WebDAV 环回测试"
-        onClick={async () => {
-          try {
-            const r = await invoke("webdav_probe", { url: "http://10.0.2.2:8877/fermata-poc.txt" });
-            console.error("[webdav-poc] OK " + JSON.stringify(r));
-          } catch (e) {
-            console.error("[webdav-poc] FAIL " + String(e));
-          }
-        }}
-        onPointerDown={() => {
-          (window as unknown as { __restT?: number }).__restT = window.setTimeout(() => {
-            void invoke("rest_trigger", { pid: null, source: "poc-manual", readingMs: 0 }).catch((err) => console.error("[rest-poc] " + String(err)));
-          }, 600);
-        }}
-        onPointerUp={() => {
-          window.clearTimeout((window as unknown as { __restT?: number }).__restT);
-        }}
-        onPointerLeave={() => {
-          window.clearTimeout((window as unknown as { __restT?: number }).__restT);
-        }}
-      >
-        ↻
-      </button>
-
-      <button
-        className="m-poc-webdav"
-        style={{ right: 52 }}
-        aria-label="触发休止符"
-        onClick={() => {
-          void invoke("rest_trigger", { pid: null }).catch((err) => console.error("[rest-poc] " + String(err)));
-        }}
-      >
-        ☾
-      </button>
-
-      <ArchiveOverlay />
+            <ArchiveOverlay />
       <ImportConfirmOverlay />
       <RowMenu />
       <UndoToast />

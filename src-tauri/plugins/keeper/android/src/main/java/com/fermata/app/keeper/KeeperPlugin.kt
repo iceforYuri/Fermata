@@ -18,6 +18,11 @@ class UpdateArgs {
 }
 
 @InvokeArg
+class SecretArgs {
+  var value: String = ""
+}
+
+@InvokeArg
 class ScheduleArgs {
   var inMs: Long = 0  // 从现在起的相对毫秒
 }
@@ -59,6 +64,24 @@ class KeeperPlugin(private val activity: Activity) : Plugin(activity) {
   @Command
   fun cancelReminder(invoke: Invoke) {
     Keeper.cancelAlarm(activity)
+    invoke.resolve()
+  }
+
+  @Command
+  fun setSecret(invoke: Invoke) {
+    val args = invoke.parseArgs(SecretArgs::class.java)
+    SecretBox.set(activity, args.value)
+    invoke.resolve()
+  }
+
+  @Command
+  fun getSecret(invoke: Invoke) {
+    invoke.resolve(JSObject().put("value", SecretBox.get(activity)))
+  }
+
+  @Command
+  fun clearSecret(invoke: Invoke) {
+    SecretBox.clear(activity)
     invoke.resolve()
   }
 

@@ -177,7 +177,6 @@ pub fn run() {
             #[cfg(desktop)]
             sys::debug_always_on_top,
             commands::export_events,
-            commands::webdav_probe,
             commands::sync_connect,
             commands::sync_disconnect,
             commands::sync_now,

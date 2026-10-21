@@ -36,6 +36,58 @@ Denies the cancel_reminder command without any pre-configured scope.
 <tr>
 <td>
 
+`keeper:allow-clear-secret`
+
+</td>
+<td>
+
+Enables the clear_secret command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`keeper:deny-clear-secret`
+
+</td>
+<td>
+
+Denies the clear_secret command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`keeper:allow-get-secret`
+
+</td>
+<td>
+
+Enables the get_secret command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`keeper:deny-get-secret`
+
+</td>
+<td>
+
+Denies the get_secret command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `keeper:allow-hide`
 
 </td>
@@ -107,6 +159,32 @@ Enables the schedule_reminder command without any pre-configured scope.
 <td>
 
 Denies the schedule_reminder command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`keeper:allow-set-secret`
+
+</td>
+<td>
+
+Enables the set_secret command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`keeper:deny-set-secret`
+
+</td>
+<td>
+
+Denies the set_secret command without any pre-configured scope.
 
 </td>
 </tr>

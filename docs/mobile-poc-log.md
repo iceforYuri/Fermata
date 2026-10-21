@@ -88,3 +88,12 @@
 - 触发：生命周期命令（开始/暂停/继续/完成/切换/休止符进出）立即推；其余变更经 changed() 防抖 30 秒；启动与回前台拉（Rust 侧 5 分钟节流）；不轮询。
 - 验证：verify_sync（双模拟设备对 wsgidav 全流程：首推/首拉/快进/noop/冲突远端赢+本机备份/锁读写/首接冲突选推送接 rev）全过；模拟器真机链路：注入配置 → 启动拉取报 first_conflict → 设置页点「拉取远端」→ rev4 落库 + 本机备份落 /data/user/0/.../exports/。
 - 设置页同步区（双端同组件）：连接三行下划线输入 / 状态行（服务·账号·设备·最近同步·基线 rev）/ 立即同步 / 断开连接 / first_conflict 方向按钮；移动端按钮行 flex-wrap 修复。
+
+
+## 2026-10-22 运行锁 UI + 接管 + Keystore + 探针拆除
+
+- 挂起行锁徽标：「在 X 设备运行中 · 始于 HH:MM」（TTL 过期转「可能仍在」）；locks store 60 秒轮询 + sync-done 刷新。接管入口：桌面点击带锁进程直接接管；移动端点按仍开详情卡（查看），卡内 ⤒ 才是接管——实测修正过一次拦截顺序。
+- ops::takeover：对端开口段以锁 written_at 收界（钳到不早于段起点）、记 takeover/switch 事件、本端开口续计；kernel 测试 takeover_bounds_remote_segment_at_lock_time 过。模拟器全链路：外来锁 → 徽标 → ⤒ → phone-task 收界挂起、second-task 开跑、rev 推到 9。
+- D64 闭环：Android 凭据换 Keystore（SecretBox AES/GCM + keeper PluginHandle 直调），旧明文文件自动迁移删除。
+- PoC 探针拆除：MobileShell ↻/☾ 临时钮、webdav_probe 命令、.m-poc-webdav 样式全删。
+- 事件日志完备性初审计：ops.rs 38 个写操作全部记事件（42 种 kind）；逐 kind payload 完备性留待 v1.5 实体合并前细审。

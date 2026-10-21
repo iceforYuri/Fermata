@@ -9,7 +9,7 @@
 //!
 //! 本机同步状态在 settings 表 sync_* 键（不同步：恢复快照时保留本机 sync_* 与外观键，
 //! 仅计时参数 slice_minutes / continuous_limit_minutes / rest_mode / idle_threshold_minutes 随快照走）。
-//! 凭据：桌面走系统钥匙串（Windows 凭据管理器），Android 暂以应用私有目录文件过渡（记 deviation，M5m 换 Keystore）。
+//! 凭据：桌面走系统钥匙串（Windows 凭据管理器），Android 走 Keystore（AES/GCM，keeper 插件 SecretBox）。
 //! v1 冲突语义：基线之后远端先动且本机也改了 → 远端赢，本机被覆盖前自动备份（exports/backup-*.fermata.json），
 //! UI 提示可经手动导入还原；绝不静默丢任何一端。
 
@@ -53,30 +53,31 @@ mod secret {
     }
 }
 
-/// Android 过渡：应用私有目录明文文件（deviation D-安卓凭据，M5m 换 Keystore）。
-/// dir 由命令侧传 app_data_dir。
+/// Android：Android Keystore（AES/GCM，经 keeper 插件直调 Kotlin，不绕 JS）。
+/// 过渡迁移：旧的 sync.secret 明文文件（D64 初版）读到即迁入 Keystore 并删除。
 #[cfg(not(desktop))]
 mod secret {
     use std::path::Path;
-    fn path(dir: &Path) -> std::path::PathBuf {
-        dir.join("sync.secret")
+    fn legacy(dir: &Path) -> Option<String> {
+        let p = dir.join("sync.secret");
+        let v = std::fs::read_to_string(&p).ok()?;
+        let _ = keeper::secret_set(&v);
+        let _ = std::fs::remove_file(&p);
+        Some(v)
     }
     pub fn get(dir: &Path) -> Result<Option<String>, String> {
-        match std::fs::read_to_string(path(dir)) {
-            Ok(s) => Ok(Some(s)),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-            Err(e) => Err(e.to_string()),
+        match keeper::secret_get()? {
+            Some(v) => Ok(Some(v)),
+            None => Ok(legacy(dir)),
         }
     }
     pub fn set(dir: &Path, s: &str) -> Result<(), String> {
-        std::fs::write(path(dir), s).map_err(|e| e.to_string())
+        let _ = std::fs::remove_file(dir.join("sync.secret"));
+        keeper::secret_set(s)
     }
     pub fn clear(dir: &Path) -> Result<(), String> {
-        let p = path(dir);
-        if p.exists() {
-            std::fs::remove_file(p).map_err(|e| e.to_string())?;
-        }
-        Ok(())
+        let _ = std::fs::remove_file(dir.join("sync.secret"));
+        keeper::secret_clear()
     }
 }
 

@@ -320,4 +320,4 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 ### D64 · Android 凭据暂存应用私有目录明文文件（feature/mobile-poc M4m）
 **偏离**：docs/07 §5 定「凭据 = 系统级安全存储（Windows 凭据管理器 / Android Keystore）」。桌面已用 keyring（Windows 凭据管理器）；Android 侧暂未接 Keystore，过渡实现为应用私有目录 sync.secret 明文文件。
 **理由**：Keystore 需在 keeper Kotlin 插件里加 AES 包装存取，属于 M5m 工作量；M4m 先把同步协议闭环跑通。
-**边界**：仅 debug/开发期；上真机前必须换 Keystore（已列入 M5m 清单）。sync.secret 不进快照、不同步。
+**闭环（同日）**：已换 Android Keystore——keeper 插件新增 SecretBox（AES/GCM，密钥只在 Keystore）+ set/get/clearSecret 命令，Rust 同步引擎经 PluginHandle 直调（不绕 JS）；旧 sync.secret 明文文件读到即迁入并删除。模拟器实测：密文落 files/sync.secret、启动推送 rev10 成功。

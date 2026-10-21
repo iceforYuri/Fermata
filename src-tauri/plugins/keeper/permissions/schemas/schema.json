@@ -307,6 +307,30 @@
           "markdownDescription": "Denies the cancel_reminder command without any pre-configured scope."
         },
         {
+          "description": "Enables the clear_secret command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-clear-secret",
+          "markdownDescription": "Enables the clear_secret command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the clear_secret command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-clear-secret",
+          "markdownDescription": "Denies the clear_secret command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_secret command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-secret",
+          "markdownDescription": "Enables the get_secret command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_secret command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-secret",
+          "markdownDescription": "Denies the get_secret command without any pre-configured scope."
+        },
+        {
           "description": "Enables the hide command without any pre-configured scope.",
           "type": "string",
           "const": "allow-hide",
@@ -341,6 +365,18 @@
           "type": "string",
           "const": "deny-schedule-reminder",
           "markdownDescription": "Denies the schedule_reminder command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the set_secret command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-set-secret",
+          "markdownDescription": "Enables the set_secret command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the set_secret command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-set-secret",
+          "markdownDescription": "Denies the set_secret command without any pre-configured scope."
         },
         {
           "description": "Enables the update command without any pre-configured scope.",
