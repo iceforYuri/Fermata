@@ -10,7 +10,7 @@ import { ImportConfirmOverlay } from "./ImportConfirmOverlay";
 import { UndoToast } from "./UndoToast";
 import { RowMenu } from "./RowMenu";
 import { TABS } from "./TitleBar";
-import { setUi, useUi, type Tab } from "../store/ui";
+import { setUi, useUi, getUi, type Tab } from "../store/ui";
 import { act, getBoard, useBoard } from "../store/board";
 import { invoke } from "@tauri-apps/api/core";
 import { statsSwipe } from "../mobile-stats";
@@ -81,6 +81,8 @@ export function MobileShell() {
   }, []);
   const idx = ORDER.indexOf(tab);
   const stripRef = useRef<HTMLDivElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const libScrimRef = useRef<HTMLDivElement>(null);
   const [dragX, setDragX] = useState(0);
   const [settling, setSettling] = useState(false);
   const sheetDyRef = useRef(0);
@@ -93,16 +95,30 @@ export function MobileShell() {
   useEffect(() => {
     const el = stripRef.current;
     if (!el) return;
-    let x0 = 0, y0 = 0, mode = "" as "" | "h" | "v";
+    let x0 = 0, y0 = 0, mode = "" as "" | "h" | "v" | "drawer";
     const down = (e: TouchEvent) => {
       const t = e.touches[0];
       x0 = t.clientX; y0 = t.clientY; mode = "";
+      // 屏幕左缘右滑 = 拉开稿库抽屉（进程页是条带最左端，右滑无处可去，docs/07 §6）
+      const ui = getUi();
+      if (x0 <= 28 && idxRef.current === 0 && !ui.leftOpen && ui.rightPid == null) mode = "drawer";
     };
     const move = (e: TouchEvent) => {
       const t = e.touches[0];
       const ddx = t.clientX - x0;
       const ddy = t.clientY - y0;
       if (mode === "" && (Math.abs(ddx) > 8 || Math.abs(ddy) > 8)) mode = Math.abs(ddx) > Math.abs(ddy) ? "h" : "v";
+      if (mode === "drawer") {
+        e.preventDefault();
+        const w = drawerRef.current?.offsetWidth ?? 300;
+        const dx = Math.max(0, ddx);
+        dragRef.current = dx;
+        const dr = drawerRef.current;
+        if (dr) { dr.style.transition = "none"; dr.style.transform = `translateX(${Math.min(0, dx - w)}px)`; }
+        const sc = libScrimRef.current;
+        if (sc) { sc.style.transition = "none"; sc.style.opacity = String(Math.min(1, dx / w)); }
+        return;
+      }
       if (mode !== "h") return;
       e.preventDefault();
       const i = idxRef.current;
@@ -111,6 +127,17 @@ export function MobileShell() {
       setDragX(atEdge ? ddx / 3 : ddx);
     };
     const up = () => {
+      if (mode === "drawer") {
+        const dx = dragRef.current;
+        const dr = drawerRef.current;
+        if (dr) { dr.style.transition = ""; dr.style.transform = ""; }
+        const sc = libScrimRef.current;
+        if (sc) { sc.style.transition = ""; sc.style.opacity = ""; }
+        if (dx > 64) setUi({ leftOpen: true });
+        dragRef.current = 0;
+        mode = "";
+        return;
+      }
       if (mode === "h") {
         const dx = dragRef.current;
         const i = idxRef.current;
@@ -147,6 +174,48 @@ export function MobileShell() {
       el.removeEventListener("touchcancel", up);
     };
   }, []);
+
+  // 稿库抽屉：向左拖回关闭（1:1 跟手 + 64px 阈值归位，与横滑切页同一套语言）
+  useEffect(() => {
+    const el = drawerRef.current;
+    if (!el || !leftOpen) return;
+    let x0 = 0, y0 = 0, mode = "" as "" | "h" | "v";
+    let dxCur = 0;
+    const down = (e: TouchEvent) => { const t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; mode = ""; };
+    const move = (e: TouchEvent) => {
+      const t = e.touches[0];
+      const ddx = t.clientX - x0;
+      const ddy = t.clientY - y0;
+      if (mode === "" && (Math.abs(ddx) > 8 || Math.abs(ddy) > 8)) mode = Math.abs(ddx) > Math.abs(ddy) ? "h" : "v";
+      if (mode !== "h" || ddx >= 0) return;
+      e.preventDefault();
+      dxCur = ddx;
+      const w = el.offsetWidth;
+      el.style.transition = "none";
+      el.style.transform = `translateX(${ddx}px)`;
+      const sc = libScrimRef.current;
+      if (sc) { sc.style.transition = "none"; sc.style.opacity = String(Math.max(0, 1 + ddx / w)); }
+    };
+    const up = () => {
+      if (mode === "h" && dxCur < 0) {
+        el.style.transition = ""; el.style.transform = "";
+        const sc = libScrimRef.current;
+        if (sc) { sc.style.transition = ""; sc.style.opacity = ""; }
+        if (dxCur < -64) setUi({ leftOpen: false });
+      }
+      mode = ""; dxCur = 0;
+    };
+    el.addEventListener("touchstart", down, { passive: true });
+    el.addEventListener("touchmove", move, { passive: false });
+    el.addEventListener("touchend", up);
+    el.addEventListener("touchcancel", up);
+    return () => {
+      el.removeEventListener("touchstart", down);
+      el.removeEventListener("touchmove", move);
+      el.removeEventListener("touchend", up);
+      el.removeEventListener("touchcancel", up);
+    };
+  }, [leftOpen]);
 
     // 详情底卡：下滑关闭（内容滚到顶后 overscroll 下拉）
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -186,8 +255,8 @@ export function MobileShell() {
   return (
     <div className="m-shell">
       {/* 稿库左抽屉 */}
-      <div className={"m-scrim" + (leftOpen ? " open" : "")} onPointerDown={() => setUi({ leftOpen: false })} />
-      <div className={"m-lib-drawer" + (leftOpen ? " open" : "")}>
+      <div ref={libScrimRef} className={"m-scrim" + (leftOpen ? " open" : "")} onPointerDown={() => setUi({ leftOpen: false })} />
+      <div ref={drawerRef} className={"m-lib-drawer" + (leftOpen ? " open" : "")}>
         <LibraryPanel />
       </div>
 

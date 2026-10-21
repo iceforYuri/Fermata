@@ -58,3 +58,23 @@
     cargo tauri android build --debug --target x86_64 --apk
     # 模拟器：emulator.exe -avd Medium_Phone -no-window -no-audio
     # 安装：adb install -r gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk
+
+
+## 2026-10-22 M0m 同步就绪 schema（桌面侧，docs/07 §5）
+
+- MIGRATION_V6：进程/计划/步骤/分段四表加 uuid（全局唯一，lower(hex(randomblob(16)))）+ updated_at；steps 加 deleted_at 软删除墓碑；四个唯一索引；四个 AFTER UPDATE 触发器（julianday 毫秒落戳，显式赋值优先，WHEN NEW=OLD 防递归）。
+- 回填：uuid 全量生成；updated_at 回填 created_at/started_at（步骤 COALESCE(done_at,0)——旧行保守视为最老，LWW 让位任何真实编辑）；settings 写入 device_id。
+- ops.rs：四处 INSERT 带 uuid/updated_at；entry_delete 改软删；queries.rs 两处步骤读取过滤 deleted_at IS NULL。
+- 验证：cargo test 20/20 过；模拟器旧库（v5，含进行中进程 beta）直升 v6 无损——version=6、四表 uuid/updated_at 无 NULL、四个触发器就位、device_id 落库、运行中进程计时连续。
+- 事件日志完备性审计（30+ 种 kind 逐个核对 payload）仍欠，M4m 同步模块落地前做。
+
+## 2026-10-22 稿库抽屉手势补齐（M1m 漏项）
+
+- 左缘右滑开抽屉（进程页为条带最左端，右滑无处可去，docs/07 §6）：touchstart 落在左缘 28css px 内即进入抽屉手势流，1:1 跟手 + scrim 联动渐显，松手 >64px 开、否则弹回。
+- 抽屉内向左拖回关闭：同一套手势语言，1:1 跟手，松手过 64px 关、否则归位；竖向滚动不受影响（方向锁先判横竖）。
+- 验证：CDP（webview_devtools_remote）合成触摸事件逐项确认监听器挂载与开合状态；跟手中途截图存 docs/screenshots/mobile-drawer-edge-drag.png。
+- 注意：屏幕最外侧 ~20dp 是系统返回手势区（手势导航固有行为，所有抽屉 app 一样），边缘手势从稍内侧起滑即可；左上角字形按钮是稳定入口。
+
+## 踩坑记录（续）
+
+7. 模拟器 WebView SIGILL：本机模拟器（Android 37 x86_64，WebView 145.0.7632.218）上，应用退后台触发 onTrimMemory 时 WebView 原生代码 SIGILL（固定地址，ILL_ILLOPN），进程死亡并触发「crashed too many times」限流。与我们的 Rust/JS 无关（JS/SQLite 不可能在 libwebviewchromium.so 里造成非法指令）；前台使用不受影响。真机后台保活验证时要区分这个模拟器固有崩溃。调试技巧：debug 包可用 adb forward tcp:9333 localabstract:webview_devtools_remote_<pid> 接 CDP，用 Input.dispatchTouchEvent 合成可靠触摸流。
