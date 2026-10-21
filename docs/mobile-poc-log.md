@@ -7,8 +7,8 @@
 | 门 | 状态 | 证据 |
 |---|---|---|
 | 1. 构建安装运行 | ✅ 模拟器通过（真机待用户插线） | docs/screenshots/mobile-poc-boot.png（进程页空态完整渲染：报头/已完栏/稿库 rail/空态文案） |
-| 2. 前台服务保活 | ⏳ Kotlin 插件未写 | — |
-| 3. 通知暂停/继续按钮 | ⏳ 同上 | — |
+| 2. 息屏计时 + 到点提醒（架构改：时间戳记账 + AlarmManager，无常驻服务） | ✅ 模拟器通过（真机待用户） | logcat：闹钟 120000ms 触发误差 56ms；接收器跑在系统新拉起的进程；息屏期间计时连续 |
+| 3. 通知暂停/继续按钮 | ✅ 模拟器通过（真实点击 + adb 双路径） | 截图 mobile-poc-notif-paused.png（已暂停·累计450s·按钮翻转为继续）；logcat onReceive→pause→resume |
 | 4. WebDAV 推/拉闭环 | ⏳ 未开始（先用本机临时 WebDAV 服务验机制） | — |
 
 ## 工具链落点（全部本机、用户态、无需管理员）
@@ -19,6 +19,13 @@
 - Rust Android targets ×4：aarch64 / armv7 / i686 / x86_64-linux-android
 - 用户级环境变量：ANDROID_HOME、NDK_HOME（注册表 User 作用域）
 - 模拟器：Medium_Phone（Android 37 x86_64 镜像，机器上原有）
+
+## 门 2/3 发现（2026-10-21）
+
+- **架构修正（待用户确认后改 07 文档第 7 节）**：原定「自写 Kotlin 前台服务插件」→ PoC 证明更优解是**时间戳记账 + Chronometer 通知 + AlarmManager**：计时与进程死活解耦（系统会拉起新进程投递事件，elapsed 用时间戳算零误差），避开 Android 15+ dataSync 前台服务每天 6 小时上限。前台服务仅在后续需要运行锁常驻标记时再评估。
+- **Android 14+ 精确闹钟（SCHEDULE_EXACT_ALARM）默认不授予**：直接 setExactAndAllowWhileIdle 会 SecurityException 崩 onCreate。已修为 canScheduleExactAlarms() 检查 + 不精确回退；M2m 需要设置页引导用户授权（系统设置入口）。
+- **隐式 Intent 投递不到无 intent-filter 的静态接收器**：通知按钮必须用显式组件 Intent（Intent(ctx, KeeperReceiver::class.java)）。接收器现为 exported=true（PoC 妥协：adb 直发测试路径需要；M2m 接线完成后应回 false，PendingIntent 以应用身份投递不受影响）。
+- Keeper.kt / KeeperReceiver.kt 位于 gen/android/app（生成工程内手写件）；MainActivity 的 PoC 接线（启动即开会话）将在 M2m 改为「有运行进程才发会话通知」。
 
 ## 踩坑记录（重要）
 
