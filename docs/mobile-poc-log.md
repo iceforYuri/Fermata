@@ -97,3 +97,11 @@
 - D64 闭环：Android 凭据换 Keystore（SecretBox AES/GCM + keeper PluginHandle 直调），旧明文文件自动迁移删除。
 - PoC 探针拆除：MobileShell ↻/☾ 临时钮、webdav_probe 命令、.m-poc-webdav 样式全删。
 - 事件日志完备性初审计：ops.rs 38 个写操作全部记事件（42 种 kind）；逐 kind payload 完备性留待 v1.5 实体合并前细审。
+
+
+## 2026-10-22 M5m 手势收尾：触摸拖拽排序 + 稿库拖出直排
+
+- 挂起队列触摸拖拽（docs/07 §6：长按不松手拖动 = 菜单合并进拖拽）：移动端换 touch 事件流（pointer move 被滚动抢占的老坑）。
+- **重要踩坑：触摸序列锚定起始 DOM 节点**。拖拽中的「克隆替换被拖行」会把触摸目标从文档树移除，之后的 touchmove/touchend 永远到不了 window——表现是手势卡死、drag 状态残留。修法：被拖行原位 transform 跟手（不克隆），与「move/up 挂 window」双保险。这套教训适用于以后一切触摸拖拽。
+- 稿库条目长按右拖出抽屉右缘 = 关抽屉 + 排入挂起队列（LibraryPanel 容器级 touch 手势流；移动端禁用 HTML5 draggable 防原生长按抢手势）。
+- 验证（CDP 合成触摸）：长按出菜单 ✓ 菜单合并进拖拽 ✓ 拖拽换序落库 ✓ 松手无残留 ✓ 拖出抽屉排入 ✓；锁徽标 TTL 过期自动转「可能仍在运行」✓。

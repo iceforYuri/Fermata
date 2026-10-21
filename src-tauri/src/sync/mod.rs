@@ -633,6 +633,20 @@ pub fn record_result(conn: &Connection, o: &Outcome) -> Result<(), String> {
 
 // ---------- 测试 ----------
 
+#[cfg(all(test, windows))]
+mod keyring_live {
+    /// 手动跑：cargo test --lib keyring_live -- --ignored
+    #[test]
+    #[ignore]
+    fn keyring_roundtrip() {
+        super::secret::set(std::path::Path::new("."), "p@ss-t0ken").unwrap();
+        let v = super::secret::get(std::path::Path::new(".")).unwrap();
+        assert_eq!(v.as_deref(), Some("p@ss-t0ken"));
+        super::secret::clear(std::path::Path::new(".")).unwrap();
+        assert_eq!(super::secret::get(std::path::Path::new(".")).unwrap(), None);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
