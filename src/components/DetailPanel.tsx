@@ -3,6 +3,7 @@ import { data, type BoardProcess, type Segment } from "../api/data";
 import { act, markHex, todayStr, useBoard } from "../store/board";
 import { closeDetail, useUi } from "../store/ui";
 import { switchTo } from "../store/actions";
+import { lockFor, useLocks } from "../store/locks";
 import { isMobile } from "../mobile";
 import { fmtClock, fmtDur } from "../util";
 import { InlineEdit } from "./InlineEdit";
@@ -38,7 +39,14 @@ function DetailInner({ bp }: { bp: BoardProcess }) {
   const isActiveSelf = runningBp?.process.id === p.id;
   const [confirming, setConfirming] = useState(false);
   const [bpText, setBpText] = useState("");
+  const lockInfo = lockFor(useLocks(), p.uuid);
   const startSwitch = () => {
+    // 对端锁（docs/07 §5）：进程在其他设备运行中 → 显式接管
+    if (lockInfo) {
+      void act(() => data.syncTakeover(p.id));
+      closeDetail();
+      return;
+    }
     if (!runningBp) {
       void switchTo(p.id);
       closeDetail();

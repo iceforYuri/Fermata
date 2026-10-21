@@ -561,7 +561,7 @@ async fn pull_apply(
     let raw = gunzip(&gz)?;
     let mut out: Option<Outcome> = None;
     with_conn(&mut |conn| {
-        let backup = if conflict || event_max(conn)? > 0 {
+        let backup = if conflict || dirty(conn)? {
             Some(backup_local(conn, app_dir)?)
         } else {
             None

@@ -1094,6 +1094,9 @@ export const mockData: DataApi = {
   async syncLocks() {
     return [];
   },
+  async syncTakeover() {
+    return { status: "noop", detail: "mock 环境无同步", rev: 0 };
+  },
   async syncLockRefresh() {
     return "cleared";
   },

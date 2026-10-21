@@ -11,6 +11,7 @@ import { EmptyState } from "../components/EmptyState";
 import { BreakpointCard, IdleConfirmCard } from "../components/MicroCards";
 import { NewProcessRow } from "../components/NewProcessRow";
 import { SuspendedQueue } from "../components/SuspendedRow";
+import { lockFor, useLocks } from "../store/locks";
 import { isOverActive, queueInsertAt } from "../components/dnd";
 import { useExiting } from "../components/useExiting";
 
@@ -22,6 +23,7 @@ import { useExiting } from "../components/useExiting";
  */
 export function BoardPage() {
   const { board } = useBoard();
+  const locks = useLocks();
   const [pendingSwitch, setPendingSwitch] = useState<{ pid: number; rect: DOMRect } | null>(null);
   const [dragOverActive, setDragOverActive] = useState(false);
   const [libDrag, setLibDrag] = useState<{ insertAt: number; overActive: boolean } | null>(null);
@@ -172,9 +174,15 @@ export function BoardPage() {
             day={day}
             libPreview={libDrag && !libDrag.overActive ? { insertAt: libDrag.insertAt } : null}
             onRequestSwitch={(pid, rect) => {
-              // 移动端：点击主体 = 查看详情底卡，切换走卡内 ⤒（docs/07-移动端.md §6）
+              // 移动端：点击主体 = 查看详情底卡，切换/接管走卡内 ⤒（docs/07-移动端.md §6）
               if (isMobile) {
                 openDetail(pid);
+                return;
+              }
+              // 对端锁（docs/07 §5）：桌面点击带锁进程 = 显式接管，不开断点卡（断点随对端快照来）
+              const uuid = board.suspended.find((r) => r.process.id === pid)?.process.uuid;
+              if (lockFor(locks, uuid)) {
+                void act(() => data.syncTakeover(pid));
                 return;
               }
               // 无活跃进程时不弹断点卡直接切换（没有旧进程可留断点）

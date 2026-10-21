@@ -84,6 +84,7 @@ const tauriData: DataApi = {
   syncStatus: () => invoke("sync_status"),
   syncLocks: () => invoke("sync_locks"),
   syncLockRefresh: () => invoke("sync_lock_refresh"),
+  syncTakeover: (pid) => invoke("sync_takeover", { pid }),
 };
 
 export const data: DataApi = isTauri ? tauriData : mockData;

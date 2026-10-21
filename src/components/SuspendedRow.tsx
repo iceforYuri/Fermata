@@ -4,6 +4,7 @@ import { act, markHex, useBoard } from "../store/board";
 import { completeWithUndo } from "../store/actions";
 import { closeRowMenu, openDetail, openRowMenu } from "../store/ui";
 import { agingInk, agingOpacity, fmtDur } from "../util";
+import { lockFor, useLocks } from "../store/locks";
 import { ROW_PITCH, SQUEEZE, isOverActive, queueInsertAt } from "./dnd";
 
 /**
@@ -23,6 +24,7 @@ export function SuspendedRow({
 }) {
   const board = useBoard();
   const p = bp.process;
+  const lockInfo = lockFor(useLocks(), p.uuid);
   const color = markHex(board, p.color_tag);
   const waiting = p.state === "waiting_ai";
   // 老化双轴：行褪（--age-op，施于卡片边框/染底与标题等小字）+ 标签沉（--age-ink，只施于「挂 xx」）
@@ -60,7 +62,15 @@ export function SuspendedRow({
           <span className="chevron" style={bp.stack_top ? undefined : { color: "var(--ink-ghost)" }}>
             {bp.stack_top?.title ?? "未留断点"}
           </span>
-          <span className="aging-label">挂 {fmtDur(bp.aging_ms ?? 0)}</span>
+          {lockInfo ? (
+            <span className="lock-badge" data-testid="lock-badge">
+              {lockInfo.fresh
+                ? `在 ${lockInfo.lock.device_name} 运行中 · 始于 ${new Date(lockInfo.lock.started_at).toTimeString().slice(0, 5)}`
+                : `可能仍在 ${lockInfo.lock.device_name} 运行中`}
+            </span>
+          ) : (
+            <span className="aging-label">挂 {fmtDur(bp.aging_ms ?? 0)}</span>
+          )}
         </div>
       </div>
       <div className="row-tail">

@@ -348,6 +348,8 @@ pub struct Process {
     pub board_date: String,
     pub notes: Option<String>,
     pub notes_updated_at: Option<i64>,
+    /// v6 同步就绪：全局 uuid（同步锁匹配用）
+    pub uuid: Option<String>,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -415,6 +417,7 @@ pub fn row_to_process(r: &rusqlite::Row) -> rusqlite::Result<Process> {
         board_date: r.get("board_date")?,
         notes: r.get("notes").ok(),
         notes_updated_at: r.get("notes_updated_at").ok(),
+        uuid: r.get("uuid").ok(),
     })
 }
 

@@ -841,3 +841,35 @@ pub async fn sync_lock_refresh(app: AppHandle) -> Result<&'static str, String> {
     let cfg = cfg.ok_or("同步未配置")?;
     sync::lock_sync(&cfg, draft.as_ref(), &self_id.unwrap_or_default()).await
 }
+
+/// 显式接管（docs/07 §5）：先强制拉对端最新（本机脏则先备份）→ 以对端锁标记时刻收界 → 本端开始 → 立即推
+#[tauri::command]
+pub async fn sync_takeover(app: AppHandle, pid: i64) -> Result<sync::Outcome, String> {
+    let _guard = SYNC_GATE.lock().await;
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    // 1. 对齐远端：能拉就拉（本地改动自动备份），远端没有快照则跳过
+    match sync_run_bg(&app, Some(sync::Force::Pull)).await {
+        Ok(_) => {}
+        Err(e) if e.contains("远端还没有快照") => {}
+        Err(e) => return Err(e),
+    }
+    // 2. 对端锁：取最新一条的 written_at 作收界
+    let (cfg, self_id) = {
+        let state = app.state::<DbState>();
+        let c = state.0.lock().map_err(|e| e.to_string())?;
+        (sync::load_cfg(&c, &dir)?, sync::device_id(&c).ok())
+    };
+    let cfg = cfg.ok_or("同步未配置")?;
+    let locks = sync::lock_read_others(&cfg, &self_id.unwrap_or_default()).await?;
+    let Some(lk) = locks.iter().max_by_key(|l| l.written_at).cloned() else {
+        return Err("没有对端的运行标记可接管".into());
+    };
+    // 3. 接管 + 立即推（让对端尽快看到）
+    {
+        let state = app.state::<DbState>();
+        let c = state.0.lock().map_err(|e| e.to_string())?;
+        ops::takeover(&c, db::now_ms(), pid, lk.written_at)?;
+    }
+    let _ = app.emit("store-changed", ());
+    sync_run_bg(&app, None).await
+}

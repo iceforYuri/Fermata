@@ -15,6 +15,7 @@ export interface Process {
   queue_position: number | null;
   board_date: string;
   notes_updated_at?: number | null; // v5 起：写记录落戳；存量为 null/缺省
+  uuid?: string | null; // v6 起：全局 uuid（运行锁匹配）
 }
 
 export interface Step {
@@ -279,6 +280,8 @@ export interface DataApi {
   syncStatus(): Promise<SyncStatus>;
   /** 其他设备的运行锁 */
   syncLocks(): Promise<RemoteLock[]>;
+  /** 显式接管：拉对端最新 → 以锁标记收界 → 本端开始 → 立即推 */
+  syncTakeover(pid: number): Promise<SyncOutcome>;
   /** 运行中锁心跳刷新 */
   syncLockRefresh(): Promise<string>;
   /** 回默认位置（AppData） */

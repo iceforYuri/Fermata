@@ -845,3 +845,49 @@ fn year_month_aggregate_clamps_negative_segments() {
     let y_total: i64 = ov.months.iter().flat_map(|mm| mm.shares.iter().map(|s| s.ms)).sum();
     assert_eq!(y_total, 60_000, "年视图聚合：负段钳 0");
 }
+
+/// 接管（docs/07 §5）：对端开口段以锁标记时刻收界，本端从 now 起计；同一进程接管亦成立
+#[test]
+fn takeover_bounds_remote_segment_at_lock_time() {
+    let conn = db::open_in_memory().unwrap();
+    let t0 = 1_800_000_000_000i64;
+    let a = ops::process_create(&conn, t0, "对端在跑", None, None).unwrap();
+    let b = ops::process_create(&conn, t0 + 1, "本端要做", None, None).unwrap();
+
+    // 模拟对端快照：A 在 running，开口段起于 t0+10
+    ops::process_switch(&conn, t0 + 10, a, None).unwrap();
+
+    // 本端 t0+100 接管 B：A 的段应收在锁标记 t0+80，A 回落挂起，B 起于 t0+100
+    ops::takeover(&conn, t0 + 100, b, t0 + 80).unwrap();
+    let (end,): (i64,) = conn
+        .query_row("SELECT ended_at FROM segments WHERE process_id = ?1", [a], |r| Ok((r.get(0)?,)))
+        .unwrap();
+    assert_eq!(end, t0 + 80, "对端段以锁标记收界");
+    let st: String = conn.query_row("SELECT state FROM processes WHERE id = ?1", [a], |r| r.get(0)).unwrap();
+    assert_eq!(st, "suspended");
+    assert!(db::timer_open(&conn, b).unwrap(), "B 应在计时");
+    let takeover_events: i64 = conn
+        .query_row("SELECT COUNT(*) FROM events WHERE kind = 'takeover' OR payload LIKE '%takeover%'", [], |r| r.get(0))
+        .unwrap();
+    assert!(takeover_events >= 1, "接管应留痕");
+
+    // 同一进程接管：B 收界到新锁标记 t0+150，原地续开
+    ops::takeover(&conn, t0 + 200, b, t0 + 150).unwrap();
+    let segs: Vec<(i64, Option<i64>)> = {
+        let mut s = conn.prepare("SELECT started_at, ended_at FROM segments WHERE process_id = ?1 ORDER BY id").unwrap();
+        s.query_map([b], |r| Ok((r.get(0)?, r.get(1)?))).unwrap().map(|r| r.unwrap()).collect()
+    };
+    assert_eq!(segs.len(), 2);
+    assert_eq!(segs[0], (t0 + 100, Some(t0 + 150)));
+    assert_eq!(segs[1], (t0 + 200, None));
+
+    // 收界不早于段起点：锁标记早于段起点时钳到段起点
+    ops::takeover(&conn, t0 + 300, b, t0 + 50).unwrap();
+    let segs2: Vec<(i64, Option<i64>)> = {
+        let mut s = conn.prepare("SELECT started_at, ended_at FROM segments WHERE process_id = ?1 ORDER BY id").unwrap();
+        s.query_map([b], |r| Ok((r.get(0)?, r.get(1)?))).unwrap().map(|r| r.unwrap()).collect()
+    };
+    assert_eq!(segs2.len(), 3);
+    assert_eq!(segs2[1], (t0 + 200, Some(t0 + 200)), "收界钳到段起点");
+    assert_eq!(segs2[2], (t0 + 300, None));
+}

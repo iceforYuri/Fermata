@@ -185,6 +185,7 @@ pub fn run() {
             commands::sync_status,
             commands::sync_locks,
             commands::sync_lock_refresh,
+            commands::sync_takeover,
             #[cfg(desktop)]
             commands::export_events_dialog,
             commands::export_snapshot_to,

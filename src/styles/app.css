@@ -1846,6 +1846,9 @@ body:has(.overlay-card) {
 }
 .set-exported { font-size: var(--fs-micro); color: var(--ink-faint); padding-left: 168px; }
 
+/* 对端运行锁徽标（docs/07 §5） */
+.lock-badge { color: var(--ink-soft); font-size: var(--fs-micro); }
+
 /* 同步连接：1px 下划线输入（宪法：下划线是唯一编辑指示） */
 .set-input {
   flex: 1;
