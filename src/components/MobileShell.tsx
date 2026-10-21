@@ -12,6 +12,7 @@ import { TABS } from "./TitleBar";
 import { setUi, useUi, type Tab } from "../store/ui";
 import { useBoard } from "../store/board";
 import { invoke } from "@tauri-apps/api/core";
+import { statsSwipe } from "../mobile-stats";
 import { useScheduler } from "../store/scheduler";
 
 const ORDER: Tab[] = ["board", "stats", "settings"];
@@ -27,6 +28,7 @@ export function MobileShell() {
   const stripRef = useRef<HTMLDivElement>(null);
   const [dragX, setDragX] = useState(0);
   const [settling, setSettling] = useState(false);
+  const sheetDyRef = useRef(0);
 
 
   // 原生触摸手势（pointer 事件在 Android WebView 下 move 流被压缩，touch 事件流可靠）
@@ -58,6 +60,17 @@ export function MobileShell() {
         const dx = dragRef.current;
         const i = idxRef.current;
         let target = i;
+        // 统计页：横滑先切内嵌视角（年｜月｜日），到界才换页
+        if (ORDER[i] === "stats" && Math.abs(dx) > 48) {
+          const consumed = statsSwipe.current?.(dx < 0 ? 1 : -1) ?? false;
+          if (consumed) {
+            setSettling(true);
+            setDragX(0);
+            window.setTimeout(() => setSettling(false), 340);
+            mode = "";
+            return;
+          }
+        }
         if (dx < -48) target = Math.min(i + 1, ORDER.length - 1);
         else if (dx > 48) target = Math.max(i - 1, 0);
         setSettling(true);
@@ -71,13 +84,49 @@ export function MobileShell() {
     el.addEventListener("touchmove", move, { passive: false });
     el.addEventListener("touchend", up);
     el.addEventListener("touchcancel", up);
-    return () => {
+
+  return () => {
       el.removeEventListener("touchstart", down);
       el.removeEventListener("touchmove", move);
       el.removeEventListener("touchend", up);
       el.removeEventListener("touchcancel", up);
     };
   }, []);
+
+    // 详情底卡：下滑关闭（内容滚到顶后 overscroll 下拉）
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const sheetDrag = useRef({ y0: 0, active: false });
+  const [sheetDy, setSheetDy] = useState(0);
+  useEffect(() => {
+    const el = sheetRef.current;
+    if (!el || rightPid == null) return;
+    const inner = el.querySelector(".detail-inner");
+    let y0 = 0;
+    let pulling = false;
+    const down = (e: TouchEvent) => { y0 = e.touches[0].clientY; pulling = false; };
+    const move = (e: TouchEvent) => {
+      const dy = e.touches[0].clientY - y0;
+      if (!pulling && dy > 0 && (inner?.scrollTop ?? 0) <= 0) pulling = true;
+      if (!pulling) return;
+      e.preventDefault();
+      sheetDyRef.current = Math.max(0, dy); setSheetDy(Math.max(0, dy));
+    };
+    const up = () => {
+      if (pulling && sheetDrag.current) {
+        if (sheetDyRef.current > 90) { setUi({ rightPid: null }); }
+      }
+      pulling = false;
+      setSheetDy(0);
+    };
+    el.addEventListener("touchstart", down, { passive: true });
+    el.addEventListener("touchmove", move, { passive: false });
+    el.addEventListener("touchend", up);
+    return () => {
+      el.removeEventListener("touchstart", down);
+      el.removeEventListener("touchmove", move);
+      el.removeEventListener("touchend", up);
+    };
+  }, [rightPid]);
 
   return (
     <div className="m-shell">
@@ -122,7 +171,11 @@ export function MobileShell() {
 
       {/* 详情底卡 */}
       <div className={"m-scrim" + (rightPid != null ? " open" : "")} onPointerDown={() => setUi({ rightPid: null })} />
-      <div className={"m-detail-sheet" + (rightPid != null ? " open" : "")}>
+      <div
+        ref={sheetRef}
+        className={"m-detail-sheet" + (rightPid != null ? " open" : "")}
+        style={sheetDy > 0 ? { transform: `translateY(${sheetDy}px)`, transition: "none" } : undefined}
+      >
         <DetailPanel />
       </div>
 

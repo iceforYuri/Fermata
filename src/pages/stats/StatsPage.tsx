@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { isMobile } from "../../mobile";
+import { statsSwipe } from "../../mobile-stats";
 import { dayStr, MonthCalendar } from "./MonthCalendar";
 import { BigRing } from "./BigRing";
 import { DayViewSection } from "./DayViewSection";
@@ -39,7 +41,26 @@ export function StatsPage() {
     setRefreshKey((k) => k + 1);
   }, [tab]);
 
-  const drillTo = (next: View) => {
+    const viewRef = useRef(view);
+  viewRef.current = view;
+
+  // 移动端：条带在统计页的内嵌横滑（docs/07-移动端.md §6；年｜月｜日，到界交还条带换页）
+  useEffect(() => {
+    if (!isMobile) return;
+    statsSwipe.current = (dir) => {
+      const cur = ORDER[viewRef.current];
+      const nextIdx = cur + dir;
+      if (nextIdx < 0 || nextIdx > 2) return false;
+      drillTo((["year", "month", "day"] as View[])[nextIdx]);
+      return true;
+    };
+    return () => {
+      statsSwipe.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+const drillTo = (next: View) => {
     if (next === view) return;
     const dir = ORDER[next] > ORDER[view] ? 1 : -1;
     if (outTimer.current) clearTimeout(outTimer.current);

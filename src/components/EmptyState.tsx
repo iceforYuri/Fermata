@@ -1,4 +1,5 @@
 import { setUi } from "../store/ui";
+import { isMobile } from "../mobile";
 
 /** 空态：排版好的引导语 + 两个入口。拖放感应在中列级（BoardPage），空板松手=直接激活。 */
 export function EmptyState() {
@@ -15,7 +16,7 @@ export function EmptyState() {
           data-testid="empty-open-library"
           onClick={() => setUi({ leftOpen: true })}
         >
-          从稿库拖一件进来
+          {isMobile ? "左上 ≡ 开稿库挑一件" : "从稿库拖一件进来"}
         </span>
         <span
           className="entry"

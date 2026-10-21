@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { isMobile } from "../../mobile";
 import { data } from "../../api/data";
 import { system } from "../../api/system";
 import { act, effectiveTheme, useBoard } from "../../store/board";
@@ -212,11 +213,8 @@ function HotkeyRow({ value, onCommit, testid }: { value: string; onCommit: (v: s
 
 const SECTIONS: [string, string][] = [
   ["slice", "时间片与提醒"],
-  ["timing", "计时"],
-  ["appearance", "外观与排版"],
-  ["hotkey", "快捷键"],
-  ["data", "数据"],
-];
+    ["appearance", "外观与排版"],
+    ];
 
 export function SettingsPage() {
   const board = useBoard();
@@ -321,27 +319,29 @@ export function SettingsPage() {
         <NumRow label="时间片长度" unit="分钟" value={parseInt(get("slice_minutes", "45"))} min={5} max={180} step={5} onCommit={setNum("slice_minutes")} testid="set-slice" />
         <NumRow label="连续工作阈值" unit="分钟" value={parseInt(get("continuous_limit_minutes", "90"))} min={15} max={360} step={15} onCommit={setNum("continuous_limit_minutes")} testid="set-cont" />
         <ChoiceRow label="休止符模式" value={get("rest_mode", "soft")} options={[["soft", "软（自然间隙才弹）"], ["hard", "硬（到点立即弹）"]]} onCommit={setStr("rest_mode")} testid="set-restmode" />
-        <div className="set-row">
+        {!isMobile && (<div className="set-row">
           <span className="set-label">提醒样式</span>
           <span className="set-value" style={{ cursor: "default" }}>
             应用内弹窗（无边框·置顶·不抢焦点；Windows 系统通知为兜底）
           </span>
-        </div>
+        </div>)}
       </section>
 
-      <section data-sec="timing" className="set-sec">
+      {!isMobile && (
+<section data-sec="timing" className="set-sec">
         <div className="detail-label">计时</div>
-        <NumRow label="空闲检测阈值" unit="分钟" value={parseInt(get("idle_threshold_minutes", "5"))} min={1} max={60} step={1} onCommit={setNum("idle_threshold_minutes")} testid="set-idle" />
-        <ToggleRow label="空闲回归确认" value={get("idle_confirm", "1") === "1"} onFlip={(v) => void act(() => data.settingSet("idle_confirm", v ? "1" : "0"))} testid="set-idleconfirm" />
+        {!isMobile && (<NumRow label="空闲检测阈值" unit="分钟" value={parseInt(get("idle_threshold_minutes", "5"))} min={1} max={60} step={1} onCommit={setNum("idle_threshold_minutes")} testid="set-idle" />)}
+        {!isMobile && (<ToggleRow label="空闲回归确认" value={get("idle_confirm", "1") === "1"} onFlip={(v) => void act(() => data.settingSet("idle_confirm", v ? "1" : "0"))} testid="set-idleconfirm" />)}
       </section>
+      )}
 
       <section data-sec="appearance" className="set-sec">
         <div className="detail-label">外观与排版</div>
         <ChoiceRow label="主题" value={themeNow} options={[["light", "亮 · 极简暖"], ["dark", "暗 · 工作台"]]} onCommit={setStr("theme")} testid="set-theme" />
         <ChoiceRow label="字号阶梯" value={get("font_scale", "standard")} options={[["compact", "紧凑"], ["standard", "标准"], ["loose", "宽松"]]} onCommit={setStr("font_scale")} testid="set-font" />
         <ChoiceRow label="版面密度" value={get("density", "standard")} options={[["compact", "紧凑"], ["standard", "标准"], ["loose", "宽松"]]} onCommit={setStr("density")} testid="set-density" />
-        <ToggleRow label="窗口置顶" value={get("always_on_top", "0") === "1"} onFlip={(v) => void system.pin(v)} testid="set-topmost" />
-        <NumRow label="左栏稿库宽度" unit="px" value={parseInt(get("lib_width", "300"))} min={240} max={360} step={10} onCommit={setNum("lib_width")} testid="set-libw" />
+        {!isMobile && (<ToggleRow label="窗口置顶" value={get("always_on_top", "0") === "1"} onFlip={(v) => void system.pin(v)} testid="set-topmost" />)}
+        {!isMobile && (<NumRow label="左栏稿库宽度" unit="px" value={parseInt(get("lib_width", "300"))} min={240} max={360} step={10} onCommit={setNum("lib_width")} testid="set-libw" />)}
         <div className="set-row" data-testid="set-palette">
           <span className="set-label">色板</span>
           <span className="color-row">
@@ -352,12 +352,15 @@ export function SettingsPage() {
         </div>
       </section>
 
-      <section data-sec="hotkey" className="set-sec">
+      {!isMobile && (
+<section data-sec="hotkey" className="set-sec">
         <div className="detail-label">快捷键</div>
         <HotkeyRow value={get("hotkey", "Alt+Q")} onCommit={hotkeyCommit} testid="set-hotkey" />
       </section>
+      )}
 
-      <section data-sec="data" className="set-sec">
+      {!isMobile && (
+<section data-sec="data" className="set-sec">
         <div className="detail-label">数据</div>
         <div className="set-row">
           <span className="set-label">存储位置</span>
@@ -438,6 +441,7 @@ export function SettingsPage() {
         </div>
         {dataEcho && <div className="set-exported num" data-testid="export-path">{dataEcho}</div>}
       </section>
+      )}
 
       {/* 构建戳：核对"这份程序是不是最新构建" */}
       <div className="build-stamp num" data-testid="build-stamp">
