@@ -2365,3 +2365,13 @@ body:has(.lib-rail:hover) .lib-hint-arrow { animation: hint-breathe 2.4s ease-in
 
 /* 底卡内去重：桌面标题行的旧关闭钮在移动端由卡顶动作条承担 */
 .m-detail-sheet [data-testid="detail-close"] { display: none; }
+
+/* 修复：will-change: transform 的 track 会成为绝对定位后代的包含块，
+   休息页 inset:0 会布满三倍宽条带、内容偏出视口 —— 让 page 自己成为包含块 */
+.m-page { position: relative; }
+
+/* 休息页 footer 避开底栏（移动端） */
+.m-shell .rest-page { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+
+/* 休息页 foot 是绝对定位：bottom 抬到底栏之上 */
+.m-shell .rest-foot { bottom: calc(92px + env(safe-area-inset-bottom)); }

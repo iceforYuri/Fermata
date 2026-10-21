@@ -38,11 +38,16 @@ export function useScheduler() {
     const onFocus = () => void maybePopup("main-focus");
     window.addEventListener("focus", onFocus);
 
+    // 移动端间隙：回前台（WebView 的 window focus 在 Android 上不可靠，visibilitychange 才是）
+    const onVisible = () => { if (document.visibilityState === "visible") void maybePopup("app-resume"); };
+    document.addEventListener("visibilitychange", onVisible);
+
     const t = setInterval(tick, 1000);
     return () => {
       disposed = true;
       clearInterval(t);
       window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
       unOverlay?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

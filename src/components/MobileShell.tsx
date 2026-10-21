@@ -204,8 +204,30 @@ export function MobileShell() {
             console.error("[webdav-poc] FAIL " + String(e));
           }
         }}
+        onPointerDown={() => {
+          (window as unknown as { __restT?: number }).__restT = window.setTimeout(() => {
+            void invoke("rest_trigger", { pid: null, source: "poc-manual", readingMs: 0 }).catch((err) => console.error("[rest-poc] " + String(err)));
+          }, 600);
+        }}
+        onPointerUp={() => {
+          window.clearTimeout((window as unknown as { __restT?: number }).__restT);
+        }}
+        onPointerLeave={() => {
+          window.clearTimeout((window as unknown as { __restT?: number }).__restT);
+        }}
       >
         ↻
+      </button>
+
+      <button
+        className="m-poc-webdav"
+        style={{ right: 52 }}
+        aria-label="触发休止符"
+        onClick={() => {
+          void invoke("rest_trigger", { pid: null }).catch((err) => console.error("[rest-poc] " + String(err)));
+        }}
+      >
+        ☾
       </button>
 
       <ArchiveOverlay />
