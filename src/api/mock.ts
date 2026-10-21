@@ -1078,6 +1078,26 @@ export const mockData: DataApi = {
     return { path: "C:\\Users\\you\\AppData\\Roaming\\com.fermata.app\\fermata.db", adopted: true };
   },
 
+  async syncConnect() {
+    return { status: "noop", detail: "mock 环境无同步", rev: 0 };
+  },
+  async syncDisconnect() {},
+  async syncNow() {
+    return { status: "noop", detail: "mock 环境无同步", rev: 0 };
+  },
+  async syncPull() {
+    return { status: "noop", detail: "mock 环境无同步", rev: 0 };
+  },
+  async syncStatus() {
+    return { configured: false, url: null, user: null, base_rev: 0, last_at: null, last_result: null, device_name: "mock", device_id: "mock-dev" };
+  },
+  async syncLocks() {
+    return [];
+  },
+  async syncLockRefresh() {
+    return "cleared";
+  },
+
   async qRestState() {
     return {
       resting: state.resting,

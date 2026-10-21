@@ -26,6 +26,8 @@ export function useScheduler() {
   const continuousCooling = useRef(false);
 
   useEffect(() => {
+    // M4m 同步：启动即拉一次（Rust 侧 5 分钟节流；未配置/离线静默）
+    void data.syncPull().catch(() => {});
     // 间隙：切换浮层打开 / 主窗唤出获焦
     let disposed = false;
     let unOverlay: (() => void) | undefined;
@@ -35,14 +37,35 @@ export function useScheduler() {
       })
       .then((fn) => { if (disposed) fn(); else unOverlay = fn; });
     // 间隙 1：主窗获焦
-    const onFocus = () => void maybePopup("main-focus");
+    const onFocus = () => {
+      void maybePopup("main-focus");
+      void data.syncPull().catch(() => {});
+    };
     window.addEventListener("focus", onFocus);
 
     // 移动端间隙：回前台（WebView 的 window focus 在 Android 上不可靠，visibilitychange 才是）
-    const onVisible = () => { if (document.visibilityState === "visible") void maybePopup("app-resume"); };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        void maybePopup("app-resume");
+        void data.syncPull().catch(() => {});
+      }
+    };
     document.addEventListener("visibilitychange", onVisible);
 
-    const t = setInterval(tick, 1000);
+        // M4m 运行锁心跳：有运行进程时每 5 分钟刷新一次 WebDAV 锁标记
+    let lastLockBeat = 0;
+    const lockBeat = () => {
+      const b = getBoard();
+      if (!b.board?.running) return;
+      const now = Date.now();
+      if (now - lastLockBeat < 5 * 60_000) return;
+      lastLockBeat = now;
+      void data.syncLockRefresh().catch(() => {});
+    };
+    const t = setInterval(() => {
+      tick();
+      lockBeat();
+    }, 1000);
     return () => {
       disposed = true;
       clearInterval(t);

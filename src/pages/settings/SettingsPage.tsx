@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { isMobile } from "../../mobile";
-import { data } from "../../api/data";
+import { data, type SyncStatus } from "../../api/data";
 import { system } from "../../api/system";
 import { act, effectiveTheme, useBoard } from "../../store/board";
 import { setUi, useUi } from "../../store/ui";
@@ -209,12 +210,212 @@ function HotkeyRow({ value, onCommit, testid }: { value: string; onCommit: (v: s
   );
 }
 
+/* ---------- 同步（M4m，docs/07-移动端.md §5） ---------- */
+
+function fmtSyncTime(ms: number | null): string {
+  if (!ms) return "从未";
+  const d = new Date(ms);
+  const today = new Date();
+  const sameDay = d.toDateString() === today.toDateString();
+  const hm = d.toTimeString().slice(0, 5);
+  return sameDay ? hm : `${d.getMonth() + 1}-${d.getDate()} ${hm}`;
+}
+
+function SyncSection() {
+  const [st, setSt] = useState<SyncStatus | null>(null);
+  const [url, setUrl] = useState("https://dav.jianguoyun.com/dav/");
+  const [user, setUser] = useState("");
+  const [pwd, setPwd] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [echo, setEcho] = useState("");
+  const [firstConflict, setFirstConflict] = useState(false);
+  const refresh = () => void data.syncStatus().then(setSt).catch(() => {});
+  useEffect(refresh, []);
+  useEffect(() => {
+    let off: (() => void) | undefined;
+    void listen("sync-done", () => refresh()).then((f) => {
+      off = f;
+    });
+    return () => {
+      off?.();
+    };
+  }, []);
+
+  const doConnect = () => {
+    void (async () => {
+      setBusy(true);
+      setEcho("");
+      try {
+        const out = await data.syncConnect(url.trim(), user.trim(), pwd);
+        if (out.status === "first_conflict") {
+          setFirstConflict(true);
+          setEcho("远端已有一份数据；选择方向（被覆盖方会先自动备份）");
+        } else {
+          setEcho(out.detail);
+          setPwd("");
+        }
+      } catch (e) {
+        setEcho(`连接失败：${e}`);
+      } finally {
+        setBusy(false);
+        refresh();
+      }
+    })();
+  };
+
+  const doResolve = (force: "push" | "pull") => {
+    void (async () => {
+      setBusy(true);
+      try {
+        const out = await data.syncNow(force);
+        setEcho(out.detail);
+        setFirstConflict(false);
+        setPwd("");
+      } catch (e) {
+        setEcho(`失败：${e}`);
+      } finally {
+        setBusy(false);
+        refresh();
+      }
+    })();
+  };
+
+  const doNow = () => {
+    void (async () => {
+      setBusy(true);
+      try {
+        const out = await data.syncNow();
+        setEcho(out.detail);
+      } catch (e) {
+        setEcho(`失败：${e}`);
+      } finally {
+        setBusy(false);
+        refresh();
+      }
+    })();
+  };
+
+  const doDisconnect = () => {
+    void (async () => {
+      setBusy(true);
+      try {
+        await data.syncDisconnect();
+        setEcho("已断开：凭据已删除，全部数据保留");
+      } catch (e) {
+        setEcho(`失败：${e}`);
+      } finally {
+        setBusy(false);
+        refresh();
+      }
+    })();
+  };
+
+  return (
+    <section data-sec="sync" className="set-sec">
+      <div className="detail-label">同步</div>
+      {!st?.configured ? (
+        <>
+          <div className="set-row">
+            <span className="set-label">服务</span>
+            <input className="set-input" data-testid="sync-url" value={url} onChange={(e) => setUrl(e.target.value)} spellCheck={false} />
+          </div>
+          <div className="set-row">
+            <span className="set-label">账号</span>
+            <input className="set-input" data-testid="sync-user" value={user} placeholder="坚果云注册邮箱" onChange={(e) => setUser(e.target.value)} spellCheck={false} />
+          </div>
+          <div className="set-row">
+            <span className="set-label">应用密码</span>
+            <input className="set-input" data-testid="sync-pwd" type="password" value={pwd} placeholder="坚果云「安全选项」里生成" onChange={(e) => setPwd(e.target.value)} />
+          </div>
+          {!firstConflict ? (
+            <div className="set-row">
+              <span className="set-label" />
+              <span className="plan-ops-inline">
+                <button className="set-export" data-testid="sync-connect" disabled={busy || !user.trim() || !pwd} onClick={doConnect}>
+                  {busy ? "连接中…" : "连接并同步"}
+                </button>
+              </span>
+            </div>
+          ) : (
+            <div className="set-row">
+              <span className="set-label">方向</span>
+              <span className="plan-ops-inline">
+                <button className="set-export" data-testid="sync-force-pull" disabled={busy} onClick={() => doResolve("pull")}>
+                  拉取远端（本机先备份）
+                </button>
+                <button className="set-export" data-testid="sync-force-push" disabled={busy} onClick={() => doResolve("push")}>
+                  推送本机（远端先备份）
+                </button>
+              </span>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="set-row">
+            <span className="set-label">服务</span>
+            <span className="set-value num">{st.url?.replace(/^https?:\/\//, "") ?? ""}</span>
+          </div>
+          <div className="set-row">
+            <span className="set-label">账号</span>
+            <span className="set-value">{st.user}</span>
+          </div>
+          <div className="set-row">
+            <span className="set-label">本机设备</span>
+            <span className="set-value">{st.device_name}</span>
+          </div>
+          <div className="set-row">
+            <span className="set-label">最近同步</span>
+            <span className="set-value num">
+              {fmtSyncTime(st.last_at)} · 基线 rev {st.base_rev}
+            </span>
+          </div>
+          {st.last_result && (
+            <div className="set-exported" data-testid="sync-last-result">
+              {st.last_result}
+            </div>
+          )}
+          {(firstConflict || (st.last_result ?? "").startsWith("first_conflict")) && (
+            <div className="set-row">
+              <span className="set-label">方向</span>
+              <span className="plan-ops-inline">
+                <button className="set-export" data-testid="sync-force-pull2" disabled={busy} onClick={() => doResolve("pull")}>
+                  拉取远端（本机先备份）
+                </button>
+                <button className="set-export" data-testid="sync-force-push2" disabled={busy} onClick={() => doResolve("push")}>
+                  推送本机（远端先备份）
+                </button>
+              </span>
+            </div>
+          )}
+          <div className="set-row">
+            <span className="set-label" />
+            <span className="plan-ops-inline">
+              <button className="set-export" data-testid="sync-now" disabled={busy} onClick={doNow}>
+                {busy ? "同步中…" : "立即同步"}
+              </button>
+              <button className="set-export" data-testid="sync-disconnect" disabled={busy} onClick={doDisconnect}>
+                断开连接
+              </button>
+            </span>
+          </div>
+        </>
+      )}
+      {echo && (
+        <div className="set-exported" data-testid="sync-echo">
+          {echo}
+        </div>
+      )}
+    </section>
+  );
+}
+
 /* ---------- 设置页 ---------- */
 
 const SECTIONS: [string, string][] = [
   ["slice", "时间片与提醒"],
     ["appearance", "外观与排版"],
-    ];
+    ["sync", "同步"],    ];
 
 export function SettingsPage() {
   const board = useBoard();
@@ -442,6 +643,8 @@ export function SettingsPage() {
         {dataEcho && <div className="set-exported num" data-testid="export-path">{dataEcho}</div>}
       </section>
       )}
+
+      <SyncSection />
 
       {/* 构建戳：核对"这份程序是不是最新构建" */}
       <div className="build-stamp num" data-testid="build-stamp">

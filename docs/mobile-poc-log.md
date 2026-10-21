@@ -78,3 +78,13 @@
 ## 踩坑记录（续）
 
 7. 模拟器 WebView SIGILL：本机模拟器（Android 37 x86_64，WebView 145.0.7632.218）上，应用退后台触发 onTrimMemory 时 WebView 原生代码 SIGILL（固定地址，ILL_ILLOPN），进程死亡并触发「crashed too many times」限流。与我们的 Rust/JS 无关（JS/SQLite 不可能在 libwebviewchromium.so 里造成非法指令）；前台使用不受影响。真机后台保活验证时要区分这个模拟器固有崩溃。调试技巧：debug 包可用 adb forward tcp:9333 localabstract:webview_devtools_remote_<pid> 接 CDP，用 Input.dispatchTouchEvent 合成可靠触摸流。
+
+
+## 2026-10-22 M4m 同步模块落地（docs/07 §5 v1）
+
+- 引擎 src-tauri/src/sync/mod.rs：整库快照 gzip 单文件（/fermata/snapshot.json.gz + snapshot.meta.json rev 读前检测）、v1 整库 LWW（远端先动且本机脏 → 远端赢，本机覆盖前自动备份 exports/backup-*.fermata.json）、首接冲突双方向按钮（推送前远端强制备份进 /fermata/backups/）、运行锁（locks/<device>.json，TTL 10 分钟，生命周期刷新 + 前端 5 分钟心跳）。
+- 设置同步纪律：快照仅计时参数（slice/连续阈值/软硬模式/空闲阈值）随包走；sync_*、device_id、外观等留本机（apply_remote 保留逻辑，有单测）。
+- 凭据：桌面 keyring（Windows 凭据管理器）；Android 暂为应用私有目录 sync.secret 明文文件——deviation，M5m 换 Keystore 后上真机。
+- 触发：生命周期命令（开始/暂停/继续/完成/切换/休止符进出）立即推；其余变更经 changed() 防抖 30 秒；启动与回前台拉（Rust 侧 5 分钟节流）；不轮询。
+- 验证：verify_sync（双模拟设备对 wsgidav 全流程：首推/首拉/快进/noop/冲突远端赢+本机备份/锁读写/首接冲突选推送接 rev）全过；模拟器真机链路：注入配置 → 启动拉取报 first_conflict → 设置页点「拉取远端」→ rev4 落库 + 本机备份落 /data/user/0/.../exports/。
+- 设置页同步区（双端同组件）：连接三行下划线输入 / 状态行（服务·账号·设备·最近同步·基线 rev）/ 立即同步 / 断开连接 / first_conflict 方向按钮；移动端按钮行 flex-wrap 修复。

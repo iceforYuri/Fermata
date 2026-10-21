@@ -164,6 +164,34 @@ export interface GridCell {
 }
 
 /** 数据内核接口：Tauri 与 mock 双实现 */
+
+/** M4m 同步状态（docs/07-移动端.md §5） */
+export interface SyncStatus {
+  configured: boolean;
+  url: string | null;
+  user: string | null;
+  base_rev: number;
+  last_at: number | null;
+  last_result: string | null;
+  device_name: string;
+  device_id: string | null;
+}
+export interface SyncOutcome {
+  /** pushed / pulled / noop / conflict_remote_won / first_conflict / throttled */
+  status: string;
+  detail: string;
+  rev: number;
+}
+export interface RemoteLock {
+  device_id: string;
+  device_name: string;
+  process_title: string;
+  process_uuid: string;
+  started_at: number;
+  written_at: number;
+  ttl_ms: number;
+}
+
 export interface DataApi {
   processCreate(title: string, colorTag?: number, boardDate?: string): Promise<number>;
   processSwitch(pid: number, breakpoint?: string): Promise<void>;
@@ -240,6 +268,19 @@ export interface DataApi {
   setDataLocation(): Promise<{ path: string; adopted: boolean } | null>;
   /** 可测层：直接切到目标目录 */
   setDataLocationTo(path: string): Promise<{ path: string; adopted: boolean }>;
+  /** 连接 WebDAV（密码进系统凭据存储），并立即同步一次（可能返回 first_conflict 待选方向） */
+  syncConnect(url: string, user: string, password: string): Promise<SyncOutcome>;
+  /** 断开：删凭据、保留全部数据 */
+  syncDisconnect(): Promise<void>;
+  /** 立即同步；force 用于首接冲突选方向 */
+  syncNow(force?: "push" | "pull"): Promise<SyncOutcome>;
+  /** 启动/回前台拉取（服务端 5 分钟节流） */
+  syncPull(): Promise<SyncOutcome>;
+  syncStatus(): Promise<SyncStatus>;
+  /** 其他设备的运行锁 */
+  syncLocks(): Promise<RemoteLock[]>;
+  /** 运行中锁心跳刷新 */
+  syncLockRefresh(): Promise<string>;
   /** 回默认位置（AppData） */
   resetDataLocation(): Promise<{ path: string; adopted: boolean }>;
 }

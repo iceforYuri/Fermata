@@ -14,6 +14,7 @@ fn lock<'a, 'r: 'a>(
 
 fn changed(app: &AppHandle) {
     let _ = app.emit("store-changed", ());
+    sync_notify(app, false);
 }
 
 // ---------- 变更 ----------
@@ -42,6 +43,7 @@ pub async fn process_switch(
     let c = lock(&state)?;
     ops::process_switch(&c, db::now_ms(), pid, breakpoint.as_deref())?;
     changed(&app);
+    sync_notify(&app, true);
     Ok(())
 }
 
@@ -50,6 +52,7 @@ pub async fn process_complete(app: AppHandle, state: State<'_, DbState>, pid: i6
     let c = lock(&state)?;
     ops::process_complete(&c, db::now_ms(), pid)?;
     changed(&app);
+    sync_notify(&app, true);
     Ok(())
 }
 
@@ -66,6 +69,7 @@ pub async fn process_pause(app: AppHandle, state: State<'_, DbState>, pid: i64, 
     let c = lock(&state)?;
     ops::process_pause(&c, at_ms.unwrap_or_else(db::now_ms), pid)?;
     changed(&app);
+    sync_notify(&app, true);
     Ok(())
 }
 
@@ -74,6 +78,7 @@ pub async fn process_resume(app: AppHandle, state: State<'_, DbState>, pid: i64,
     let c = lock(&state)?;
     ops::process_resume(&c, at_ms.unwrap_or_else(db::now_ms), pid)?;
     changed(&app);
+    sync_notify(&app, true);
     Ok(())
 }
 
@@ -252,6 +257,7 @@ pub async fn rest_start(app: AppHandle, state: State<'_, DbState>, pid: Option<i
     let c = lock(&state)?;
     ops::rest_start(&c, db::now_ms(), pid)?;
     changed(&app);
+    sync_notify(&app, true);
     Ok(())
 }
 
@@ -260,6 +266,7 @@ pub async fn rest_end(app: AppHandle, state: State<'_, DbState>, pid: Option<i64
     let c = lock(&state)?;
     ops::rest_end(&c, db::now_ms(), pid)?;
     changed(&app);
+    sync_notify(&app, true);
     Ok(())
 }
 
@@ -681,4 +688,156 @@ pub async fn webdav_probe(url: String) -> Result<serde_json::Value, String> {
     let matched = got.trim_end() == payload;
     let delete_ok = client.delete(&url).send().await.map(|r| r.status().is_success()).unwrap_or(false);
     Ok(serde_json::json!({ "put_ms": put_ms, "get_ms": get_ms, "matched": matched, "delete_ok": delete_ok }))
+}
+
+// ---------- 同步（M4m，docs/07-移动端.md §5） ----------
+
+use crate::sync;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+/// 串行门：同一时刻只允许一个同步在跑
+static SYNC_GATE: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+/// 文本编辑防抖代际（30 秒无新编辑才推）
+static DEBOUNCE_GEN: AtomicU64 = AtomicU64::new(0);
+/// 拉取节流：启动 / 回前台距上次 <5 分钟不真拉（docs/07 §5）
+static LAST_PULL_MS: AtomicU64 = AtomicU64::new(0);
+
+fn sync_notify(app: &AppHandle, immediate: bool) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        {
+            let st = app.state::<DbState>();
+            let c = match st.0.lock() { Ok(c) => c, Err(_) => return };
+            if !sync::configured(&c) {
+                return;
+            }
+        }
+        if !immediate {
+            let g = DEBOUNCE_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+            if DEBOUNCE_GEN.load(Ordering::SeqCst) != g {
+                return;
+            }
+        }
+        let _guard = SYNC_GATE.lock().await;
+        if let Err(e) = sync_run_bg(&app, None).await {
+            crate::log_line(&format!("[sync] 后台同步失败: {e}"));
+        }
+    });
+}
+
+async fn sync_run_bg(app: &AppHandle, force: Option<sync::Force>) -> Result<sync::Outcome, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let state = app.state::<DbState>();
+    let cfg = {
+        let c = state.0.lock().map_err(|e| e.to_string())?;
+        sync::load_cfg(&c, &dir)?
+    }
+    .ok_or("同步未配置")?;
+    let with_conn = |f: &mut dyn FnMut(&rusqlite::Connection) -> Result<(), String>| -> Result<(), String> {
+        let c = state.0.lock().map_err(|e| e.to_string())?;
+        f(&c)
+    };
+    let out = sync::run(&cfg, &dir, &with_conn, force).await?;
+    let (lock_draft, self_id) = {
+        let c = state.0.lock().map_err(|e| e.to_string())?;
+        sync::record_result(&c, &out)?;
+        (sync::lock_current(&c).ok().flatten(), sync::device_id(&c).ok())
+    };
+    if let Some(sid) = self_id {
+        let _ = sync::lock_sync(&cfg, lock_draft.as_ref(), &sid).await; // 锁刷新失败不挡同步结果
+    }
+    let _ = app.emit("sync-done", &out);
+    let _ = app.emit("store-changed", ());
+    Ok(out)
+}
+
+#[tauri::command]
+pub async fn sync_connect(
+    app: AppHandle,
+    state: State<'_, DbState>,
+    url: String,
+    user: String,
+    password: String,
+) -> Result<sync::Outcome, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    {
+        let c = lock(&state)?;
+        sync::connect(&c, &dir, &url, &user, &password)?;
+    }
+    let _ = app.emit("store-changed", ());
+    // 连接后立即同步一次：远端空直接推 / 本机空直接拉 / 两端互不基于 → first_conflict 交前端选方向
+    let _guard = SYNC_GATE.lock().await;
+    sync_run_bg(&app, None).await
+}
+
+#[tauri::command]
+pub async fn sync_disconnect(app: AppHandle, state: State<'_, DbState>) -> Result<(), String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    {
+        let c = lock(&state)?;
+        sync::disconnect(&c, &dir)?;
+    }
+    let _ = app.emit("store-changed", ());
+    Ok(())
+}
+
+/// 立即同步；force = "push" | "pull" 用于首接冲突选方向
+#[tauri::command]
+pub async fn sync_now(app: AppHandle, force: Option<String>) -> Result<sync::Outcome, String> {
+    let f = match force.as_deref() {
+        Some("push") => Some(sync::Force::Push),
+        Some("pull") => Some(sync::Force::Pull),
+        _ => None,
+    };
+    let _guard = SYNC_GATE.lock().await;
+    sync_run_bg(&app, f).await
+}
+
+/// 启动 / 回前台拉取（5 分钟节流，docs/07 §5）
+#[tauri::command]
+pub async fn sync_pull(app: AppHandle) -> Result<sync::Outcome, String> {
+    let now = crate::db::now_ms() as u64;
+    let last = LAST_PULL_MS.swap(now, Ordering::SeqCst);
+    if last > 0 && now.saturating_sub(last) < 5 * 60_000 {
+        return Ok(sync::Outcome {
+            status: "throttled".into(),
+            detail: "距上次拉取不足 5 分钟".into(),
+            rev: 0,
+        });
+    }
+    let _guard = SYNC_GATE.lock().await;
+    sync_run_bg(&app, None).await
+}
+
+#[tauri::command]
+pub fn sync_status(state: State<'_, DbState>) -> Result<serde_json::Value, String> {
+    let c = lock(&state)?;
+    Ok(sync::status(&c))
+}
+
+/// 其他设备的运行锁（行内「在 X 设备运行中」徽标）
+#[tauri::command]
+pub async fn sync_locks(app: AppHandle) -> Result<Vec<sync::RemoteLock>, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let (cfg, self_id) = {
+        let state = app.state::<DbState>();
+        let c = state.0.lock().map_err(|e| e.to_string())?;
+        (sync::load_cfg(&c, &dir)?, sync::device_id(&c).ok())
+    };
+    let cfg = cfg.ok_or("同步未配置")?;
+    sync::lock_read_others(&cfg, &self_id.unwrap_or_default()).await
+}
+
+/// 运行中心跳：刷新本机锁标记（前端 5 分钟一次，有运行时）
+#[tauri::command]
+pub async fn sync_lock_refresh(app: AppHandle) -> Result<&'static str, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let (cfg, draft, self_id) = {
+        let state = app.state::<DbState>();
+        let c = state.0.lock().map_err(|e| e.to_string())?;
+        (sync::load_cfg(&c, &dir)?, sync::lock_current(&c).ok().flatten(), sync::device_id(&c).ok())
+    };
+    let cfg = cfg.ok_or("同步未配置")?;
+    sync::lock_sync(&cfg, draft.as_ref(), &self_id.unwrap_or_default()).await
 }

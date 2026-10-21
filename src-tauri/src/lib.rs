@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod db;
+pub mod sync;
 #[cfg(windows)]
 pub mod desktop_cmds;
 #[cfg(desktop)]
@@ -177,6 +178,13 @@ pub fn run() {
             sys::debug_always_on_top,
             commands::export_events,
             commands::webdav_probe,
+            commands::sync_connect,
+            commands::sync_disconnect,
+            commands::sync_now,
+            commands::sync_pull,
+            commands::sync_status,
+            commands::sync_locks,
+            commands::sync_lock_refresh,
             #[cfg(desktop)]
             commands::export_events_dialog,
             commands::export_snapshot_to,

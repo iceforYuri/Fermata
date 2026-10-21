@@ -2323,6 +2323,66 @@
           "type": "string",
           "const": "global-shortcut:deny-unregister-all",
           "markdownDescription": "Denies the unregister_all command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the cancel_reminder command without any pre-configured scope.",
+          "type": "string",
+          "const": "keeper:allow-cancel-reminder",
+          "markdownDescription": "Enables the cancel_reminder command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the hide command without any pre-configured scope.",
+          "type": "string",
+          "const": "keeper:allow-hide",
+          "markdownDescription": "Enables the hide command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the register_listener command without any pre-configured scope.",
+          "type": "string",
+          "const": "keeper:allow-register-listener",
+          "markdownDescription": "Enables the register_listener command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the schedule_reminder command without any pre-configured scope.",
+          "type": "string",
+          "const": "keeper:allow-schedule-reminder",
+          "markdownDescription": "Enables the schedule_reminder command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the update command without any pre-configured scope.",
+          "type": "string",
+          "const": "keeper:allow-update",
+          "markdownDescription": "Enables the update command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the cancel_reminder command without any pre-configured scope.",
+          "type": "string",
+          "const": "keeper:deny-cancel-reminder",
+          "markdownDescription": "Denies the cancel_reminder command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the hide command without any pre-configured scope.",
+          "type": "string",
+          "const": "keeper:deny-hide",
+          "markdownDescription": "Denies the hide command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the register_listener command without any pre-configured scope.",
+          "type": "string",
+          "const": "keeper:deny-register-listener",
+          "markdownDescription": "Denies the register_listener command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the schedule_reminder command without any pre-configured scope.",
+          "type": "string",
+          "const": "keeper:deny-schedule-reminder",
+          "markdownDescription": "Denies the schedule_reminder command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the update command without any pre-configured scope.",
+          "type": "string",
+          "const": "keeper:deny-update",
+          "markdownDescription": "Denies the update command without any pre-configured scope."
         }
       ]
     },

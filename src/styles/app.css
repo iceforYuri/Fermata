@@ -1626,7 +1626,7 @@ body:has(.overlay-card) {
   overflow: hidden;
   transition: height 220ms cubic-bezier(0.34, 1.36, 0.64, 1), opacity var(--dur-fast) var(--ease-out);
 }
-.plan-ops-inline { display: flex; gap: 8px; }
+.plan-ops-inline { display: flex; gap: 8px; flex-wrap: wrap; }
 .plan-ops-inline button { color: var(--ink-soft); }
 .plan-ops-inline button:hover { color: var(--ink); }
 
@@ -1845,6 +1845,21 @@ body:has(.overlay-card) {
   padding-bottom: 1px;
 }
 .set-exported { font-size: var(--fs-micro); color: var(--ink-faint); padding-left: 168px; }
+
+/* 同步连接：1px 下划线输入（宪法：下划线是唯一编辑指示） */
+.set-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  border-bottom: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  padding: 2px 0;
+  outline: none;
+}
+.set-input:focus { border-bottom-color: var(--ink); }
+.set-input::placeholder { color: var(--ink-ghost); font-size: var(--fs-small); }
 
 /* 构建戳：设置页页脚，核对该程序对应的构建 */
 .build-stamp {

@@ -77,6 +77,13 @@ const tauriData: DataApi = {
   setDataLocation: () => invoke("set_data_location_dialog"),
   setDataLocationTo: (path) => invoke("set_data_location_to", { targetDir: path }),
   resetDataLocation: () => invoke("reset_data_location"),
+  syncConnect: (url, user, password) => invoke("sync_connect", { url, user, password }),
+  syncDisconnect: () => invoke("sync_disconnect"),
+  syncNow: (force) => invoke("sync_now", { force: force ?? null }),
+  syncPull: () => invoke("sync_pull"),
+  syncStatus: () => invoke("sync_status"),
+  syncLocks: () => invoke("sync_locks"),
+  syncLockRefresh: () => invoke("sync_lock_refresh"),
 };
 
 export const data: DataApi = isTauri ? tauriData : mockData;
