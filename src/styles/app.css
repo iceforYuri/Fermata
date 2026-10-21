@@ -2398,3 +2398,8 @@ body:has(.lib-rail:hover) .lib-hint-arrow { animation: hint-breathe 2.4s ease-in
 
 /* 统计页 measure 移动端限宽（桌面 clamp 560px 起会溢出窄屏） */
 .m-page .stats-measure { width: 100%; max-width: 100%; }
+
+/* 完成档案移动端：无顶栏偏移、面板限宽、重打开入口常显（无 hover） */
+.m-shell .archive-backdrop { inset: 0; }
+.m-shell .archive-panel { width: 100%; max-width: 100%; padding: calc(20px + env(safe-area-inset-top)) 16px calc(80px + env(safe-area-inset-bottom)); }
+.m-shell .archive-row .reopen { opacity: 1; }
