@@ -902,6 +902,7 @@ name = "fermata"
 version = "1.4.3"
 dependencies = [
  "chrono",
+ "keeper",
  "reqwest",
  "rusqlite",
  "serde",
@@ -1925,6 +1926,16 @@ checksum = "5dea2b27dd239b2556ed7a25ba842fe47fd602e7fc7433c2a8d6106d4d9edd70"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "keeper"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin",
 ]
 
 [[package]]

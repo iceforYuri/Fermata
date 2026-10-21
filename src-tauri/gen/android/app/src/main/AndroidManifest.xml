@@ -26,10 +26,6 @@
             </intent-filter>
         </activity>
 
-        <receiver
-            android:name=".KeeperReceiver"
-            android:exported="true" />
-
         <provider
           android:name="androidx.core.content.FileProvider"
           android:authorities="${applicationId}.fileprovider"

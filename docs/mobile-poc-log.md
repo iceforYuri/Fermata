@@ -31,6 +31,14 @@
 - **wsgidav 起服务**：用 Scripts 目录的 wsgidav.exe（python -m wsgidav 无 __main__）；匿名读写模式够 PoC 用。
 - PoC 门 4 的临时入口：MobileShell 右上 ↻ 钮（标记「M4m 同步落地后移除」）；webdav_probe 命令同理。
 
+## M2m：Keeper 接真实计时（2026-10-21）
+
+- 插件形态：本地 Tauri 插件 src-tauri/plugins/keeper（Rust init + Kotlin KeeperPlugin/Keeper/KeeperReceiver）。会话通知由 JS 端真实状态驱动（keeper.update：进程名 + 运行/暂停 + chronometer 起点 + 暂停累计）；按钮 → KeeperReceiver 即时翻转 → keeper-action 事件回 JS → act(process_pause/resume) → 通知落定。
+- 命名纪律（踩坑）：插件的 CARGO_PKG_NAME / links / Builder::new 必须同名（keeper），否则权限生成器用包名、IPC 用插件名，两端对不上——报「not allowed. Plugin not found」。register_listener 是基类命令，但权限不自动生成，要列进 build.rs 的 COMMANDS。
+- pause/resume 命令加了可选 at_ms 参数：后台点按钮时按时间戳计，防漂移（接线待 M2m 收尾）。
+- MainActivity 的 PoC 自启接线已拆；通知权限授权引导（POST_NOTIFICATIONS 运行时弹窗）待 M2m 收尾一并做。
+- 休止符到点提醒的闹钟接线（scheduleReminder 由 scheduler 在片头/暂停时调用）待 M2m 收尾。
+
 ## 踩坑记录（重要）
 
 1. PATH 坏条目：机器 PATH 里有一条 C:/Program Files/Tailscale"（尾部多一个英文引号），cmd 与 CreateProcess 的路径检索到它就断，导致子进程找不到 pnpm/cargo。我已在会话内绕过；建议用户删除该坏条目（正确的 Tailscale/ 条目在）。

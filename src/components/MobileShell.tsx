@@ -11,9 +11,12 @@ import { UndoToast } from "./UndoToast";
 import { RowMenu } from "./RowMenu";
 import { TABS } from "./TitleBar";
 import { setUi, useUi, type Tab } from "../store/ui";
-import { useBoard } from "../store/board";
+import { act, getBoard, useBoard } from "../store/board";
 import { invoke } from "@tauri-apps/api/core";
 import { statsSwipe } from "../mobile-stats";
+import { keeper } from "../api/keeper";
+import { isMobile } from "../mobile";
+import { data } from "../api/data";
 import { useScheduler } from "../store/scheduler";
 
 const ORDER: Tab[] = ["board", "stats", "settings"];
@@ -25,6 +28,42 @@ export function MobileShell() {
   const { tab, leftOpen, rightPid } = useUi();
   const { rest } = useBoard();
   useScheduler();
+
+  // M2m：会话通知由真实计时驱动（Q13）——运行/暂停/休息三态 + 进程名 + Chronometer
+  const { board } = useBoard();
+  useEffect(() => {
+    if (!isMobile) return;
+    const running = board?.running ?? null;
+    const resting = rest.resting;
+    if (resting) {
+      keeper.update({ title: "休息中", running: false, whenEpoch: 0, accumMs: 0 });
+      return;
+    }
+    if (!running) {
+      keeper.hide();
+      keeper.cancelReminder();
+      return;
+    }
+    const title = running.process.title;
+    const paused = !running.timer_open;
+    // chronometer 起点：当前片的开始墙钟
+    const whenEpoch = Date.now() - running.ring_elapsed_ms;
+    keeper.update({ title, running: !paused, whenEpoch, accumMs: running.day_total_ms });
+  }, [board, rest.resting]);
+
+  // 通知按钮 → 真实暂停/继续（Q13：通知「继续」算显式恢复）
+  useEffect(() => {
+    if (!isMobile) return;
+    let off: (() => void) | undefined;
+    void keeper.onAction(async (action) => {
+      const b = getBoard();
+      const running = b.board?.running;
+      if (!running) return;
+      if (action === "pause") await act(() => data.processPause(running.process.id));
+      else await act(() => data.processResume(running.process.id));
+    }).then((f) => { off = f; });
+    return () => { off?.(); };
+  }, []);
   const idx = ORDER.indexOf(tab);
   const stripRef = useRef<HTMLDivElement>(null);
   const [dragX, setDragX] = useState(0);

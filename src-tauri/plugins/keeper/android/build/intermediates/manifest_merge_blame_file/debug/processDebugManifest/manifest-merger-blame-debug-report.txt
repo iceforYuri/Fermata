@@ -1,0 +1,17 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.fermata.app.keeper" >
+4
+5    <uses-sdk android:minSdkVersion="24" />
+6
+7    <application>
+7-->F:\Code\20260917_gika\src-tauri\plugins\keeper\android\src\main\AndroidManifest.xml:3:5-7:19
+8        <receiver
+8-->F:\Code\20260917_gika\src-tauri\plugins\keeper\android\src\main\AndroidManifest.xml:4:9-6:39
+9            android:name="com.fermata.app.keeper.KeeperReceiver"
+9-->F:\Code\20260917_gika\src-tauri\plugins\keeper\android\src\main\AndroidManifest.xml:5:13-65
+10            android:exported="true" />
+10-->F:\Code\20260917_gika\src-tauri\plugins\keeper\android\src\main\AndroidManifest.xml:6:13-36
+11    </application>
+12
+13</manifest>

@@ -62,17 +62,17 @@ pub async fn process_reopen(app: AppHandle, state: State<'_, DbState>, pid: i64)
 }
 
 #[tauri::command]
-pub async fn process_pause(app: AppHandle, state: State<'_, DbState>, pid: i64) -> Result<(), String> {
+pub async fn process_pause(app: AppHandle, state: State<'_, DbState>, pid: i64, at_ms: Option<i64>) -> Result<(), String> {
     let c = lock(&state)?;
-    ops::process_pause(&c, db::now_ms(), pid)?;
+    ops::process_pause(&c, at_ms.unwrap_or_else(db::now_ms), pid)?;
     changed(&app);
     Ok(())
 }
 
 #[tauri::command]
-pub async fn process_resume(app: AppHandle, state: State<'_, DbState>, pid: i64) -> Result<(), String> {
+pub async fn process_resume(app: AppHandle, state: State<'_, DbState>, pid: i64, at_ms: Option<i64>) -> Result<(), String> {
     let c = lock(&state)?;
-    ops::process_resume(&c, db::now_ms(), pid)?;
+    ops::process_resume(&c, at_ms.unwrap_or_else(db::now_ms), pid)?;
     changed(&app);
     Ok(())
 }
