@@ -2395,3 +2395,6 @@ body:has(.lib-rail:hover) .lib-hint-arrow { animation: hint-breathe 2.4s ease-in
 
 /* 撤销 toast 抬到底栏之上（移动端） */
 .m-shell .undo-toast { bottom: calc(72px + env(safe-area-inset-bottom)); }
+
+/* 统计页 measure 移动端限宽（桌面 clamp 560px 起会溢出窄屏） */
+.m-page .stats-measure { width: 100%; max-width: 100%; }
