@@ -2,7 +2,7 @@ import { useState } from "react";
 import { data, type BoardProcess } from "../api/data";
 import { act, markHex, useBoard } from "../store/board";
 import { completeWithUndo } from "../store/actions";
-import { openDetail } from "../store/ui";
+import { closeRowMenu, openDetail, openRowMenu } from "../store/ui";
 import { agingInk, agingOpacity, fmtDur } from "../util";
 import { ROW_PITCH, SQUEEZE, isOverActive, queueInsertAt } from "./dnd";
 
@@ -93,13 +93,22 @@ export function SuspendedQueue({
   const onRowPointerDown = (e: React.PointerEvent, pid: number) => {
     if ((e.target as HTMLElement).closest(".spine")) return;
     const startY = e.clientY;
+    const startX = e.clientX;
     let cur = { pid, dy: 0, insertAt: 0, overActive: false };
+    // 长按 500ms 不拖动 → 操作菜单（菜单开=本次手势不再走点击）
+    let menuOpened = false;
+    const lpTimer = window.setTimeout(() => {
+      if (moved) return;
+      menuOpened = true;
+      openRowMenu({ pid, x: startX, y: startY, kind: "suspended" });
+    }, 500);
     let moved = false;
 
     const move = (ev: PointerEvent) => {
       const dy = ev.clientY - startY;
       if (!moved && Math.abs(dy) <= 4) return; // 4px 阈值
       moved = true;
+      if (menuOpened) { closeRowMenu(); } // 长按后拖动：菜单合并进拖拽
       const queueEl = document.querySelector("[data-testid='suspended-queue']");
       const activeEl = document.querySelector("[data-testid='active-row']");
       const qTop = queueEl?.getBoundingClientRect().top ?? 0;
@@ -116,7 +125,8 @@ export function SuspendedQueue({
       window.removeEventListener("pointerup", up);
       onDragOverActive(false);
       setDrag(null);
-      if (!moved) {
+      window.clearTimeout(lpTimer);
+      if (!moved && !menuOpened) {
         const main = (ev.target as HTMLElement).closest("[data-pid-main]");
         // 点击：断点卡贴被点行下方（portal 到 body，fixed 坐标不被页面过渡的 transform 劫持）
         // + 右侧详情栏同步推出，钉在被点这件上（Enter 切换后详情不跳，它恰好变活跃）

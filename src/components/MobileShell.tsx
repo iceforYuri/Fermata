@@ -8,6 +8,7 @@ import { DetailPanel } from "./DetailPanel";
 import { ArchiveOverlay } from "./ArchiveOverlay";
 import { ImportConfirmOverlay } from "./ImportConfirmOverlay";
 import { UndoToast } from "./UndoToast";
+import { RowMenu } from "./RowMenu";
 import { TABS } from "./TitleBar";
 import { setUi, useUi, type Tab } from "../store/ui";
 import { useBoard } from "../store/board";
@@ -232,6 +233,7 @@ export function MobileShell() {
 
       <ArchiveOverlay />
       <ImportConfirmOverlay />
+      <RowMenu />
       <UndoToast />
     </div>
   );

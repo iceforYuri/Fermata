@@ -2375,3 +2375,23 @@ body:has(.lib-rail:hover) .lib-hint-arrow { animation: hint-breathe 2.4s ease-in
 
 /* 休息页 foot 是绝对定位：bottom 抬到底栏之上 */
 .m-shell .rest-foot { bottom: calc(92px + env(safe-area-inset-bottom)); }
+
+/* 长按菜单：实心暖卡（宪法：对外浮层不玻璃） */
+.m-rowmenu-scrim { position: fixed; inset: 0; z-index: 48; }
+.m-rowmenu {
+  position: fixed; z-index: 49; min-width: 180px;
+  background: var(--paper-deep, #f5f3ed);
+  border: 1px solid var(--hairline); border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(38,34,30,.10);
+  padding: 4px; display: flex; flex-direction: column;
+}
+.m-rowmenu-item {
+  background: none; border: none; font: inherit; text-align: left;
+  padding: 10px 14px; font-size: 14px; color: var(--ink);
+  border-radius: 5px; cursor: pointer;
+}
+.m-rowmenu-item:active { background: rgba(38,34,30,.06); }
+.m-rowmenu-item.danger { color: #b04a3a; }
+
+/* 撤销 toast 抬到底栏之上（移动端） */
+.m-shell .undo-toast { bottom: calc(72px + env(safe-area-inset-bottom)); }

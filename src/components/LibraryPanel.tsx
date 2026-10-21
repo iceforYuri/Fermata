@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { data, type Plan } from "../api/data";
 import { act, todayStr, useBoard } from "../store/board";
-import { useUi } from "../store/ui";
+import { openRowMenu, useUi } from "../store/ui";
+import { isMobile } from "../mobile";
 import { InlineEdit } from "./InlineEdit";
 import { animateRowLeave } from "./rowAnim";
 
@@ -48,6 +49,20 @@ export function LibraryPanel() {
           key={p.id}
           className={`plan-row${entering.has(p.id) ? " entering" : ""}`}
           data-testid="plan-row"
+          onPointerDown={(e) => {
+            if (!isMobile) return;
+            const sx = e.clientX;
+            const sy = e.clientY;
+            const t = window.setTimeout(() => {
+              openRowMenu({ pid: p.id, x: sx, y: sy, kind: "plan" });
+              // 吃掉长按后的尾随点击，防 InlineEdit 误进编辑态
+              const eat = (ev: Event) => { ev.stopPropagation(); ev.preventDefault(); };
+              window.addEventListener("click", eat, { capture: true, once: true });
+            }, 500);
+            const cancel = () => window.clearTimeout(t);
+            window.addEventListener("pointerup", cancel, { once: true });
+            window.addEventListener("pointercancel", cancel, { once: true });
+          }}
           draggable={editingId !== p.id}
           onDragStart={(e) => {
             e.dataTransfer.setData("text/fermata-plan", JSON.stringify({ id: p.id, title: p.title }));
