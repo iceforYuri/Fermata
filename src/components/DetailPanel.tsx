@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { data, type BoardProcess, type Segment } from "../api/data";
 import { act, markHex, todayStr, useBoard } from "../store/board";
 import { closeDetail, useUi } from "../store/ui";
+import { switchTo } from "../store/actions";
+import { isMobile } from "../mobile";
 import { fmtClock, fmtDur } from "../util";
 import { InlineEdit } from "./InlineEdit";
 
@@ -31,6 +33,25 @@ function DetailInner({ bp }: { bp: BoardProcess }) {
   const p = bp.process;
   const color = markHex(board, p.color_tag);
   const [segs, setSegs] = useState<Segment[] | null>(null);
+  // 移动端：卡内切换（docs/07-移动端.md §6：⤒=桌面 Enter，断点区=当前在做进程的断点）
+  const runningBp = board.board?.running ?? null;
+  const isActiveSelf = runningBp?.process.id === p.id;
+  const [confirming, setConfirming] = useState(false);
+  const [bpText, setBpText] = useState("");
+  const startSwitch = () => {
+    if (!runningBp) {
+      void switchTo(p.id);
+      closeDetail();
+      return;
+    }
+    setBpText(runningBp.stack_top?.title ?? "");
+    setConfirming(true);
+  };
+  const confirmSwitch = () => {
+    void switchTo(p.id, bpText.trim() || undefined);
+    setConfirming(false);
+    closeDetail();
+  };
   const [segOpen, setSegOpen] = useState(false);
 
   useEffect(() => {
@@ -54,6 +75,43 @@ function DetailInner({ bp }: { bp: BoardProcess }) {
 
   return (
     <div className="detail-inner" style={{ "--mc": color ?? undefined } as React.CSSProperties}>
+      {isMobile && (
+        <div className="m-detail-actions">
+          {!isActiveSelf && (
+            <button className="m-act" title="列为当前在做" aria-label="列为当前在做" onClick={startSwitch}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 12V4M4.5 7.5 8 4l3.5 3.5" />
+                <path d="M3 1.8h10" />
+              </svg>
+            </button>
+          )}
+          <button className="m-act" title="关闭" aria-label="关闭" onClick={closeDetail}>
+            <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4">
+              <path d="M2 2l8 8M10 2l-8 8" />
+            </svg>
+          </button>
+        </div>
+      )}
+      {isMobile && confirming && runningBp && (
+        <div className="m-switch-confirm">
+          <div className="m-switch-label">「{runningBp.process.title}」留断点</div>
+          <input
+            className="m-switch-input"
+            value={bpText}
+            autoFocus
+            onChange={(e) => setBpText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") confirmSwitch();
+              if (e.key === "Escape") setConfirming(false);
+            }}
+          />
+          <button className="m-act" title="确认切换" aria-label="确认切换" onClick={confirmSwitch}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2.5 8.5 6.5 12 13.5 4" />
+            </svg>
+          </button>
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "flex-start" }}>
         <div className="detail-title" style={{ flex: 1 }}>
           <InlineEdit

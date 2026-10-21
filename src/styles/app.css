@@ -2196,3 +2196,163 @@ body:has(.lib-rail:hover) .lib-hint-arrow { animation: hint-breathe 2.4s ease-in
   z-index: 50;
   animation: glass-in var(--dur-fast) ease-out;
 }
+
+
+/* ===== 移动端（docs/07-移动端.md §6）===== */
+.m-shell {
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  background: var(--paper);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-text-size-adjust: 100%;
+}
+.m-shell input,
+.m-shell textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* 页面条带 */
+.m-strip { height: 100%; overflow: hidden; touch-action: pan-y; }
+.m-track { display: flex; height: 100%; width: 300%; will-change: transform; }
+.m-track.settling { transition: transform 0.32s cubic-bezier(0.2, 0.9, 0.25, 1); }
+.m-page {
+  width: calc(100% / 3);
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: calc(64px + env(safe-area-inset-bottom)); /* 给底栏留位 */
+}
+
+/* 底部 morph 导航：无容器底、无分隔线，浮于版面；选中弹簧展开为 图标+文字 */
+.m-bottombar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(8px + env(safe-area-inset-bottom));
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  z-index: 40;
+  pointer-events: none;
+}
+.m-tab {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 8px 6px;
+  color: var(--ink-ghost);
+  font: inherit;
+  cursor: pointer;
+}
+.m-tab-icon svg { width: 20px; height: 20px; display: block; }
+.m-tab-label {
+  font-size: 12.5px;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: max-width 0.3s cubic-bezier(0.2, 0.9, 0.25, 1), opacity 0.22s;
+}
+.m-tab.active { color: var(--ink); }
+.m-tab.active .m-tab-label { max-width: 3em; opacity: 1; }
+
+/* 稿库：左侧抽屉（覆盖，不推版面） */
+.m-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(38, 34, 30, 0.18);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s;
+  z-index: 30;
+}
+.m-scrim.open { opacity: 1; pointer-events: auto; }
+.m-lib-drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(84%, 340px);
+  background: var(--paper);
+  transform: translateX(-102%);
+  transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.25, 1);
+  z-index: 31;
+  box-shadow: 1px 0 0 var(--hairline);
+}
+.m-lib-drawer.open { transform: translateX(0); }
+.m-lib-drawer .lib-panel {
+  position: static;
+  width: 100%;
+  height: 100%;
+  transform: none !important;
+  border-right: none;
+}
+/* 稿库入口：进程页左上字形按钮 */
+.m-lib-btn {
+  position: fixed;
+  top: calc(8px + env(safe-area-inset-top));
+  left: 8px;
+  z-index: 25;
+  background: none;
+  border: none;
+  color: var(--ink-ghost);
+  padding: 8px;
+  cursor: pointer;
+}
+.m-lib-btn svg { width: 20px; height: 20px; display: block; }
+.m-lib-btn:active { color: var(--ink); }
+
+/* 详情底卡：自下而上、覆盖大半屏、点空白退出 */
+.m-detail-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 78%;
+  background: var(--paper);
+  border-radius: 12px 12px 0 0;
+  transform: translateY(103%);
+  transition: transform 0.32s cubic-bezier(0.2, 0.9, 0.25, 1);
+  z-index: 32;
+  box-shadow: 0 -1px 0 var(--hairline);
+  padding-bottom: env(safe-area-inset-bottom);
+  overflow: hidden;
+}
+.m-detail-sheet.open { transform: translateY(0); }
+.m-detail-sheet .detail-panel {
+  position: static;
+  width: 100%;
+  height: 100%;
+  transform: none !important;
+  border-left: none;
+  box-shadow: none;
+}
+.m-detail-sheet .detail-inner { height: 100%; overflow-y: auto; }
+
+/* 报头给稿库入口让位（移动端） */
+.m-page .board-header { padding-left: 44px; }
+
+/* 统计页移动端左右留白 */
+.m-page .stats-scroll { padding-inline: 12px; box-sizing: border-box; }
+
+/* 抽屉内容让开状态栏 */
+.m-lib-drawer .lib-panel { padding-top: calc(16px + env(safe-area-inset-top)); }
+
+/* 移动端版面全宽（桌面 clamp 480px 起会溢出窄屏） */
+.m-page .center-inner { width: 100%; max-width: 100%; padding: calc(28px + env(safe-area-inset-top)) 12px 80px; }
+
+/* 详情底卡：顶部图标按钮条 + 断点确认条 */
+.m-detail-actions { display: flex; gap: 18px; justify-content: flex-end; padding: 2px 4px 10px; }
+.m-act { background: none; border: none; color: var(--ink-soft); padding: 8px; cursor: pointer; }
+.m-act:active { color: var(--ink); }
+.m-switch-confirm { display: flex; align-items: center; gap: 8px; padding: 6px 4px 12px; }
+.m-switch-label { font-size: 12.5px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40%; }
+.m-switch-input { flex: 1; min-width: 0; border: none; border-bottom: 1px solid var(--mc, var(--ink-faint)); background: none; font: inherit; font-size: 15px; padding: 4px 2px; outline: none; color: var(--ink); }

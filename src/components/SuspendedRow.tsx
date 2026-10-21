@@ -38,7 +38,7 @@ export function SuspendedRow({
       data-testid="suspended-row"
       data-pid={p.id}
       data-state={p.state}
-      onPointerDown={(e) => onDragStart?.(e, p.id)}
+      onPointerDown={(e) => { onDragStart?.(e, p.id); }}
     >
       <div
         className="spine"
