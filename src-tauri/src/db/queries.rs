@@ -39,7 +39,7 @@ pub struct SliceStats {
 
 fn steps_of(conn: &Connection, pid: i64) -> Result<Vec<Step>, String> {
     let mut stmt = conn
-        .prepare("SELECT * FROM steps WHERE process_id = ?1 ORDER BY position, id")
+        .prepare("SELECT * FROM steps WHERE process_id = ?1 AND deleted_at IS NULL ORDER BY position, id")
         .map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map(rusqlite::params![pid], row_to_step)
@@ -771,7 +771,7 @@ pub fn q_day_view(conn: &Connection, day: &str) -> Result<DayView, String> {
         let ms = q_process_day_total(conn, p.id, day)?;
         let (done_n, total_n): (i64, i64) = conn
             .query_row(
-                "SELECT COALESCE(SUM(done),0), COUNT(*) FROM steps WHERE process_id = ?1",
+                "SELECT COALESCE(SUM(done),0), COUNT(*) FROM steps WHERE process_id = ?1 AND deleted_at IS NULL",
                 rusqlite::params![p.id],
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )

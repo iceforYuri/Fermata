@@ -87,6 +87,38 @@ CREATE TABLE palette (
 );
 "#;
 
+// v6（同步就绪 schema，docs/07-移动端.md §5）：进程/计划/步骤/分段加全局 uuid + updated_at，
+// AFTER UPDATE 触发器自动落戳（显式赋值优先）；steps 加 deleted_at 软删除墓碑。
+pub const MIGRATION_V6: &str = r#"
+ALTER TABLE processes ADD COLUMN uuid TEXT;
+ALTER TABLE processes ADD COLUMN updated_at INTEGER;
+ALTER TABLE plans ADD COLUMN uuid TEXT;
+ALTER TABLE plans ADD COLUMN updated_at INTEGER;
+ALTER TABLE steps ADD COLUMN uuid TEXT;
+ALTER TABLE steps ADD COLUMN updated_at INTEGER;
+ALTER TABLE steps ADD COLUMN deleted_at INTEGER;
+ALTER TABLE segments ADD COLUMN uuid TEXT;
+ALTER TABLE segments ADD COLUMN updated_at INTEGER;
+
+CREATE UNIQUE INDEX idx_processes_uuid ON processes(uuid);
+CREATE UNIQUE INDEX idx_plans_uuid ON plans(uuid);
+CREATE UNIQUE INDEX idx_steps_uuid ON steps(uuid);
+CREATE UNIQUE INDEX idx_segments_uuid ON segments(uuid);
+
+CREATE TRIGGER trg_processes_touch AFTER UPDATE ON processes FOR EACH ROW
+  WHEN NEW.updated_at = OLD.updated_at
+  BEGIN UPDATE processes SET updated_at = CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER) WHERE id = NEW.id; END;
+CREATE TRIGGER trg_plans_touch AFTER UPDATE ON plans FOR EACH ROW
+  WHEN NEW.updated_at = OLD.updated_at
+  BEGIN UPDATE plans SET updated_at = CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER) WHERE id = NEW.id; END;
+CREATE TRIGGER trg_steps_touch AFTER UPDATE ON steps FOR EACH ROW
+  WHEN NEW.updated_at = OLD.updated_at
+  BEGIN UPDATE steps SET updated_at = CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER) WHERE id = NEW.id; END;
+CREATE TRIGGER trg_segments_touch AFTER UPDATE ON segments FOR EACH ROW
+  WHEN NEW.updated_at = OLD.updated_at
+  BEGIN UPDATE segments SET updated_at = CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER) WHERE id = NEW.id; END;
+"#;
+
 const SETTINGS_SEED: &[(&str, &str)] = &[
     ("slice_minutes", "45"),
     ("continuous_limit_minutes", "90"),
@@ -260,6 +292,31 @@ fn migrate(conn: &Connection) -> Result<(), String> {
         )
         .map_err(|e| e.to_string())?;
     }
+
+    // v6（同步就绪 schema，docs/07-移动端.md §5）：全局 uuid + updated_at（触发器自动维护）+ steps 软删除墓碑 + 设备 ID
+    if applied < 6 {
+        conn.execute_batch(MIGRATION_V6)
+            .map_err(|e| format!("迁移 v6 失败: {e}"))?;
+        for t in ["processes", "plans", "steps", "segments"] {
+            conn.execute(
+                &format!("UPDATE {t} SET uuid = lower(hex(randomblob(16))) WHERE uuid IS NULL"),
+                [],
+            )
+            .map_err(|e| format!("v6 回填 uuid 失败({t}): {e}"))?;
+        }
+        conn.execute("UPDATE processes SET updated_at = created_at WHERE updated_at IS NULL", []).map_err(|e| e.to_string())?;
+        conn.execute("UPDATE plans SET updated_at = created_at WHERE updated_at IS NULL", []).map_err(|e| e.to_string())?;
+        conn.execute("UPDATE steps SET updated_at = COALESCE(done_at, 0) WHERE updated_at IS NULL", []).map_err(|e| e.to_string())?;
+        conn.execute("UPDATE segments SET updated_at = started_at WHERE updated_at IS NULL", []).map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT OR IGNORE INTO settings (key, value) VALUES ('device_id', lower(hex(randomblob(8))))",
+            [],
+        ).map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT INTO schema_migrations (version, applied_at) VALUES (6, ?1)",
+            rusqlite::params![now_ms()],
+        ).map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 
@@ -431,7 +488,7 @@ pub fn open_segment(conn: &Connection, pid: i64, ts: i64) -> Result<(), String> 
         .map_err(|e| e.to_string())?;
     if open == 0 {
         conn.execute(
-            "INSERT INTO segments (process_id, started_at, ended_at, day, kind) VALUES (?1, ?2, NULL, ?3, 'focus')",
+            "INSERT INTO segments (process_id, started_at, ended_at, day, kind, uuid, updated_at) VALUES (?1, ?2, NULL, ?3, 'focus', lower(hex(randomblob(16))), ?2)",
             rusqlite::params![pid, ts, day_of(ts)],
         )
         .map_err(|e| e.to_string())?;

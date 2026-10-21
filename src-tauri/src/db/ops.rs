@@ -60,7 +60,7 @@ pub fn process_create(
     }
     let day = board_date.map(str::to_string).unwrap_or_else(|| day_of(ts));
     conn.execute(
-        "INSERT INTO processes (title, state, color_tag, created_at, board_date) VALUES (?1, 'suspended', ?2, ?3, ?4)",
+        "INSERT INTO processes (title, state, color_tag, created_at, board_date, uuid, updated_at) VALUES (?1, 'suspended', ?2, ?3, ?4, lower(hex(randomblob(16))), ?3)",
         rusqlite::params![title, color_tag, ts, day],
     )
     .map_err(|e| e.to_string())?;
@@ -109,8 +109,8 @@ pub fn process_switch(
             )
             .map_err(|e| e.to_string())?;
             conn.execute(
-                "INSERT INTO steps (process_id, title, done, position, kind) VALUES (?1, ?2, 0, 1, 'note')",
-                rusqlite::params![cur, bp],
+                "INSERT INTO steps (process_id, title, done, position, kind, uuid, updated_at) VALUES (?1, ?2, 0, 1, 'note', lower(hex(randomblob(16))), ?3)",
+                rusqlite::params![cur, bp, ts],
             )
             .map_err(|e| e.to_string())?;
         }
@@ -214,8 +214,8 @@ pub fn breakpoint_set(conn: &Connection, ts: i64, pid: i64, text: &str) -> Resul
     )
     .map_err(|e| e.to_string())?;
     conn.execute(
-        "INSERT INTO steps (process_id, title, done, position, kind) VALUES (?1, ?2, 0, 1, 'note')",
-        rusqlite::params![pid, text],
+        "INSERT INTO steps (process_id, title, done, position, kind, uuid, updated_at) VALUES (?1, ?2, 0, 1, 'note', lower(hex(randomblob(16))), ?3)",
+        rusqlite::params![pid, text, ts],
     )
     .map_err(|e| e.to_string())?;
     append_event(conn, ts, "entry_add", Some(pid), json!({ "kind": "note", "title": text }))?;
@@ -227,7 +227,7 @@ pub fn entry_delete(conn: &Connection, ts: i64, step_id: i64) -> Result<(), Stri
     let pid: i64 = conn
         .query_row("SELECT process_id FROM steps WHERE id = ?1", rusqlite::params![step_id], |r| r.get(0))
         .map_err(|e| format!("条目 {step_id} 不存在: {e}"))?;
-    conn.execute("DELETE FROM steps WHERE id = ?1", rusqlite::params![step_id])
+    conn.execute("UPDATE steps SET deleted_at = ?2 WHERE id = ?1", rusqlite::params![step_id, ts])
         .map_err(|e| e.to_string())?;
     append_event(conn, ts, "entry_delete", Some(pid), json!({ "step_id": step_id }))?;
     Ok(())
@@ -322,8 +322,8 @@ pub fn step_add(conn: &Connection, ts: i64, pid: i64, title: &str) -> Result<i64
     )
     .map_err(|e| e.to_string())?;
     conn.execute(
-        "INSERT INTO steps (process_id, title, done, position) VALUES (?1, ?2, 0, 1)",
-        rusqlite::params![pid, title],
+        "INSERT INTO steps (process_id, title, done, position, uuid, updated_at) VALUES (?1, ?2, 0, 1, lower(hex(randomblob(16))), ?3)",
+        rusqlite::params![pid, title, ts],
     )
     .map_err(|e| e.to_string())?;
     let sid = conn.last_insert_rowid();
@@ -428,7 +428,7 @@ pub fn plan_create(
         .query_row("SELECT MAX(position) FROM plans", [], |r| r.get(0))
         .map_err(|e| e.to_string())?;
     conn.execute(
-        "INSERT INTO plans (title, est_minutes, scheduled_date, state, created_at, position) VALUES (?1, ?2, ?3, 'pool', ?4, ?5)",
+        "INSERT INTO plans (title, est_minutes, scheduled_date, state, created_at, position, uuid, updated_at) VALUES (?1, ?2, ?3, 'pool', ?4, ?5, lower(hex(randomblob(16))), ?4)",
         rusqlite::params![title, est_minutes, scheduled_date, ts, max_pos.unwrap_or(0.0) + 1.0],
     )
     .map_err(|e| e.to_string())?;
