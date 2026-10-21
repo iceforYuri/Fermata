@@ -95,6 +95,10 @@ object Keeper {
   }
 
   /** 休止符到点提醒（绝对时刻，elapsedRealtime 基准）。Android 14+ 精确闹钟默认不授予 → 检查+降级。 */
+  fun scheduleIn(ctx: Context, inMs: Long) {
+    scheduleAtElapsed(ctx, SystemClock.elapsedRealtime() + inMs)
+  }
+
   fun scheduleAtElapsed(ctx: Context, atElapsedMs: Long) {
     val am = ctx.getSystemService(AlarmManager::class.java)
     val pi = PendingIntent.getBroadcast(ctx, 3, Intent(ctx, KeeperReceiver::class.java).setAction(ACT_ALARM), PendingIntent.FLAG_IMMUTABLE)

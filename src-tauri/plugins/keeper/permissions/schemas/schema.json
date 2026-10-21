@@ -307,6 +307,18 @@
           "markdownDescription": "Denies the cancel_reminder command without any pre-configured scope."
         },
         {
+          "description": "Enables the hide command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-hide",
+          "markdownDescription": "Enables the hide command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the hide command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-hide",
+          "markdownDescription": "Denies the hide command without any pre-configured scope."
+        },
+        {
           "description": "Enables the register_listener command without any pre-configured scope.",
           "type": "string",
           "const": "allow-register-listener",

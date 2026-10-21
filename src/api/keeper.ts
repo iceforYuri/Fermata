@@ -16,11 +16,11 @@ export const keeper = {
   },
   hide() {
     if (!isMobile) return;
-    void invoke("plugin:keeper|update", { title: "", running: false, whenEpoch: 0, accumMs: 0 }); // 先空发；隐藏走 cancel——下一步补 hide 命令
+    void invoke("plugin:keeper|hide");
   },
-  scheduleReminder(atElapsedMs: number) {
+  scheduleReminder(inMs: number) {
     if (!isMobile) return;
-    void invoke("plugin:keeper|schedule_reminder", { atElapsed: atElapsedMs });
+    void invoke("plugin:keeper|schedule_reminder", { inMs });
   },
   cancelReminder() {
     if (!isMobile) return;

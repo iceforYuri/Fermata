@@ -23,6 +23,7 @@
     "keeper:allow-update",
     "keeper:allow-schedule-reminder",
     "keeper:allow-cancel-reminder",
-    "keeper:allow-register-listener"
+    "keeper:allow-register-listener",
+    "keeper:allow-hide"
   ]
 }

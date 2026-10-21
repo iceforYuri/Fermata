@@ -29,26 +29,41 @@ export function MobileShell() {
   const { rest } = useBoard();
   useScheduler();
 
-  // M2m：会话通知由真实计时驱动（Q13）——运行/暂停/休息三态 + 进程名 + Chronometer
-  const { board } = useBoard();
+  // M2m：会话通知由真实计时驱动（Q13）——运行/暂停/休息三态 + 进程名 + Chronometer；去抖：仅关键字段变化才发
+  const { board, settings } = useBoard();
+  const lastSent = useRef("");
+  const lastReminderKey = useRef("");
   useEffect(() => {
     if (!isMobile) return;
     const running = board?.running ?? null;
-    const resting = rest.resting;
-    if (resting) {
-      keeper.update({ title: "休息中", running: false, whenEpoch: 0, accumMs: 0 });
+    if (rest.resting) {
+      if (lastSent.current !== "rest") { keeper.update({ title: "休息中", running: false, whenEpoch: 0, accumMs: 0 }); lastSent.current = "rest"; }
+      keeper.cancelReminder();
+      lastReminderKey.current = "";
       return;
     }
     if (!running) {
-      keeper.hide();
-      keeper.cancelReminder();
+      if (lastSent.current !== "none") { keeper.hide(); keeper.cancelReminder(); lastSent.current = "none"; lastReminderKey.current = ""; }
       return;
     }
-    const title = running.process.title;
     const paused = !running.timer_open;
-    // chronometer 起点：当前片的开始墙钟
-    const whenEpoch = Date.now() - running.ring_elapsed_ms;
-    keeper.update({ title, running: !paused, whenEpoch, accumMs: running.day_total_ms });
+    const key = running.process.id + "|" + paused;
+    if (lastSent.current !== key) {
+      const whenEpoch = Date.now() - running.ring_elapsed_ms;
+      keeper.update({ title: running.process.title, running: !paused, whenEpoch, accumMs: running.day_total_ms });
+      lastSent.current = key;
+    }
+    // 休止符到点闹钟：仅 开始/恢复/暂停/切换 时排或撤；闹钟到点=到点提醒一次（Q12）
+    const sliceMs = (parseInt(settings.slice_minutes ?? "45", 10) || 45) * 60_000;
+    if (paused) {
+      if (lastReminderKey.current !== "") { keeper.cancelReminder(); lastReminderKey.current = ""; }
+    } else {
+      const rKey = key; // 仅 进程+暂停态 变化才重排（绝对到点在排的那一刻算定）
+      if (lastReminderKey.current !== rKey) {
+        keeper.scheduleReminder(sliceMs - running.ring_elapsed_ms);
+        lastReminderKey.current = rKey;
+      }
+    }
   }, [board, rest.resting]);
 
   // 通知按钮 → 真实暂停/继续（Q13：通知「继续」算显式恢复）

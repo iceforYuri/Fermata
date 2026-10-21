@@ -19,7 +19,7 @@ class UpdateArgs {
 
 @InvokeArg
 class ScheduleArgs {
-  var atElapsed: Long = 0  // SystemClock.elapsedRealtime() 基准的时刻
+  var inMs: Long = 0  // 从现在起的相对毫秒
 }
 
 /** 会话通知桥：JS 驱动通知内容；通知按钮经 keeper-action 事件回 JS。 */
@@ -37,15 +37,22 @@ class KeeperPlugin(private val activity: Activity) : Plugin(activity) {
 
   @Command
   fun update(invoke: Invoke) {
+    maybeRequestNotificationPermission()
     val args = invoke.parseArgs(UpdateArgs::class.java)
     Keeper.showSession(activity, args.title, args.running, args.whenEpoch, args.accumMs)
     invoke.resolve()
   }
 
   @Command
+  fun hide(invoke: Invoke) {
+    Keeper.hideSession(activity)
+    invoke.resolve()
+  }
+
+  @Command
   fun scheduleReminder(invoke: Invoke) {
     val args = invoke.parseArgs(ScheduleArgs::class.java)
-    Keeper.scheduleAtElapsed(activity, args.atElapsed)
+    Keeper.scheduleIn(activity, args.inMs)
     invoke.resolve()
   }
 
@@ -53,6 +60,17 @@ class KeeperPlugin(private val activity: Activity) : Plugin(activity) {
   fun cancelReminder(invoke: Invoke) {
     Keeper.cancelAlarm(activity)
     invoke.resolve()
+  }
+
+  private fun maybeRequestNotificationPermission() {
+    if (android.os.Build.VERSION.SDK_INT >= 33) {
+      val nm = activity.getSystemService(android.app.NotificationManager::class.java)
+      if (!nm.areNotificationsEnabled()) {
+        androidx.core.app.ActivityCompat.requestPermissions(
+          activity, arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 71
+        )
+      }
+    }
   }
 
   fun dispatchAction(action: String) {

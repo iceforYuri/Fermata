@@ -36,6 +36,32 @@ Denies the cancel_reminder command without any pre-configured scope.
 <tr>
 <td>
 
+`keeper:allow-hide`
+
+</td>
+<td>
+
+Enables the hide command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`keeper:deny-hide`
+
+</td>
+<td>
+
+Denies the hide command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `keeper:allow-register-listener`
 
 </td>
