@@ -105,3 +105,9 @@
 - **重要踩坑：触摸序列锚定起始 DOM 节点**。拖拽中的「克隆替换被拖行」会把触摸目标从文档树移除，之后的 touchmove/touchend 永远到不了 window——表现是手势卡死、drag 状态残留。修法：被拖行原位 transform 跟手（不克隆），与「move/up 挂 window」双保险。这套教训适用于以后一切触摸拖拽。
 - 稿库条目长按右拖出抽屉右缘 = 关抽屉 + 排入挂起队列（LibraryPanel 容器级 touch 手势流；移动端禁用 HTML5 draggable 防原生长按抢手势）。
 - 验证（CDP 合成触摸）：长按出菜单 ✓ 菜单合并进拖拽 ✓ 拖拽换序落库 ✓ 松手无残留 ✓ 拖出抽屉排入 ✓；锁徽标 TTL 过期自动转「可能仍在运行」✓。
+
+
+## 2026-10-22 构建链两个坑（耗费约一小时的教训）
+
+8. **Tauri 前端嵌包缓存**：generate_context! 在编译宏期读 dist 嵌进 libfermata_lib.so。只改前端（CSS/TSX）时 cargo 判 crate 未变 → 重链旧 .so → APK 里是旧前端。规矩：前端改动后构建前 touch 一下 src-tauri/src/lib.rs（或确认有 Rust 改动），装完用「设置页底部构建戳」核对。
+9. **Gradle 守护进程锁**：强杀 java/中断构建会留下 daemon registry 锁，后续构建的守护进程空转等锁（日志全是 "Waiting to acquire shared lock on daemon addresses registry"）。修法：杀光 java → 删 ~/.gradle/daemon/*/registry.bin* 与 *.lock → 重建。别强杀构建中的 java。
