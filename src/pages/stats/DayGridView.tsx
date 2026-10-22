@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { isMobile } from "../../mobile";
 import { data, type CellMark, type GridCell } from "../../api/data";
 import { markHex, useBoard } from "../../store/board";
 import { fmtClock, fmtDur } from "../../util";
@@ -376,7 +377,7 @@ function DayUnit({
             </div>
             <div className="daygrid-ticks" data-testid="daygrid-ticks-bottom">
               {[["6", 0], ["12", 6], ["18", 12], ["24", 18]].map(([t, line]) => (
-                <span key={t} className="num dg-tick" style={{ left: (line as number) * 36 }}>{t}</span>
+                <span key={t} className="num dg-tick" style={{ left: isMobile ? `${((line as number) * 100) / 18}%` : (line as number) * 36 }}>{t}</span>
               ))}
             </div>
           </>

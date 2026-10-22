@@ -124,7 +124,7 @@ export function LibraryPanel() {
     <div className="lib-group" key={title}>
       <div className="lib-group-title">{title}</div>
       {items.length === 0 && (
-        <div style={{ fontSize: "var(--fs-micro)", color: "var(--ink-ghost)", padding: "4px 10px" }}>
+        <div style={{ fontSize: "var(--fs-micro)", color: "var(--ink-ghost)", padding: isMobile ? "20px 10px" : "4px 10px", textAlign: isMobile ? "center" : undefined }}>
           空
         </div>
       )}

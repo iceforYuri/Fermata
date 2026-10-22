@@ -2421,3 +2421,27 @@ body:has(.lib-rail:hover) .lib-hint-arrow { animation: hint-breathe 2.4s ease-in
 .m-shell .archive-backdrop { inset: 0; }
 .m-shell .archive-panel { width: 100%; max-width: 100%; padding: calc(20px + env(safe-area-inset-top)) 16px calc(80px + env(safe-area-inset-bottom)); }
 .m-shell .archive-row .reopen { opacity: 1; }
+
+/* 设置节宽：桌面 clamp(480,45%,720) 在手机上横向溢出——移动端满宽 */
+.m-page .settings-scroll > .set-sec { width: 100%; }
+
+/* ===== 移动端质感一轮（借 Gika 结构节奏：组题在上控件在下、日网格压缩全显、大日期标右置） ===== */
+/* 设置页：双栏改上下堆叠，整行可触 */
+.m-page .set-sec { margin-bottom: 34px; }
+.m-page .set-row { flex-direction: column; align-items: stretch; gap: 9px; padding: 13px 0; }
+.m-page .set-label { width: auto; font-size: var(--fs-small); }
+.m-page .set-exported { padding-left: 0; }
+.m-page .color-row { flex-wrap: wrap; gap: 10px; }
+.m-page .color-cell { width: 30px; height: 30px; }
+.m-page .choice-chip { padding: 5px 14px; }
+
+/* 日视角：18 列等比压缩全显（列 ≈ (屏宽-24)/18 ≈ 21px），不横滑 */
+.m-page .day-unit { min-height: 0; margin-bottom: 56px; gap: 12px; }
+.m-page .daygrid-body { width: 100%; min-height: 0; }
+.m-page .daygrid-grid { grid-template-rows: repeat(6, 40px); grid-auto-columns: calc((100vw - 24px) / 18); }
+.m-page .dg-dot { width: 15px; height: 15px; }
+.m-page .dg-empty-dot { width: 3px; height: 3px; }
+.m-page .daygrid-ticks { width: 100%; }
+.m-page .daygrid-empty { padding: 96px 0; } /* 空态纵向占住视觉中心 */
+.m-page .day-big-num { font-size: 34px; } /* 大日期标再大一点，右缘对齐不动 */
+
