@@ -248,7 +248,7 @@ export interface DataApi {
   qMonthCalendar(year: number, month: number): Promise<DayShares[]>;
   qYearOverview(year: number): Promise<YearOverview>;
   qDayView(day: string): Promise<DayView>;
-  qDayGrid(day: string): Promise<GridCell[]>;
+  qDayGrid(day: string, cellMinutes?: number): Promise<GridCell[]>;
   qFirstDay(): Promise<string | null>;
   exportEvents(): Promise<string>;
   /** 全量快照：另存为对话框（取消 → null） */

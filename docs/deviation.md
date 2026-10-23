@@ -321,3 +321,8 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 **偏离**：docs/07 §5 定「凭据 = 系统级安全存储（Windows 凭据管理器 / Android Keystore）」。桌面已用 keyring（Windows 凭据管理器）；Android 侧暂未接 Keystore，过渡实现为应用私有目录 sync.secret 明文文件。
 **理由**：Keystore 需在 keeper Kotlin 插件里加 AES 包装存取，属于 M5m 工作量；M4m 先把同步协议闭环跑通。
 **闭环（同日）**：已换 Android Keystore——keeper 插件新增 SecretBox（AES/GCM，密钥只在 Keystore）+ set/get/clearSecret 命令，Rust 同步引擎经 PluginHandle 直调（不绕 JS）；旧 sync.secret 明文文件读到即迁入并删除。模拟器实测：密文落 files/sync.secret、启动推送 rev10 成功。
+
+
+### D65 · 移动端日网格改粗粒度（feature/mobile-poc，2026-10-23 用户定）
+**偏离**：docs/07 §6 原写「日网格 18 列等比压缩全显（列约 19dp、圆约 14dp）」。实装后手机上 108 格过密。
+**改为**：移动端每格 20 分钟（06:00–24:00 时窗不变）= 54 格、9 列 × 6 行，圆点 22px；桌面保持 10 分钟 108 格。q_day_grid 加 cell_minutes 参数双端共用。

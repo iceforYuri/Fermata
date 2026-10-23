@@ -2369,9 +2369,14 @@ body:has(.lib-rail:hover) .lib-hint-arrow { animation: hint-breathe 2.4s ease-in
 .m-page .center-inner { width: 100%; max-width: 100%; padding: calc(28px + env(safe-area-inset-top)) 12px 80px; }
 
 /* 详情底卡：顶部图标按钮条 + 断点确认条 */
-.m-detail-actions { display: flex; gap: 18px; justify-content: flex-end; padding: 2px 4px 10px; }
-.m-act { background: none; border: none; color: var(--ink-soft); padding: 8px; cursor: pointer; }
+.m-detail-head { gap: 12px; }
+.m-detail-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--ink-ghost); opacity: 0.45; margin: 0 auto 12px; }
+.m-detail-actions { display: flex; gap: 8px; align-items: center; flex: none; padding-top: 4px; }
+.m-act { width: 38px; height: 38px; padding: 0; display: grid; place-items: center; border-radius: 50%; background: none; border: none; color: var(--ink-soft); cursor: pointer; transition: color 0.15s, background 0.15s; }
 .m-act:active { color: var(--ink); }
+.m-act.primary { background: var(--ink); color: var(--paper); }
+.m-act.primary:active { opacity: 0.85; }
+
 .m-switch-confirm { display: flex; align-items: center; gap: 8px; padding: 6px 4px 12px; }
 .m-switch-label { font-size: 12.5px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40%; }
 .m-switch-input { flex: 1; min-width: 0; border: none; border-bottom: 1px solid var(--mc, var(--ink-faint)); background: none; font: inherit; font-size: 15px; padding: 4px 2px; outline: none; color: var(--ink); }
@@ -2439,15 +2444,15 @@ body:has(.lib-rail:hover) .lib-hint-arrow { animation: hint-breathe 2.4s ease-in
 /* 日视角：18 列等比压缩全显（列 ≈ (屏宽-24)/18 ≈ 21px），不横滑 */
 .m-page .day-unit { min-height: 0; margin-bottom: 36px; gap: 12px; }
 .m-page .daygrid-body { width: 100%; min-height: 0; }
-.m-page .daygrid-grid { grid-template-rows: repeat(6, 40px); grid-auto-columns: calc((100vw - 24px) / 18); }
-.m-page .dg-dot { width: 15px; height: 15px; }
-.m-page .dg-empty-dot { width: 3px; height: 3px; }
+.m-page .daygrid-grid { grid-template-rows: repeat(6, 44px); grid-auto-columns: calc((100vw - 24px) / 9); } /* 移动端 20min/格 × 9 列（粗粒度，Gika 节奏） */
+.m-page .dg-dot { width: 22px; height: 22px; }
+.m-page .dg-empty-dot { width: 3.5px; height: 3.5px; }
 .m-page .daygrid-ticks { width: 100%; }
 .m-page .daygrid-empty { padding: 44px 0; } /* 连续空日不摊大饼 */ /* 空态纵向占住视觉中心 */
 .m-page .day-big-num { font-size: 34px; } /* 大日期标再大一点，右缘对齐不动 */
 
 /* 日网格移动端：SVG 半圆/环形标记随列压缩（属性宽高被 CSS 覆盖，viewBox 等比） */
-.m-page .dg-half { width: 15px; height: 15px; margin: 0; }
+.m-page .dg-half { width: 22px; height: 22px; margin: 0; }
 
 /* 日网格点按清单卡（移动端）：遮罩 + 底部通栏 */
 .dg-tip-scrim { position: fixed; inset: 0; z-index: 59; }

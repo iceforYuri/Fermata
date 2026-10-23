@@ -899,7 +899,7 @@ pub struct GridOccupant {
 
 #[derive(Serialize)]
 pub struct GridCell {
-    pub cell: i64, // 0..107，列主序（i = col*6 + row，每格 10 分钟）
+    pub cell: i64, // 0..cell_count-1，列主序（i = col*rows + row）；桌面每格 10 分钟、移动端 20 分钟（docs/07 §6 移动端粗粒度）
     pub marks: Vec<CellMark>, // 最多两枚：≥20% 的占用者取前二（对角分半）——只管画
     pub occupants: Vec<GridOccupant>, // 全部占用者按 ms 降序截前 4——悬停清单
     pub occupant_count: i64, // 该格占用者总数（>4 时前端收 "…等 N 项"）
@@ -907,8 +907,11 @@ pub struct GridCell {
 
 /// 108 格日网格（v1.4：share=占用率，分母=格的 10 分钟；<20% 不返回、取前二）；
 /// occ_start/occ_end 钳制在格窗内（与 mock 同口径）；一段进程沿阅读方向连续填充；时窗外不画
-pub fn q_day_grid(conn: &Connection, day: &str) -> Result<Vec<GridCell>, String> {
-    const CELL_MS: i64 = 600_000;
+pub fn q_day_grid(conn: &Connection, day: &str, cell_ms: Option<i64>) -> Result<Vec<GridCell>, String> {
+    let cell_ms = cell_ms.unwrap_or(600_000).max(60_000);
+    let cell_count = (18 * 3_600_000) / cell_ms;
+    #[allow(non_snake_case)]
+    let CELL_MS: i64 = cell_ms;
     const MIN_SHARE: f64 = 0.2; // 镜像 token --grid-min-share（渲染阈值仍走 token）
     let (day_start, _) = day_range(day)?;
     let win = day_start + 6 * 3_600_000; // 时窗起点 06:00
@@ -934,7 +937,7 @@ pub fn q_day_grid(conn: &Connection, day: &str) -> Result<Vec<GridCell>, String>
         occ_s: i64,
         occ_e: i64,
     }
-    let mut cells: Vec<std::collections::HashMap<i64, Acc>> = (0..108)
+    let mut cells: Vec<std::collections::HashMap<i64, Acc>> = (0..cell_count)
         .map(|_| std::collections::HashMap::new())
         .collect();
 
@@ -945,8 +948,8 @@ pub fn q_day_grid(conn: &Connection, day: &str) -> Result<Vec<GridCell>, String>
         if ge <= gs {
             continue;
         }
-        let c0 = ((gs - win) / CELL_MS).min(107) as usize;
-        let c1 = ((ge - 1 - win) / CELL_MS).min(107) as usize;
+        let c0 = ((gs - win) / CELL_MS).min(cell_count - 1) as usize;
+        let c1 = ((ge - 1 - win) / CELL_MS).min(cell_count - 1) as usize;
         for c in c0..=c1 {
             let cell_s = win + c as i64 * CELL_MS;
             let s = gs.max(cell_s);
@@ -964,7 +967,7 @@ pub fn q_day_grid(conn: &Connection, day: &str) -> Result<Vec<GridCell>, String>
         }
     }
 
-    let mut out = Vec::with_capacity(108);
+    let mut out = Vec::with_capacity(cell_count as usize);
     for (i, m) in cells.iter().enumerate() {
         let mut ranked: Vec<(&i64, &Acc)> = m.iter().collect();
         ranked.sort_by(|a, b| b.1.ms.cmp(&a.1.ms));

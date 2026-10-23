@@ -191,7 +191,7 @@ export function DayGridView({
                 <span className="num dg-tip-time">
                   {fmtClock(o.occ_start)}–{fmtClock(o.occ_end)}
                   {/* 时长=格内实际占用（share×10min），不是跨度——被打断的进程不再虚报 */}
-                  {` · ${fmtDur(Math.round(o.share * 600_000))}`}
+                  {` · ${fmtDur(Math.round(o.share * (isMobile ? 1_200_000 : 600_000)))}`}
                 </span>
               </div>
             ))}
@@ -295,7 +295,7 @@ function DayUnit({
   // 按天懒加载：接近视口才查；刷新令牌到来时已装载的天直查重取（未装载的仍等视口）
   useEffect(() => {
     if (loadedRef.current) {
-      void data.qDayGrid(day).then(setCells);
+      void data.qDayGrid(day, isMobile ? 20 : undefined).then(setCells);
       return;
     }
     const el = ref.current;
@@ -304,7 +304,7 @@ function DayUnit({
       (entries) => {
         if (entries[0].isIntersecting) {
           loadedRef.current = true;
-          void data.qDayGrid(day).then(setCells);
+          void data.qDayGrid(day, isMobile ? 20 : undefined).then(setCells);
           obs.disconnect();
         }
       },
@@ -396,7 +396,7 @@ function DayUnit({
             </div>
             <div className="daygrid-ticks" data-testid="daygrid-ticks-bottom">
               {[["6", 0], ["12", 6], ["18", 12], ["24", 18]].map(([t, line]) => (
-                <span key={t} className="num dg-tick" style={{ left: isMobile ? `${((line as number) * 100) / 18}%` : (line as number) * 36 }}>{t}</span>
+                <span key={t} className="num dg-tick" style={{ left: `${((line as number) * 100) / 18}%` }}>{t}</span>
               ))}
             </div>
           </>

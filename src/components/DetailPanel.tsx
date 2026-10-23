@@ -83,23 +83,7 @@ function DetailInner({ bp }: { bp: BoardProcess }) {
 
   return (
     <div className="detail-inner" style={{ "--mc": color ?? undefined } as React.CSSProperties}>
-      {isMobile && (
-        <div className="m-detail-actions">
-          {!isActiveSelf && (
-            <button className="m-act" title="列为当前在做" aria-label="列为当前在做" onClick={startSwitch}>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M8 12V4M4.5 7.5 8 4l3.5 3.5" />
-                <path d="M3 1.8h10" />
-              </svg>
-            </button>
-          )}
-          <button className="m-act" title="关闭" aria-label="关闭" onClick={closeDetail}>
-            <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4">
-              <path d="M2 2l8 8M10 2l-8 8" />
-            </svg>
-          </button>
-        </div>
-      )}
+      {isMobile && <div className="m-detail-handle" />}
       {isMobile && confirming && runningBp && (
         <div className="m-switch-confirm">
           <div className="m-switch-label">「{runningBp.process.title}」留断点</div>
@@ -120,7 +104,7 @@ function DetailInner({ bp }: { bp: BoardProcess }) {
           </button>
         </div>
       )}
-      <div style={{ display: "flex", alignItems: "flex-start" }}>
+      <div className={isMobile ? "m-detail-head" : undefined} style={{ display: "flex", alignItems: "flex-start" }}>
         <div className="detail-title" style={{ flex: 1 }}>
           <InlineEdit
             value={p.title}
@@ -129,6 +113,23 @@ function DetailInner({ bp }: { bp: BoardProcess }) {
             onCommit={(v) => void act(() => data.processRename(p.id, v))}
           />
         </div>
+        {isMobile && (
+          <div className="m-detail-actions">
+            {!isActiveSelf && (
+              <button className="m-act primary" title="列为当前在做" aria-label="列为当前在做" onClick={startSwitch}>
+                <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M8 12V4M4.5 7.5 8 4l3.5 3.5" />
+                  <path d="M3 1.8h10" />
+                </svg>
+              </button>
+            )}
+            <button className="m-act" title="关闭" aria-label="关闭" onClick={closeDetail}>
+              <svg width="15" height="15" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M2 2l8 8M10 2l-8 8" />
+              </svg>
+            </button>
+          </div>
+        )}
         <button
           onClick={closeDetail}
           title="收起"

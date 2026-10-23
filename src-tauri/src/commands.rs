@@ -439,9 +439,13 @@ pub async fn q_day_view(state: State<'_, DbState>, day: String) -> Result<querie
 }
 
 #[tauri::command]
-pub async fn q_day_grid(state: State<'_, DbState>, day: String) -> Result<Vec<queries::GridCell>, String> {
+pub async fn q_day_grid(
+    state: State<'_, DbState>,
+    day: String,
+    cell_minutes: Option<i64>,
+) -> Result<Vec<queries::GridCell>, String> {
     let c = lock(&state)?;
-    queries::q_day_grid(&c, &day)
+    queries::q_day_grid(&c, &day, cell_minutes.map(|m| m * 60_000))
 }
 
 /// 事件日志导出：JSON 写入 app_data_dir/exports/events-YYYYMMDD-HHmm.json，返回路径
