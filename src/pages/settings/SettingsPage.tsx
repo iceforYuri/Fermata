@@ -137,8 +137,8 @@ function ChoiceRow({
           {label2}
         </button>
       ))}
-      <button className="choice-cancel" data-testid={`${testid}-esc`} onClick={() => setEditing(false)}>
-        Esc
+      <button className="choice-cancel" data-testid={`${testid}-esc`} aria-label="取消" onClick={() => setEditing(false)}>
+        {isMobile ? "×" : "Esc"}
       </button>
     </RowShell>
   );
@@ -356,10 +356,12 @@ function SyncSection() {
             <span className="set-label">服务</span>
             <span className="set-value num">{st.url?.replace(/^https?:\/\//, "") ?? ""}</span>
           </div>
-          <div className="set-row">
-            <span className="set-label">账号</span>
-            <span className="set-value">{st.user}</span>
-          </div>
+          {st.user && (
+            <div className="set-row">
+              <span className="set-label">账号</span>
+              <span className="set-value">{st.user}</span>
+            </div>
+          )}
           <div className="set-row">
             <span className="set-label">本机设备</span>
             <span className="set-value">{st.device_name}</span>

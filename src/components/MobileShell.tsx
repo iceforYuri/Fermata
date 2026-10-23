@@ -24,7 +24,7 @@ const ORDER: Tab[] = ["board", "stats", "settings"];
  *  + 稿库左抽屉（顶栏字形按钮 / 左缘右滑）+ 详情底卡（自下而上，点空白退出）。
  *  动效与桌面同源：弹簧 response 0.42s / zeta 0.86 的 settle 近似 cubic-bezier(.2,.9,.25,1)。 */
 export function MobileShell() {
-  const { tab, leftOpen, rightPid } = useUi();
+  const { tab, leftOpen, rightPid, rowMenu, archiveOpen } = useUi();
   const { rest } = useBoard();
   useScheduler();
 
@@ -309,18 +309,20 @@ export function MobileShell() {
         <DetailPanel />
       </div>
 
-      {/* 底部 morph 导航 */}
-      <nav className="m-bottombar">
-        {TABS.map((t) => {
-          const active = tab === t.key;
-          return (
-            <button key={t.key} className={"m-tab" + (active ? " active" : "")} onClick={() => setUi({ tab: t.key })}>
-              <span className="m-tab-icon">{t.icon}</span>
-              <span className="m-tab-label">{t.label}</span>
-            </button>
-          );
-        })}
-      </nav>
+      {/* 底部导航：抽屉 / 详情 / 长按菜单 / 完成档案打开时收起，避免浮在浮层上可点 */}
+      {!leftOpen && rightPid == null && !rowMenu && !archiveOpen && (
+        <nav className="m-bottombar">
+          {TABS.map((t) => {
+            const active = tab === t.key;
+            return (
+              <button key={t.key} className={"m-tab" + (active ? " active" : "")} onClick={() => setUi({ tab: t.key })}>
+                <span className="m-tab-icon">{t.icon}</span>
+                <span className="m-tab-label">{t.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      )}
 
             <ArchiveOverlay />
       <ImportConfirmOverlay />

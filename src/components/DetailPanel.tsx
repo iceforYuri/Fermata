@@ -81,29 +81,45 @@ function DetailInner({ bp }: { bp: BoardProcess }) {
     ? stepOrder.map((id) => bp.steps.find((s) => s.id === id)!).filter(Boolean)
     : bp.steps;
 
-  return (
-    <div className="detail-inner" style={{ "--mc": color ?? undefined } as React.CSSProperties}>
-      {isMobile && <div className="m-detail-handle" />}
-      {isMobile && confirming && runningBp && (
-        <div className="m-switch-confirm">
-          <div className="m-switch-label">「{runningBp.process.title}」留断点</div>
+  // 确认切换 = 卡片原位变为旧进程的断点确认（docs/07 §6）
+  if (isMobile && confirming && runningBp) {
+    return (
+      <div className="detail-inner" style={{ "--mc": color ?? undefined } as React.CSSProperties}>
+        <div className="m-detail-handle" />
+        <div className="m-confirm-view">
+          <div className="m-confirm-cap">切换前留断点</div>
+          <div className="m-confirm-from">「{runningBp.process.title}」</div>
           <input
-            className="m-switch-input"
+            className="m-confirm-input"
             value={bpText}
             autoFocus
+            placeholder="做到哪了（可留空）"
             onChange={(e) => setBpText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") confirmSwitch();
               if (e.key === "Escape") setConfirming(false);
             }}
           />
-          <button className="m-act" title="确认切换" aria-label="确认切换" onClick={confirmSwitch}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M2.5 8.5 6.5 12 13.5 4" />
-            </svg>
-          </button>
+          <div className="m-confirm-actions">
+            <button className="m-act" title="取消" aria-label="取消切换" onClick={() => setConfirming(false)}>
+              <svg width="15" height="15" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M2 2l8 8M10 2l-8 8" />
+              </svg>
+            </button>
+            <button className="m-act primary" title="确认切换" aria-label="确认切换" onClick={confirmSwitch}>
+              <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2.5 8.5 6.5 12 13.5 4" />
+              </svg>
+            </button>
+          </div>
         </div>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="detail-inner" style={{ "--mc": color ?? undefined } as React.CSSProperties}>
+      {isMobile && <div className="m-detail-handle" />}
       <div className={isMobile ? "m-detail-head" : undefined} style={{ display: "flex", alignItems: "flex-start" }}>
         <div className="detail-title" style={{ flex: 1 }}>
           <InlineEdit
