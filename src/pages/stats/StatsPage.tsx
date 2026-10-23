@@ -26,13 +26,7 @@ export function StatsPage() {
   const [outgoing, setOutgoing] = useState<{ view: View; dir: 1 | -1 } | null>(null);
   const [anchor, setAnchor] = useState(today); // 锚点日期，切视角保留
   const [refreshKey, setRefreshKey] = useState(0);
-  const [drag, setDrag] = useState<{ x: number; animate: boolean; dir: 1 | -1 | 0; preview: View | null }>({ x: 0, animate: false, dir: 0, preview: null });
-  const dragRef = useRef(drag);
-  const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const applyDrag = (next: typeof drag) => {
-    dragRef.current = next; // 同步更新：手势在 React 提交前松手也能读到最新位移
-    setDrag(next);
-  };
+  const [drag, setDrag] = useState<{ x: number; animate: boolean }>({ x: 0, animate: false });
   const [ay, am] = anchor.split("-").map(Number);
   const outTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevTab = useRef(tab);
@@ -57,44 +51,13 @@ export function StatsPage() {
   useEffect(() => {
     if (!isMobile) return;
     statsSwipe.current = (dir) => {
-      const cur = ORDER[viewRef.current];
-      const nextIdx = cur + dir;
-      if (nextIdx < 0 || nextIdx > 2) return false;
-      const nextView = (["year", "month", "day"] as View[])[nextIdx];
-      const d = dragRef.current;
-      // 拖拽中途松手：把当前跟手位移继续滑到完整一屏（真·轮播），不做淡入淡出
-      if (d.preview === nextView && Math.abs(d.x) > 0) {
-        if (commitTimer.current) clearTimeout(commitTimer.current);
-        const width = window.innerWidth;
-        applyDrag({ x: dir === 1 ? -width : width, animate: true, dir, preview: nextView });
-        commitTimer.current = setTimeout(() => {
-          setView(nextView);
-          setOutgoing(null);
-          applyDrag({ x: 0, animate: false, dir: 0, preview: null });
-          commitTimer.current = null;
-        }, 240);
-        return true;
-      }
-      drillTo(nextView);
+      // 三视角循环：日再左滑回年，年再右滑回日；永远留在统计页
+      const nextIdx = (ORDER[viewRef.current] + dir + 3) % 3;
+      drillTo((["year", "month", "day"] as View[])[nextIdx]);
       return true;
     };
     statsDrag.current = {
-      canConsume: (dir) => {
-        const nextIdx = ORDER[viewRef.current] + dir;
-        return nextIdx >= 0 && nextIdx <= 2;
-      },
-      setOffset: (x, animate = false, dir?: 1 | -1) => {
-        const prev = dragRef.current;
-        const d = dir ?? prev.dir;
-        const idx = ORDER[viewRef.current] + d;
-        const preview = x !== 0 && idx >= 0 && idx <= 2 ? (["year", "month", "day"] as View[])[idx] : prev.preview;
-        applyDrag({ x, animate, dir: d, preview });
-        if (x === 0 && animate) {
-          window.setTimeout(() => {
-            if (dragRef.current.x === 0) applyDrag({ ...dragRef.current, preview: null });
-          }, 240);
-        }
-      },
+      setOffset: (x, animate = false) => setDrag({ x, animate }),
     };
     return () => {
       statsSwipe.current = null;
@@ -104,10 +67,13 @@ export function StatsPage() {
   }, []);
 
 const drillTo = (next: View) => {
-    if (next === view) return;
-    const dir = ORDER[next] > ORDER[view] ? 1 : -1;
+    // 从 ref 读当前视角：statsSwipe 只注册一次，不能捕获初始 view
+    const cur = viewRef.current;
+    if (next === cur) return;
+    setDrag({ x: 0, animate: false });
+    const dir = ORDER[next] > ORDER[cur] ? 1 : -1;
     if (outTimer.current) clearTimeout(outTimer.current);
-    setOutgoing({ view, dir });
+    setOutgoing({ view: cur, dir });
     setView(next);
     outTimer.current = setTimeout(() => setOutgoing(null), 240);
   };
@@ -172,15 +138,13 @@ const drillTo = (next: View) => {
     );
   };
 
-  const activeView = drag.animate && drag.preview ? drag.preview : view;
-
   return (
     <div className="stats-page" data-testid="stats-page">
       <div className="capsule" data-testid="view-capsule" style={{ flex: "none" }}>
         {(["year", "month", "day"] as View[]).map((v) => (
           <button
             key={v}
-            className={`capsule-seg${activeView === v ? " active" : ""}`}
+            className={`capsule-seg${view === v ? " active" : ""}`}
             data-testid={`capsule-${v}`}
             onClick={() => drillTo(v)}
           >
@@ -209,15 +173,7 @@ const drillTo = (next: View) => {
             {renderView(outgoing.view)}
           </div>
         )}
-                {drag.preview && (
-          <div
-            className="drill-layer drag-preview"
-            data-testid="drill-preview"
-            style={{ transform: `translateX(${drag.dir === 1 ? "100%" : "-100%"})` }}
-          >
-            {renderView(drag.preview)}
-          </div>
-        )}
+        
 <div
           className={`drill-layer current ${outgoing && view !== "day" ? (outgoing.dir === 1 ? "drill-in-right" : "drill-in-left") : ""}`}
           data-testid="drill-current"

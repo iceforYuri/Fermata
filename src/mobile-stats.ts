@@ -4,7 +4,6 @@ export const statsSwipe: { current: ((dir: -1 | 1) => boolean) | null } = { curr
 /** 统计页内视角跟手位移：外层条带保持不动，仅统计内容横移；边界才交还外层翻页 */
 export const statsDrag: {
   current: {
-    canConsume: (dir: -1 | 1) => boolean;
-    setOffset: (px: number, animate?: boolean, dir?: 1 | -1) => void;
+    setOffset: (px: number, animate?: boolean) => void;
   } | null;
 } = { current: null };
