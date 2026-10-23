@@ -2354,7 +2354,16 @@ body:has(.lib-rail:hover) .lib-hint-arrow { animation: hint-breathe 2.4s ease-in
   border-left: none;
   box-shadow: none;
 }
-.m-detail-sheet .detail-inner { height: 100%; overflow-y: auto; }
+.m-detail-sheet .detail-inner {
+  width: 100%;
+  box-sizing: border-box;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* 桌面 .detail-inner 是 clamp 定宽（360–620）+ 左右 28 内边距；手机上必须满宽，否则
+     内容盒比卡片窄且左贴边——横线按窄盒居中、按钮被挤到卡片中间（2026-10-23 实拍修） */
+  padding: 18px 24px 80px;
+}
 
 /* 报头给稿库入口让位（移动端） */
 .m-page .board-header { padding-left: 44px; }
@@ -2369,9 +2378,10 @@ body:has(.lib-rail:hover) .lib-hint-arrow { animation: hint-breathe 2.4s ease-in
 .m-page .center-inner { width: 100%; max-width: 100%; padding: calc(28px + env(safe-area-inset-top)) 12px 80px; }
 
 /* 详情底卡：顶部图标按钮条 + 断点确认条 */
-.m-detail-head { gap: 12px; align-items: center !important; }
-.m-detail-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--ink-ghost); opacity: 0.45; margin: 0 auto 12px; }
-.m-detail-actions { display: flex; gap: 8px; align-items: center; flex: none; padding-top: 4px; }
+.m-detail-head { gap: 16px; align-items: center !important; }
+.m-detail-head .detail-title { min-width: 0; }
+.m-detail-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--ink-ghost); opacity: 0.45; margin: 2px auto 18px; }
+.m-detail-actions { display: flex; gap: 8px; align-items: center; flex: none; }
 .m-act { width: 38px; height: 38px; padding: 0; display: grid; place-items: center; border-radius: 50%; background: none; border: 1px solid var(--hairline); color: var(--ink-soft); cursor: pointer; transition: color 0.15s, background 0.15s, border-color 0.15s; }
 .m-act:active { color: var(--ink); border-color: var(--ink-faint); }
 .m-act.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
