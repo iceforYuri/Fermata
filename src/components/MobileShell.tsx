@@ -98,15 +98,18 @@ export function MobileShell() {
     const down = (e: TouchEvent) => {
       const t = e.touches[0];
       x0 = t.clientX; y0 = t.clientY; mode = "";
-      // 屏幕左缘右滑 = 拉开稿库抽屉（进程页是条带最左端，右滑无处可去，docs/07 §6）
-      const ui = getUi();
-      if (x0 <= 28 && idxRef.current === 0 && !ui.leftOpen && ui.rightPid == null) mode = "drawer";
     };
     const move = (e: TouchEvent) => {
       const t = e.touches[0];
       const ddx = t.clientX - x0;
       const ddy = t.clientY - y0;
-      if (mode === "" && (Math.abs(ddx) > 8 || Math.abs(ddy) > 8)) mode = Math.abs(ddx) > Math.abs(ddy) ? "h" : "v";
+      if (mode === "") {
+        if (Math.abs(ddx) <= 8 && Math.abs(ddy) <= 8) return;
+        mode = Math.abs(ddx) > Math.abs(ddy) ? "h" : "v";
+        // 进程页右滑 = 拉开稿库抽屉（任意位置；进程页是条带最左端，右滑无处可去，docs/07 §6）
+        const ui = getUi();
+        if (mode === "h" && ddx > 0 && idxRef.current === 0 && !ui.leftOpen && ui.rightPid == null) mode = "drawer";
+      }
       if (mode === "drawer") {
         e.preventDefault();
         const w = drawerRef.current?.offsetWidth ?? 300;
@@ -122,8 +125,10 @@ export function MobileShell() {
       e.preventDefault();
       const i = idxRef.current;
       const atEdge = (i === 0 && ddx > 0) || (i === ORDER.length - 1 && ddx < 0);
+      // 统计页：横滑多数被内嵌视角吃掉，条带只给阻力暗示，避免大幅滑出又弹回
+      const resist = ORDER[i] === "stats";
       dragRef.current = ddx;
-      setDragX(atEdge ? ddx / 3 : ddx);
+      setDragX(atEdge || resist ? ddx / 3 : ddx);
     };
     const up = () => {
       if (mode === "drawer") {
@@ -180,7 +185,8 @@ export function MobileShell() {
     if (!el || !leftOpen) return;
     let x0 = 0, y0 = 0, mode = "" as "" | "h" | "v";
     let dxCur = 0;
-    const down = (e: TouchEvent) => { const t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; mode = ""; };
+    let t0 = 0;
+    const down = (e: TouchEvent) => { const t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; mode = ""; t0 = Date.now(); };
     const move = (e: TouchEvent) => {
       const t = e.touches[0];
       const ddx = t.clientX - x0;
@@ -200,7 +206,8 @@ export function MobileShell() {
         el.style.transition = ""; el.style.transform = "";
         const sc = libScrimRef.current;
         if (sc) { sc.style.transition = ""; sc.style.opacity = ""; }
-        if (dxCur < -64) setUi({ leftOpen: false });
+        // 慢拖过 64px，或 300ms 内左甩 20px+（快滑手势），都关
+        if (dxCur < -64 || (dxCur < -20 && Date.now() - t0 < 300)) setUi({ leftOpen: false });
       }
       mode = ""; dxCur = 0;
     };

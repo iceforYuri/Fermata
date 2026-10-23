@@ -35,6 +35,8 @@ export function StatsPage() {
     const entered = tab === "stats" && prevTab.current !== "stats";
     prevTab.current = tab;
     if (!entered) return;
+    setView("month"); // 移动端定：滑入统计默认月视角（docs/07 §6）
+    setAnchor(today);
     const fresh = dayStr(new Date());
     setAnchor((a) => (a === defaultToday.current && a !== fresh ? fresh : a));
     defaultToday.current = fresh;

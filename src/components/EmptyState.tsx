@@ -16,7 +16,7 @@ export function EmptyState() {
           data-testid="empty-open-library"
           onClick={() => setUi({ leftOpen: true })}
         >
-          {isMobile ? "左上 ≡ 开稿库挑一件" : "从稿库拖一件进来"}
+          {isMobile ? "右滑开稿库挑一件" : "从稿库拖一件进来"}
         </span>
         <span
           className="entry"
