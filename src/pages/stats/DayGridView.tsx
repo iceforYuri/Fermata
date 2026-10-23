@@ -144,7 +144,7 @@ export function DayGridView({
 
   return (
     <div
-      className={`daygrid-scroll${enter && ready ? (enterDir === 1 ? " drill-in-below" : " drill-in-above") : ""}`}
+      className={`daygrid-scroll${enter && ready ? (enterDir === 1 ? " drill-in-right" : " drill-in-left") : ""}`}
       style={enter && !ready ? { opacity: 0 } : undefined}
       data-testid="daygrid-scroll"
       ref={scrollRef}

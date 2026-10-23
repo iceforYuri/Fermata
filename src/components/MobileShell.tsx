@@ -12,7 +12,7 @@ import { RowMenu } from "./RowMenu";
 import { TABS } from "./TitleBar";
 import { setUi, useUi, getUi, type Tab } from "../store/ui";
 import { act, getBoard, useBoard } from "../store/board";
-import { statsSwipe } from "../mobile-stats";
+import { statsDrag, statsSwipe } from "../mobile-stats";
 import { keeper } from "../api/keeper";
 import { isMobile } from "../mobile";
 import { data } from "../api/data";
@@ -125,10 +125,19 @@ export function MobileShell() {
       e.preventDefault();
       const i = idxRef.current;
       const atEdge = (i === 0 && ddx > 0) || (i === ORDER.length - 1 && ddx < 0);
-      // 统计页：横滑多数被内嵌视角吃掉，条带只给阻力暗示，避免大幅滑出又弹回
-      const resist = ORDER[i] === "stats";
+      // 统计页：年/月/日能吃的方向 → 外层条带完全不动，只让统计内容跟手横移；
+      // 到边界（年在最左 / 日在最右）才把整页横滑交给外层换页
+      if (ORDER[i] === "stats") {
+        const dir = ddx < 0 ? 1 : -1;
+        if (statsDrag.current?.canConsume(dir)) {
+          dragRef.current = ddx;
+          statsDrag.current.setOffset(ddx * 0.6, false, dir);
+          setDragX(0);
+          return;
+        }
+      }
       dragRef.current = ddx;
-      setDragX(atEdge || resist ? ddx / 3 : ddx);
+      setDragX(atEdge ? ddx / 3 : ddx);
     };
     const up = () => {
       if (mode === "drawer") {
@@ -147,15 +156,17 @@ export function MobileShell() {
         const i = idxRef.current;
         let target = i;
         // 统计页：横滑先切内嵌视角（年｜月｜日），到界才换页
-        if (ORDER[i] === "stats" && Math.abs(dx) > 48) {
-          const consumed = statsSwipe.current?.(dx < 0 ? 1 : -1) ?? false;
-          if (consumed) {
-            setSettling(true);
+        if (ORDER[i] === "stats") {
+          const dir = dx < 0 ? 1 : -1;
+          const can = statsDrag.current?.canConsume(dir) ?? false;
+          if (Math.abs(dx) > 48 && can) {
+            statsSwipe.current?.(dir);
             setDragX(0);
-            window.setTimeout(() => setSettling(false), 340);
             mode = "";
             return;
           }
+          // 短滑或到界：统计内容先归位；到界时下方继续走外层换页
+          statsDrag.current?.setOffset(0, true);
         }
         if (dx < -48) target = Math.min(i + 1, ORDER.length - 1);
         else if (dx > 48) target = Math.max(i - 1, 0);

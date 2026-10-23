@@ -1157,14 +1157,14 @@
 .drill-layer { display: flex; flex-direction: column; min-height: 0; }
 .drill-layer:not(.current) { position: absolute; inset: 0; }
 .drill-layer.current { position: relative; flex: 1; }
-.drill-in-below { animation: drill-in-below var(--dur-page) var(--ease-page); }
-.drill-in-above { animation: drill-in-above var(--dur-page) var(--ease-page); }
-.drill-out-up { animation: drill-out-up var(--dur-page) var(--ease-page) forwards; pointer-events: none; }
-.drill-out-down { animation: drill-out-down var(--dur-page) var(--ease-page) forwards; pointer-events: none; }
-@keyframes drill-in-below { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
-@keyframes drill-in-above { from { opacity: 0; transform: translateY(-24px); } to { opacity: 1; transform: none; } }
-@keyframes drill-out-up { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-24px); } }
-@keyframes drill-out-down { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(24px); } }
+.drill-in-right { animation: drill-in-right var(--dur-page) var(--ease-page); }
+.drill-in-left { animation: drill-in-left var(--dur-page) var(--ease-page); }
+.drill-out-left { animation: drill-out-left var(--dur-page) var(--ease-page) forwards; pointer-events: none; }
+.drill-out-right { animation: drill-out-right var(--dur-page) var(--ease-page) forwards; pointer-events: none; }
+@keyframes drill-in-right { from { opacity: 0; transform: translateX(32px); } to { opacity: 1; transform: none; } }
+@keyframes drill-in-left { from { opacity: 0; transform: translateX(-32px); } to { opacity: 1; transform: none; } }
+@keyframes drill-out-left { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(-32px); } }
+@keyframes drill-out-right { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(32px); } }
 .placeholder-page {
   flex: 1;
   display: grid;
