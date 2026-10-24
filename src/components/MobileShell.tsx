@@ -128,11 +128,13 @@ export function MobileShell() {
       // 统计页：年/月/日能吃的方向 → 外层条带完全不动，只让统计内容跟手横移；
       // 到边界（年在最左 / 日在最右）才把整页横滑交给外层换页
       if (ORDER[i] === "stats") {
-        // 统计内横滑永远留给年/月/日循环，不再把外层页面拉出来
-        dragRef.current = ddx;
-        statsDrag.current?.setOffset(ddx * 0.15, false);
-        setDragX(0);
-        return;
+        const dir = ddx < 0 ? 1 : -1;
+        if (statsDrag.current?.canConsume(dir)) {
+          dragRef.current = ddx;
+          statsDrag.current.setOffset(ddx * 0.6, false, dir);
+          setDragX(0);
+          return;
+        }
       }
       dragRef.current = ddx;
       setDragX(atEdge ? ddx / 3 : ddx);
@@ -153,13 +155,18 @@ export function MobileShell() {
         const dx = dragRef.current;
         const i = idxRef.current;
         let target = i;
-        // 统计页：三视角循环（年→月→日→年），永远留在统计页；离开统计走底栏
+        // 统计页：横滑先切内嵌视角（年｜月｜日），到界才换页
         if (ORDER[i] === "stats") {
-          if (Math.abs(dx) > 48) statsSwipe.current?.(dx < 0 ? 1 : -1);
+          const dir = dx < 0 ? 1 : -1;
+          const can = statsDrag.current?.canConsume(dir) ?? false;
+          if (Math.abs(dx) > 48 && can) {
+            statsSwipe.current?.(dir);
+            setDragX(0);
+            mode = "";
+            return;
+          }
+          // 短滑或到界：统计内容先归位；到界时下方继续走外层换页
           statsDrag.current?.setOffset(0, true);
-          setDragX(0);
-          mode = "";
-          return;
         }
         if (dx < -48) target = Math.min(i + 1, ORDER.length - 1);
         else if (dx > 48) target = Math.max(i - 1, 0);
