@@ -1,0 +1,30 @@
+{
+  "source": "Vite browser preview with mock data; Android user agent selects MobileShell",
+  "nativeBridges": "Tauri event listener and Kotlin Keeper are no-op preview substitutes; native behavior is not tested",
+  "date": "2026-10-30T17:20:00+08:00",
+  "desktopViewport": [
+    1200,
+    800
+  ],
+  "mobileViewport": [
+    412,
+    915
+  ],
+  "screenshots": [
+    "windows-board.png",
+    "windows-detail.png",
+    "windows-drawer.png",
+    "windows-month.png",
+    "windows-day.png",
+    "windows-sync.png",
+    "windows-dark.png",
+    "android-board.png",
+    "android-detail.png",
+    "android-drawer.png",
+    "android-month.png",
+    "android-day.png",
+    "android-sync.png",
+    "android-dark.png"
+  ],
+  "pageErrors": []
+}
