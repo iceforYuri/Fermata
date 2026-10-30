@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { resumeFromRest } from "../store/actions";
 import { useBoard } from "../store/board";
 import { fmtDur } from "../util";
+import { isMobile } from "../mobile";
 
 /**
  * 休息页：液态玻璃整页（只盖自家版面）；纵向居中灰满环+中心▶=继续（hover 亮起，Enter 等价）；
@@ -56,8 +57,9 @@ export function RestPage() {
       <div className="rest-source" data-testid="rest-source">{sourceText}</div>
       <div className="rest-foot">
         <span>今日累计 {fmtDur(totalToday)}</span>
-        <span>Alt+Q 可切进程</span>
-        <span>Enter / Esc 继续</span>
+        {!isMobile && <span>Alt+Q 可切进程</span>}
+        {!isMobile && <span>Enter / Esc 继续</span>}
+        {isMobile && <span>点圆环继续</span>}
       </div>
     </div>
   );

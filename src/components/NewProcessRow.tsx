@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { data } from "../api/data";
 import { act, todayStr } from "../store/board";
+import { isMobile } from "../mobile";
 
 /** 中列底部一行式 + 号新建：回车即建、落挂起队列尾部 */
 export function NewProcessRow() {
@@ -17,7 +18,7 @@ export function NewProcessRow() {
       <input
         data-testid="new-row-input"
         value={v}
-        placeholder="新进程，回车落挂起队列"
+        placeholder={isMobile ? "新进程，写完即入挂起队列" : "新进程，回车落挂起队列"}
         onChange={(e) => setV(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") submit();

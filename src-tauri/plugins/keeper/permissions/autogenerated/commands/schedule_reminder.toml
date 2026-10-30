@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-schedule-reminder"
+description = "Enables the schedule_reminder command without any pre-configured scope."
+commands.allow = ["schedule_reminder"]
+
+[[permission]]
+identifier = "deny-schedule-reminder"
+description = "Denies the schedule_reminder command without any pre-configured scope."
+commands.deny = ["schedule_reminder"]

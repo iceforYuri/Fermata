@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { isMobile } from "../../mobile";
 import { data, type CellMark, type GridCell } from "../../api/data";
 import { markHex, useBoard } from "../../store/board";
 import { fmtClock, fmtDur } from "../../util";
@@ -48,7 +49,7 @@ export function DayGridView({
 }) {
   const today = dayStr(new Date());
   const [firstDay, setFirstDay] = useState<string | null>(null);
-  const [hover, setHover] = useState<{ cell: GridCell; x: number; y: number } | null>(null);
+  const [hover, setHover] = useState<{ cell: GridCell; x: number; y: number; pinned?: boolean } | null>(null);
   const board = useBoard();
   const scrollRef = useRef<HTMLDivElement>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -143,7 +144,7 @@ export function DayGridView({
 
   return (
     <div
-      className={`daygrid-scroll${enter && ready ? (enterDir === 1 ? " drill-in-below" : " drill-in-above") : ""}`}
+      className={`daygrid-scroll${enter && ready ? (enterDir === 1 ? " drill-in-right" : " drill-in-left") : ""}`}
       style={enter && !ready ? { opacity: 0 } : undefined}
       data-testid="daygrid-scroll"
       ref={scrollRef}
@@ -160,6 +161,12 @@ export function DayGridView({
           onHover={setHover}
         />
       ))}
+      {/* 移动端点按钉住：遮罩点空白关闭 */}
+      {hover?.pinned && isMobile &&
+        createPortal(
+          <div className="dg-tip-scrim" onClick={() => setHover(null)} />,
+          document.body,
+        )}
       {hover &&
         hover.cell.occupants.length > 0 &&
         // 门户到 body：轨道 transform/will-change 会把 fixed 变成相对祖先定位
@@ -167,7 +174,11 @@ export function DayGridView({
           <div
             className="dg-tip"
             data-testid="dg-tip"
-            style={{ left: Math.min(hover.x, window.innerWidth - 260), top: hover.y - 8 }}
+            style={
+              isMobile
+                ? { left: 12, right: 12, bottom: 96, top: "auto", width: "auto" }
+                : { left: Math.min(hover.x, window.innerWidth - 260), top: hover.y - 8 }
+            }
           >
             {/* 整格全量清单：按时长降序前 4；<20% 也列出（阈值只管画不画） */}
             {hover.cell.occupants.map((o) => (
@@ -180,7 +191,7 @@ export function DayGridView({
                 <span className="num dg-tip-time">
                   {fmtClock(o.occ_start)}–{fmtClock(o.occ_end)}
                   {/* 时长=格内实际占用（share×10min），不是跨度——被打断的进程不再虚报 */}
-                  {` · ${fmtDur(Math.round(o.share * 600_000))}`}
+                  {` · ${fmtDur(Math.round(o.share * (isMobile ? 1_200_000 : 600_000)))}`}
                 </span>
               </div>
             ))}
@@ -274,7 +285,7 @@ function DayUnit({
   refreshKey?: number;
   scrollRoot: React.RefObject<HTMLDivElement | null>;
   onBackToMonth: () => void;
-  onHover: (h: { cell: GridCell; x: number; y: number } | null) => void;
+  onHover: (h: { cell: GridCell; x: number; y: number; pinned?: boolean } | null) => void;
 }) {
   const board = useBoard();
   const [cells, setCells] = useState<GridCell[] | null>(null);
@@ -284,7 +295,7 @@ function DayUnit({
   // 按天懒加载：接近视口才查；刷新令牌到来时已装载的天直查重取（未装载的仍等视口）
   useEffect(() => {
     if (loadedRef.current) {
-      void data.qDayGrid(day).then(setCells);
+      void data.qDayGrid(day, isMobile ? 20 : undefined).then(setCells);
       return;
     }
     const el = ref.current;
@@ -293,7 +304,7 @@ function DayUnit({
       (entries) => {
         if (entries[0].isIntersecting) {
           loadedRef.current = true;
-          void data.qDayGrid(day).then(setCells);
+          void data.qDayGrid(day, isMobile ? 20 : undefined).then(setCells);
           obs.disconnect();
         }
       },
@@ -365,6 +376,15 @@ function DayUnit({
                       : undefined
                   }
                   onMouseLeave={c.occupants.length > 0 ? () => onHover(null) : undefined}
+                  onClick={
+                    isMobile && c.occupants.length > 0
+                      ? (e) => {
+                          e.stopPropagation();
+                          const r = e.currentTarget.getBoundingClientRect();
+                          onHover({ cell: c, x: r.left, y: r.top, pinned: true });
+                        }
+                      : undefined
+                  }
                 >
                   {c.marks.length > 0 ? (
                     <CellMarks day={day} cell={c.cell} marks={c.marks} colorOf={colorOf} />
@@ -376,7 +396,7 @@ function DayUnit({
             </div>
             <div className="daygrid-ticks" data-testid="daygrid-ticks-bottom">
               {[["6", 0], ["12", 6], ["18", 12], ["24", 18]].map(([t, line]) => (
-                <span key={t} className="num dg-tick" style={{ left: (line as number) * 36 }}>{t}</span>
+                <span key={t} className="num dg-tick" style={{ left: `${((line as number) * 100) / 18}%` }}>{t}</span>
               ))}
             </div>
           </>

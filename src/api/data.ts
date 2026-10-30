@@ -64,7 +64,7 @@ const tauriData: DataApi = {
   qMonthCalendar: (year, month) => invoke("q_month_calendar", { year, month }),
   qYearOverview: (year) => invoke("q_year_overview", { year }),
   qDayView: (day) => invoke("q_day_view", { day }),
-  qDayGrid: (day) => invoke("q_day_grid", { day }),
+  qDayGrid: (day, cellMinutes) => invoke("q_day_grid", { day, cellMinutes: cellMinutes ?? null }),
   qFirstDay: () => invoke("q_first_day"),
   exportEvents: () => invoke("export_events"),
   exportSnapshotDialog: () => invoke("export_snapshot_dialog"),
@@ -77,6 +77,14 @@ const tauriData: DataApi = {
   setDataLocation: () => invoke("set_data_location_dialog"),
   setDataLocationTo: (path) => invoke("set_data_location_to", { targetDir: path }),
   resetDataLocation: () => invoke("reset_data_location"),
+  syncConnect: (url, user, password) => invoke("sync_connect", { url, user, password }),
+  syncDisconnect: () => invoke("sync_disconnect"),
+  syncNow: (force) => invoke("sync_now", { force: force ?? null }),
+  syncPull: () => invoke("sync_pull"),
+  syncStatus: () => invoke("sync_status"),
+  syncLocks: () => invoke("sync_locks"),
+  syncLockRefresh: () => invoke("sync_lock_refresh"),
+  syncTakeover: (pid) => invoke("sync_takeover", { pid }),
 };
 
 export const data: DataApi = isTauri ? tauriData : mockData;

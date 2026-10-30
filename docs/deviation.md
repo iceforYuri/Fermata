@@ -315,3 +315,14 @@ B1 我归因为"拖拽区盖导航"——源码核查排除：Tauri 2.11.5 drag.
 ② `rest_end` pid 缺省服务端兜底：找唯一 state=running 进程再判重开条件（手动 pause 停的照旧不动）；`recover_after_restart` 加跨天收口——最后事件不在今天时，running 自动挂起（落原版面队列尾，记 `auto_suspend` 事件，**不**恢复计时；同日重启行为不变）。依据宪法第 2 条「时间的默认值是不计」：隔夜无人值守的 running 不该继续计。auto_suspend 不进老化/挂起成本的"挂上"口径——老化仍从昨天真实的 switch_out/create 起算。想要隔夜未完的事回今天：走统计页详情「回归=计划化」（D 前定），不自动结转版面。
 ③ StatsPage 订阅 tab：进统计 tab 发刷新令牌（refreshKey 透传月历/大环/年视图/日网格/个人记录入口；当天视图本有 1Hz tick）；锚点若还是出厂默认的"今天"且已跨天则跟到新今天，用户主动钻取过的锚点不动。日网格已装载的天凭令牌直查重取，未装载的仍等视口懒加载。
 **验证**：cargo test 20/20（新增 3 例：rest_end 兜底 / 跨天自动挂起+同日不误伤 / 年月聚合钳负）；真库只读复算：9 月钳后 6732 分钟（色 3 从 -10439 回到 +1418）、09-19 钳后 552 分钟；mock 空库探针 5/5（统计页先挂载空态 → 进程页开工 → 再进统计页大环图例与月历今格出环）。
+
+
+### D64 · Android 凭据暂存应用私有目录明文文件（feature/mobile-poc M4m）
+**偏离**：docs/07 §5 定「凭据 = 系统级安全存储（Windows 凭据管理器 / Android Keystore）」。桌面已用 keyring（Windows 凭据管理器）；Android 侧暂未接 Keystore，过渡实现为应用私有目录 sync.secret 明文文件。
+**理由**：Keystore 需在 keeper Kotlin 插件里加 AES 包装存取，属于 M5m 工作量；M4m 先把同步协议闭环跑通。
+**闭环（同日）**：已换 Android Keystore——keeper 插件新增 SecretBox（AES/GCM，密钥只在 Keystore）+ set/get/clearSecret 命令，Rust 同步引擎经 PluginHandle 直调（不绕 JS）；旧 sync.secret 明文文件读到即迁入并删除。模拟器实测：密文落 files/sync.secret、启动推送 rev10 成功。
+
+
+### D65 · 移动端日网格改粗粒度（feature/mobile-poc，2026-10-23 用户定）
+**偏离**：docs/07 §6 原写「日网格 18 列等比压缩全显（列约 19dp、圆约 14dp）」。实装后手机上 108 格过密。
+**改为**：移动端每格 20 分钟（06:00–24:00 时窗不变）= 54 格、9 列 × 6 行，圆点 22px；桌面保持 10 分钟 108 格。q_day_grid 加 cell_minutes 参数双端共用。

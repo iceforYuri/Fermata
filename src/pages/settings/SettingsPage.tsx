@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { data } from "../../api/data";
+import { listen } from "@tauri-apps/api/event";
+import { isMobile } from "../../mobile";
+import { data, type SyncStatus } from "../../api/data";
 import { system } from "../../api/system";
 import { act, effectiveTheme, useBoard } from "../../store/board";
 import { setUi, useUi } from "../../store/ui";
@@ -135,8 +137,8 @@ function ChoiceRow({
           {label2}
         </button>
       ))}
-      <button className="choice-cancel" data-testid={`${testid}-esc`} onClick={() => setEditing(false)}>
-        Esc
+      <button className="choice-cancel" data-testid={`${testid}-esc`} aria-label="取消" onClick={() => setEditing(false)}>
+        {isMobile ? "×" : "Esc"}
       </button>
     </RowShell>
   );
@@ -208,15 +210,214 @@ function HotkeyRow({ value, onCommit, testid }: { value: string; onCommit: (v: s
   );
 }
 
+/* ---------- 同步（M4m，docs/07-移动端.md §5） ---------- */
+
+function fmtSyncTime(ms: number | null): string {
+  if (!ms) return "从未";
+  const d = new Date(ms);
+  const today = new Date();
+  const sameDay = d.toDateString() === today.toDateString();
+  const hm = d.toTimeString().slice(0, 5);
+  return sameDay ? hm : `${d.getMonth() + 1}-${d.getDate()} ${hm}`;
+}
+
+function SyncSection() {
+  const [st, setSt] = useState<SyncStatus | null>(null);
+  const [url, setUrl] = useState("https://dav.jianguoyun.com/dav/");
+  const [user, setUser] = useState("");
+  const [pwd, setPwd] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [echo, setEcho] = useState("");
+  const [firstConflict, setFirstConflict] = useState(false);
+  const refresh = () => void data.syncStatus().then(setSt).catch(() => {});
+  useEffect(refresh, []);
+  useEffect(() => {
+    let off: (() => void) | undefined;
+    void listen("sync-done", () => refresh()).then((f) => {
+      off = f;
+    });
+    return () => {
+      off?.();
+    };
+  }, []);
+
+  const doConnect = () => {
+    void (async () => {
+      setBusy(true);
+      setEcho("");
+      try {
+        const out = await data.syncConnect(url.trim(), user.trim(), pwd);
+        if (out.status === "first_conflict") {
+          setFirstConflict(true);
+          setEcho("远端已有一份数据；选择方向（被覆盖方会先自动备份）");
+        } else {
+          setEcho(out.detail);
+          setPwd("");
+        }
+      } catch (e) {
+        setEcho(`连接失败：${e}`);
+      } finally {
+        setBusy(false);
+        refresh();
+      }
+    })();
+  };
+
+  const doResolve = (force: "push" | "pull") => {
+    void (async () => {
+      setBusy(true);
+      try {
+        const out = await data.syncNow(force);
+        setEcho(out.detail);
+        setFirstConflict(false);
+        setPwd("");
+      } catch (e) {
+        setEcho(`失败：${e}`);
+      } finally {
+        setBusy(false);
+        refresh();
+      }
+    })();
+  };
+
+  const doNow = () => {
+    void (async () => {
+      setBusy(true);
+      try {
+        const out = await data.syncNow();
+        setEcho(out.detail);
+      } catch (e) {
+        setEcho(`失败：${e}`);
+      } finally {
+        setBusy(false);
+        refresh();
+      }
+    })();
+  };
+
+  const doDisconnect = () => {
+    void (async () => {
+      setBusy(true);
+      try {
+        await data.syncDisconnect();
+        setEcho("已断开：凭据已删除，全部数据保留");
+      } catch (e) {
+        setEcho(`失败：${e}`);
+      } finally {
+        setBusy(false);
+        refresh();
+      }
+    })();
+  };
+
+  return (
+    <section data-sec="sync" className="set-sec">
+      <div className="detail-label">同步</div>
+      {!st?.configured ? (
+        <>
+          <div className="set-row">
+            <span className="set-label">服务</span>
+            <input className="set-input" data-testid="sync-url" value={url} onChange={(e) => setUrl(e.target.value)} spellCheck={false} />
+          </div>
+          <div className="set-row">
+            <span className="set-label">账号</span>
+            <input className="set-input" data-testid="sync-user" value={user} placeholder="坚果云注册邮箱" onChange={(e) => setUser(e.target.value)} spellCheck={false} />
+          </div>
+          <div className="set-row">
+            <span className="set-label">应用密码</span>
+            <input className="set-input" data-testid="sync-pwd" type="password" value={pwd} placeholder="坚果云「安全选项」里生成" onChange={(e) => setPwd(e.target.value)} />
+          </div>
+          {!firstConflict ? (
+            <div className="set-row">
+              <span className="set-label" />
+              <span className="plan-ops-inline">
+                <button className="set-export" data-testid="sync-connect" disabled={busy || !user.trim() || !pwd} onClick={doConnect}>
+                  {busy ? "连接中…" : "连接并同步"}
+                </button>
+              </span>
+            </div>
+          ) : (
+            <div className="set-row">
+              <span className="set-label">方向</span>
+              <span className="plan-ops-inline">
+                <button className="set-export" data-testid="sync-force-pull" disabled={busy} onClick={() => doResolve("pull")}>
+                  拉取远端（本机先备份）
+                </button>
+                <button className="set-export" data-testid="sync-force-push" disabled={busy} onClick={() => doResolve("push")}>
+                  推送本机（远端先备份）
+                </button>
+              </span>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="set-row">
+            <span className="set-label">服务</span>
+            <span className="set-value num">{st.url?.replace(/^https?:\/\//, "") ?? ""}</span>
+          </div>
+          {st.user && (
+            <div className="set-row">
+              <span className="set-label">账号</span>
+              <span className="set-value">{st.user}</span>
+            </div>
+          )}
+          <div className="set-row">
+            <span className="set-label">本机设备</span>
+            <span className="set-value">{st.device_name}</span>
+          </div>
+          <div className="set-row">
+            <span className="set-label">最近同步</span>
+            <span className="set-value num">
+              {fmtSyncTime(st.last_at)} · 基线 rev {st.base_rev}
+            </span>
+          </div>
+          {st.last_result && (
+            <div className="set-exported" data-testid="sync-last-result">
+              {st.last_result}
+            </div>
+          )}
+          {(firstConflict || (st.last_result ?? "").startsWith("first_conflict")) && (
+            <div className="set-row">
+              <span className="set-label">方向</span>
+              <span className="plan-ops-inline">
+                <button className="set-export" data-testid="sync-force-pull2" disabled={busy} onClick={() => doResolve("pull")}>
+                  拉取远端（本机先备份）
+                </button>
+                <button className="set-export" data-testid="sync-force-push2" disabled={busy} onClick={() => doResolve("push")}>
+                  推送本机（远端先备份）
+                </button>
+              </span>
+            </div>
+          )}
+          <div className="set-row">
+            <span className="set-label" />
+            <span className="plan-ops-inline">
+              <button className="set-export" data-testid="sync-now" disabled={busy} onClick={doNow}>
+                {busy ? "同步中…" : "立即同步"}
+              </button>
+              <button className="set-export" data-testid="sync-disconnect" disabled={busy} onClick={doDisconnect}>
+                断开连接
+              </button>
+            </span>
+          </div>
+        </>
+      )}
+      {echo && (
+        <div className="set-exported" data-testid="sync-echo">
+          {echo}
+        </div>
+      )}
+    </section>
+  );
+}
+
 /* ---------- 设置页 ---------- */
 
 const SECTIONS: [string, string][] = [
   ["slice", "时间片与提醒"],
-  ["timing", "计时"],
-  ["appearance", "外观与排版"],
-  ["hotkey", "快捷键"],
-  ["data", "数据"],
-];
+    ["appearance", "外观与排版"],
+    ["sync", "同步"],    ];
 
 export function SettingsPage() {
   const board = useBoard();
@@ -321,27 +522,29 @@ export function SettingsPage() {
         <NumRow label="时间片长度" unit="分钟" value={parseInt(get("slice_minutes", "45"))} min={5} max={180} step={5} onCommit={setNum("slice_minutes")} testid="set-slice" />
         <NumRow label="连续工作阈值" unit="分钟" value={parseInt(get("continuous_limit_minutes", "90"))} min={15} max={360} step={15} onCommit={setNum("continuous_limit_minutes")} testid="set-cont" />
         <ChoiceRow label="休止符模式" value={get("rest_mode", "soft")} options={[["soft", "软（自然间隙才弹）"], ["hard", "硬（到点立即弹）"]]} onCommit={setStr("rest_mode")} testid="set-restmode" />
-        <div className="set-row">
+        {!isMobile && (<div className="set-row">
           <span className="set-label">提醒样式</span>
           <span className="set-value" style={{ cursor: "default" }}>
             应用内弹窗（无边框·置顶·不抢焦点；Windows 系统通知为兜底）
           </span>
-        </div>
+        </div>)}
       </section>
 
-      <section data-sec="timing" className="set-sec">
+      {!isMobile && (
+<section data-sec="timing" className="set-sec">
         <div className="detail-label">计时</div>
-        <NumRow label="空闲检测阈值" unit="分钟" value={parseInt(get("idle_threshold_minutes", "5"))} min={1} max={60} step={1} onCommit={setNum("idle_threshold_minutes")} testid="set-idle" />
-        <ToggleRow label="空闲回归确认" value={get("idle_confirm", "1") === "1"} onFlip={(v) => void act(() => data.settingSet("idle_confirm", v ? "1" : "0"))} testid="set-idleconfirm" />
+        {!isMobile && (<NumRow label="空闲检测阈值" unit="分钟" value={parseInt(get("idle_threshold_minutes", "5"))} min={1} max={60} step={1} onCommit={setNum("idle_threshold_minutes")} testid="set-idle" />)}
+        {!isMobile && (<ToggleRow label="空闲回归确认" value={get("idle_confirm", "1") === "1"} onFlip={(v) => void act(() => data.settingSet("idle_confirm", v ? "1" : "0"))} testid="set-idleconfirm" />)}
       </section>
+      )}
 
       <section data-sec="appearance" className="set-sec">
         <div className="detail-label">外观与排版</div>
         <ChoiceRow label="主题" value={themeNow} options={[["light", "亮 · 极简暖"], ["dark", "暗 · 工作台"]]} onCommit={setStr("theme")} testid="set-theme" />
         <ChoiceRow label="字号阶梯" value={get("font_scale", "standard")} options={[["compact", "紧凑"], ["standard", "标准"], ["loose", "宽松"]]} onCommit={setStr("font_scale")} testid="set-font" />
         <ChoiceRow label="版面密度" value={get("density", "standard")} options={[["compact", "紧凑"], ["standard", "标准"], ["loose", "宽松"]]} onCommit={setStr("density")} testid="set-density" />
-        <ToggleRow label="窗口置顶" value={get("always_on_top", "0") === "1"} onFlip={(v) => void system.pin(v)} testid="set-topmost" />
-        <NumRow label="左栏稿库宽度" unit="px" value={parseInt(get("lib_width", "300"))} min={240} max={360} step={10} onCommit={setNum("lib_width")} testid="set-libw" />
+        {!isMobile && (<ToggleRow label="窗口置顶" value={get("always_on_top", "0") === "1"} onFlip={(v) => void system.pin(v)} testid="set-topmost" />)}
+        {!isMobile && (<NumRow label="左栏稿库宽度" unit="px" value={parseInt(get("lib_width", "300"))} min={240} max={360} step={10} onCommit={setNum("lib_width")} testid="set-libw" />)}
         <div className="set-row" data-testid="set-palette">
           <span className="set-label">色板</span>
           <span className="color-row">
@@ -352,12 +555,15 @@ export function SettingsPage() {
         </div>
       </section>
 
-      <section data-sec="hotkey" className="set-sec">
+      {!isMobile && (
+<section data-sec="hotkey" className="set-sec">
         <div className="detail-label">快捷键</div>
         <HotkeyRow value={get("hotkey", "Alt+Q")} onCommit={hotkeyCommit} testid="set-hotkey" />
       </section>
+      )}
 
-      <section data-sec="data" className="set-sec">
+      {!isMobile && (
+<section data-sec="data" className="set-sec">
         <div className="detail-label">数据</div>
         <div className="set-row">
           <span className="set-label">存储位置</span>
@@ -438,6 +644,9 @@ export function SettingsPage() {
         </div>
         {dataEcho && <div className="set-exported num" data-testid="export-path">{dataEcho}</div>}
       </section>
+      )}
+
+      <SyncSection />
 
       {/* 构建戳：核对"这份程序是不是最新构建" */}
       <div className="build-stamp num" data-testid="build-stamp">

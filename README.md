@@ -48,15 +48,28 @@
 
 ## 安装
 
-| 形态           | 文件                                   |
-| -------------- | -------------------------------------- |
-| 安装包（推荐） | `publish/Fermata-1.4.3-setup.exe`    |
-| 绿色单文件     | `publish/Fermata-1.4.3-portable.exe` |
+| 形态              | 文件                                             |
+| ----------------- | ------------------------------------------------ |
+| Windows 安装包    | `publish/Fermata-2.0.0-setup.exe`              |
+| Windows 绿色单文件 | `publish/Fermata-2.0.0-portable.exe`           |
+| Android（arm64）  | `publish/Fermata-2.0.0-android-arm64.apk`      |
 
 要求 Windows 10/11（WebView2 随系统自带）。首次启动即为空版面，不含任何演示数据。
-从 gika 时代升级：旧数据库首启自动复制迁移，原目录原样保留。
+从 gika 时代升级：旧数据库首启自动复制迁移，原目录原样保留。2.0.0 会自动执行 v6 数据迁移，升级前建议保留一次备份。
+
+### Android
+
+- APK 为 **arm64-v8a**，要求 Android 7.0+；安装时需要允许未知来源。
+- 首次启动请允许通知权限，否则会话通知和到点提醒不可用。
+- 同步在「设置 → 同步」中配置：坚果云注册邮箱 + 第三方应用密码；传输走 HTTPS，不使用明文 HTTP。
+- 与桌面端共用同一份 WebDAV 快照。首次接入若两端都已有数据，选择推送或拉取，覆盖方会先自动备份。
+- 校验文件：`publish/Fermata-2.0.0-android-arm64.sha256`。
+
+发布说明见 [docs/release-notes/v2.0.0.md](docs/release-notes/v2.0.0.md)。
 
 上手操作与开发者运维见 [docs/manual.md](docs/manual.md)。
+
+Android 发布构建：运行 `build-android-release.bat`（使用本机 Android Keystore，产物写入 `publish/`）。
 
 ## 制作
 

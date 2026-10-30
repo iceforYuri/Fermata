@@ -19,7 +19,11 @@
     "core:window:allow-start-dragging",
     "core:webview:default",
     "core:app:default",
-    "global-shortcut:default",
-    "dialog:default"
+    "dialog:default",
+    "keeper:allow-update",
+    "keeper:allow-schedule-reminder",
+    "keeper:allow-cancel-reminder",
+    "keeper:allow-register-listener",
+    "keeper:allow-hide"
   ]
 }

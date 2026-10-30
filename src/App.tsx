@@ -9,6 +9,8 @@ import { BoardPage } from "./pages/BoardPage";
 import { SettingsPage } from "./pages/settings/SettingsPage";
 import { StatsPage } from "./pages/stats/StatsPage";
 import { TitleBar } from "./components/TitleBar";
+import { MobileShell } from "./components/MobileShell";
+import { isMobile } from "./mobile";
 import { LibraryPanel } from "./components/LibraryPanel";
 import { DetailPanel } from "./components/DetailPanel";
 import { ArchiveOverlay } from "./components/ArchiveOverlay";
@@ -141,6 +143,6 @@ export default function App() {
     case "/home":
       return <HomePage />;
     default:
-      return <Shell />;
+      return isMobile ? <MobileShell /> : <Shell />;
   }
 }

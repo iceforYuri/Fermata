@@ -18,6 +18,8 @@ interface UiState {
   statsDetail: { pid: number; day: string } | null;
   /** 个人记录子页（玻璃）：开/关 */
   notesOpen: boolean;
+  /** 长按菜单：挂起进程行 / 稿库计划条 */
+  rowMenu: { pid: number; x: number; y: number; kind: "suspended" | "plan" } | null;
 }
 
 let state: UiState = {
@@ -30,6 +32,7 @@ let state: UiState = {
   dataEcho: null,
   statsDetail: null,
   notesOpen: false,
+  rowMenu: null,
 };
 
 const listeners = new Set<() => void>();
@@ -82,6 +85,13 @@ export function openNotes() {
 
 export function closeNotes() {
   setUi({ notesOpen: false });
+}
+
+export function openRowMenu(m: { pid: number; x: number; y: number; kind: "suspended" | "plan" }) {
+  setUi({ rowMenu: m });
+}
+export function closeRowMenu() {
+  if (state.rowMenu) setUi({ rowMenu: null });
 }
 
 export function closeDetail() {

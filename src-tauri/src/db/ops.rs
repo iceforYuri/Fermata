@@ -60,7 +60,7 @@ pub fn process_create(
     }
     let day = board_date.map(str::to_string).unwrap_or_else(|| day_of(ts));
     conn.execute(
-        "INSERT INTO processes (title, state, color_tag, created_at, board_date) VALUES (?1, 'suspended', ?2, ?3, ?4)",
+        "INSERT INTO processes (title, state, color_tag, created_at, board_date, uuid, updated_at) VALUES (?1, 'suspended', ?2, ?3, ?4, lower(hex(randomblob(16))), ?3)",
         rusqlite::params![title, color_tag, ts, day],
     )
     .map_err(|e| e.to_string())?;
@@ -109,8 +109,8 @@ pub fn process_switch(
             )
             .map_err(|e| e.to_string())?;
             conn.execute(
-                "INSERT INTO steps (process_id, title, done, position, kind) VALUES (?1, ?2, 0, 1, 'note')",
-                rusqlite::params![cur, bp],
+                "INSERT INTO steps (process_id, title, done, position, kind, uuid, updated_at) VALUES (?1, ?2, 0, 1, 'note', lower(hex(randomblob(16))), ?3)",
+                rusqlite::params![cur, bp, ts],
             )
             .map_err(|e| e.to_string())?;
         }
@@ -205,6 +205,55 @@ pub fn process_resume(conn: &Connection, ts: i64, pid: i64) -> Result<(), String
     Ok(())
 }
 
+/// 接管（docs/07 §5 运行锁）：对端会话以其锁标记时刻收界，本端从 ts 起计。
+/// 调用前需经同步拉到对端快照（对端运行进程在本机呈 running）。
+/// 收界不早于段起点（对端锁时刻可能早于本机看到的段起点）。
+pub fn takeover(conn: &Connection, ts: i64, pid: i64, lock_end: i64) -> Result<(), String> {
+    let target = get_process(conn, pid)?;
+    if target.state == "completed" {
+        return Err(format!("进程 {pid} 已完成，需先 reopen 才能接管"));
+    }
+    let current: Option<i64> = conn
+        .query_row("SELECT id FROM processes WHERE state = 'running' LIMIT 1", [], |r| r.get(0))
+        .ok();
+    if let Some(cur) = current {
+        let seg_start: Option<i64> = conn
+            .query_row(
+                "SELECT started_at FROM segments WHERE process_id = ?1 AND ended_at IS NULL LIMIT 1",
+                rusqlite::params![cur],
+                |r| r.get(0),
+            )
+            .ok();
+        let end = match seg_start {
+            Some(s) => lock_end.max(s),
+            None => lock_end,
+        };
+        close_open_segment(conn, cur, end)?;
+        if cur == pid {
+            // 同一进程接管：收界后本地立即开口续计
+            append_event(conn, ts, "takeover", Some(pid), json!({ "lock_end": lock_end }))?;
+            open_segment(conn, pid, ts)?;
+            return Ok(());
+        }
+        set_state(conn, cur, "suspended")?;
+        let day = get_process(conn, cur)?.board_date;
+        push_queue_head(conn, cur, &day)?;
+        append_event(conn, ts, "switch_out", Some(cur), json!({ "takeover": true, "to": pid }))?;
+    }
+    if target.state == "running" && current == Some(pid) {
+        return Ok(()); // 同一进程已在上面接管完成
+    }
+    set_state(conn, pid, "running")?;
+    conn.execute(
+        "UPDATE processes SET prev_state = NULL, queue_position = NULL, activated_count = activated_count + 1 WHERE id = ?1",
+        rusqlite::params![pid],
+    )
+    .map_err(|e| e.to_string())?;
+    append_event(conn, ts, "switch_in", Some(pid), json!({ "from": current, "takeover": true }))?;
+    open_segment(conn, pid, ts)?;
+    Ok(())
+}
+
 /// 写断点 = 压一条 note（断点条）到栈顶（ADR-0005；不再有"手动断点字段"）
 pub fn breakpoint_set(conn: &Connection, ts: i64, pid: i64, text: &str) -> Result<(), String> {
     get_process(conn, pid)?;
@@ -214,8 +263,8 @@ pub fn breakpoint_set(conn: &Connection, ts: i64, pid: i64, text: &str) -> Resul
     )
     .map_err(|e| e.to_string())?;
     conn.execute(
-        "INSERT INTO steps (process_id, title, done, position, kind) VALUES (?1, ?2, 0, 1, 'note')",
-        rusqlite::params![pid, text],
+        "INSERT INTO steps (process_id, title, done, position, kind, uuid, updated_at) VALUES (?1, ?2, 0, 1, 'note', lower(hex(randomblob(16))), ?3)",
+        rusqlite::params![pid, text, ts],
     )
     .map_err(|e| e.to_string())?;
     append_event(conn, ts, "entry_add", Some(pid), json!({ "kind": "note", "title": text }))?;
@@ -227,7 +276,7 @@ pub fn entry_delete(conn: &Connection, ts: i64, step_id: i64) -> Result<(), Stri
     let pid: i64 = conn
         .query_row("SELECT process_id FROM steps WHERE id = ?1", rusqlite::params![step_id], |r| r.get(0))
         .map_err(|e| format!("条目 {step_id} 不存在: {e}"))?;
-    conn.execute("DELETE FROM steps WHERE id = ?1", rusqlite::params![step_id])
+    conn.execute("UPDATE steps SET deleted_at = ?2 WHERE id = ?1", rusqlite::params![step_id, ts])
         .map_err(|e| e.to_string())?;
     append_event(conn, ts, "entry_delete", Some(pid), json!({ "step_id": step_id }))?;
     Ok(())
@@ -322,8 +371,8 @@ pub fn step_add(conn: &Connection, ts: i64, pid: i64, title: &str) -> Result<i64
     )
     .map_err(|e| e.to_string())?;
     conn.execute(
-        "INSERT INTO steps (process_id, title, done, position) VALUES (?1, ?2, 0, 1)",
-        rusqlite::params![pid, title],
+        "INSERT INTO steps (process_id, title, done, position, uuid, updated_at) VALUES (?1, ?2, 0, 1, lower(hex(randomblob(16))), ?3)",
+        rusqlite::params![pid, title, ts],
     )
     .map_err(|e| e.to_string())?;
     let sid = conn.last_insert_rowid();
@@ -428,7 +477,7 @@ pub fn plan_create(
         .query_row("SELECT MAX(position) FROM plans", [], |r| r.get(0))
         .map_err(|e| e.to_string())?;
     conn.execute(
-        "INSERT INTO plans (title, est_minutes, scheduled_date, state, created_at, position) VALUES (?1, ?2, ?3, 'pool', ?4, ?5)",
+        "INSERT INTO plans (title, est_minutes, scheduled_date, state, created_at, position, uuid, updated_at) VALUES (?1, ?2, ?3, 'pool', ?4, ?5, lower(hex(randomblob(16))), ?4)",
         rusqlite::params![title, est_minutes, scheduled_date, ts, max_pos.unwrap_or(0.0) + 1.0],
     )
     .map_err(|e| e.to_string())?;

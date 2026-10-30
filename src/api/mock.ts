@@ -946,15 +946,16 @@ export const mockData: DataApi = {
     };
   },
 
-  async qDayGrid(day) {
+  async qDayGrid(day, cellMinutes) {
     // v1.4 口径（与 Rust q_day_grid 一致）：share=占用率（分母=格的 10 分钟）；
     // <20% 不返回；≥20% 取前二（3 个以上只留前两名）；occ_start/occ_end 钳制在格窗内。
     const MIN_SHARE = 0.2; // 镜像 token --grid-min-share（数据层侧写死，渲染阈值仍走 token）
     const [d0] = dayRangeMs(day);
     const ds = d0 + 6 * 3_600_000; // 时窗起点 06:00
-    const CELL = 600_000;
+    const CELL = Math.max(60_000, (cellMinutes ?? 10) * 60_000);
+    const cellCount = (18 * 3_600_000) / CELL;
     const cells: { cell: number; marks: CellMark[]; occupants: GridOccupant[]; occupant_count: number }[] =
-      Array.from({ length: 108 }, (_, i) => ({ cell: i, marks: [], occupants: [], occupant_count: 0 }));
+      Array.from({ length: cellCount }, (_, i) => ({ cell: i, marks: [], occupants: [], occupant_count: 0 }));
     const now = Date.now();
     // cell -> pid -> 累计占用 ms
     const cellMs = new Map<number, Map<number, number>>();
@@ -965,8 +966,8 @@ export const mockData: DataApi = {
       const gs = Math.max(g.start, ds);
       const ge = Math.min(e, ds + 18 * 3_600_000);
       if (ge <= gs) continue;
-      const c0 = Math.min(107, Math.floor((gs - ds) / CELL));
-      const c1 = Math.min(107, Math.floor((ge - 1 - ds) / CELL));
+      const c0 = Math.min(cellCount - 1, Math.floor((gs - ds) / CELL));
+      const c1 = Math.min(cellCount - 1, Math.floor((ge - 1 - ds) / CELL));
       for (let c = c0; c <= c1; c++) {
         const cs = ds + c * CELL;
         const ov = Math.max(0, Math.min(ge, cs + CELL) - Math.max(gs, cs));
@@ -1076,6 +1077,29 @@ export const mockData: DataApi = {
   },
   async resetDataLocation() {
     return { path: "C:\\Users\\you\\AppData\\Roaming\\com.fermata.app\\fermata.db", adopted: true };
+  },
+
+  async syncConnect() {
+    return { status: "noop", detail: "mock 环境无同步", rev: 0 };
+  },
+  async syncDisconnect() {},
+  async syncNow() {
+    return { status: "noop", detail: "mock 环境无同步", rev: 0 };
+  },
+  async syncPull() {
+    return { status: "noop", detail: "mock 环境无同步", rev: 0 };
+  },
+  async syncStatus() {
+    return { configured: false, url: null, user: null, base_rev: 0, last_at: null, last_result: null, device_name: "mock", device_id: "mock-dev" };
+  },
+  async syncLocks() {
+    return [];
+  },
+  async syncTakeover() {
+    return { status: "noop", detail: "mock 环境无同步", rev: 0 };
+  },
+  async syncLockRefresh() {
+    return "cleared";
   },
 
   async qRestState() {

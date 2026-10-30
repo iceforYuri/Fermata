@@ -13,7 +13,7 @@ const smooth = (x: number) => {
   return t * t * (3 - 2 * t);
 };
 
-const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
+export const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
   {
     key: "board",
     label: "进程",

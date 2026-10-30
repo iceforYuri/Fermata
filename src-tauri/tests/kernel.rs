@@ -186,7 +186,7 @@ fn grid_cell_majority_ownership_and_untimed_completion() {
     ops::process_switch(&conn, t(610), a, None).unwrap(); // 10:10 切回甲
     ops::process_switch(&conn, t(615), b, None).unwrap(); // 10:15
 
-    let grid = queries::q_day_grid(&conn, &day).unwrap();
+    let grid = queries::q_day_grid(&conn, &day, None).unwrap();
     assert_eq!(grid.len(), 108, "18×6=108 格");
     let cell24 = &grid[24];
     // v1.4 marks 口径：格 24 甲 7 分钟（70%）居首、乙 3 分钟（30%）次席，对角分半
@@ -199,7 +199,7 @@ fn grid_cell_majority_ownership_and_untimed_completion() {
     // 未计时完成（零 segment）不画圈
     let c = ops::process_create(&conn, t(700), "丙零时长", None, Some(&day)).unwrap();
     ops::process_complete(&conn, t(701), c).unwrap();
-    let grid2 = queries::q_day_grid(&conn, &day).unwrap();
+    let grid2 = queries::q_day_grid(&conn, &day, None).unwrap();
     assert!(
         grid2.iter().all(|cell| cell.marks.iter().all(|m| m.process_id != c)),
         "未计时完成不画圈"
@@ -209,7 +209,7 @@ fn grid_cell_majority_ownership_and_untimed_completion() {
     let night = ops::process_create(&conn, t(1430), "夜里赶工", None, Some(&day)).unwrap();
     ops::process_switch(&conn, t(1430), night, None).unwrap(); // 23:50
     ops::process_switch(&conn, t(1440) - 1, b, None).unwrap(); // 24:00 前切走
-    let grid3 = queries::q_day_grid(&conn, &day).unwrap();
+    let grid3 = queries::q_day_grid(&conn, &day, None).unwrap();
     // 23:50–23:59:59 在窗口内：格 107（23:50–24:00）
     assert!(
         grid3[107].marks.iter().any(|m| m.process_id == night),
@@ -245,7 +245,7 @@ fn grid_cell_majority_ownership_and_untimed_completion() {
     ops::process_switch(&conn, t(488) + 30_000, h8, None).unwrap();
     ops::process_switch(&conn, t(489), d4, None).unwrap();
     ops::process_switch(&conn, t(490), a, None).unwrap(); // 收
-    let grid4 = queries::q_day_grid(&conn, &day).unwrap();
+    let grid4 = queries::q_day_grid(&conn, &day, None).unwrap();
     let cell12 = &grid4[12];
     // 画布：≥20% 前二 = 丁(50%) 戊(20%)
     assert_eq!(cell12.marks.len(), 2, "3+ 占用者仍只画两瓣");
@@ -285,7 +285,7 @@ fn day_grid_orientation_by_neighbor_occupancy() {
     ops::process_switch(&conn, t(677), a, None).unwrap(); // 11:17 切回甲
     ops::process_switch(&conn, t(685), x, None).unwrap(); // 11:25 甲止于格 32 内
 
-    let grid = queries::q_day_grid(&conn, &day).unwrap();
+    let grid = queries::q_day_grid(&conn, &day, None).unwrap();
     let mark31 = grid[31].marks.iter().find(|m| m.process_id == a).expect("格 31 有甲");
     assert!(!mark31.is_start && !mark31.is_end, "格 31 前后都有甲 → 中段（不翻边）");
     let mark30 = grid[30].marks.iter().find(|m| m.process_id == a).expect("格 30 有甲");
@@ -297,7 +297,7 @@ fn day_grid_orientation_by_neighbor_occupancy() {
     let solo = ops::process_create(&conn, t(0), "孤立", None, Some(&day)).unwrap();
     ops::process_switch(&conn, t(962), solo, None).unwrap(); // 16:02（格 60）
     ops::process_switch(&conn, t(965), x, None).unwrap(); // 16:05
-    let grid2 = queries::q_day_grid(&conn, &day).unwrap();
+    let grid2 = queries::q_day_grid(&conn, &day, None).unwrap();
     let m = grid2[60].marks.iter().find(|m| m.process_id == solo).expect("格 60 有孤立");
     assert!(m.is_start && m.is_end, "孤立单格 = 段起兼段止");
 }
@@ -844,4 +844,50 @@ fn year_month_aggregate_clamps_negative_segments() {
     let ov = queries::q_year_overview(&conn, y).unwrap();
     let y_total: i64 = ov.months.iter().flat_map(|mm| mm.shares.iter().map(|s| s.ms)).sum();
     assert_eq!(y_total, 60_000, "年视图聚合：负段钳 0");
+}
+
+/// 接管（docs/07 §5）：对端开口段以锁标记时刻收界，本端从 now 起计；同一进程接管亦成立
+#[test]
+fn takeover_bounds_remote_segment_at_lock_time() {
+    let conn = db::open_in_memory().unwrap();
+    let t0 = 1_800_000_000_000i64;
+    let a = ops::process_create(&conn, t0, "对端在跑", None, None).unwrap();
+    let b = ops::process_create(&conn, t0 + 1, "本端要做", None, None).unwrap();
+
+    // 模拟对端快照：A 在 running，开口段起于 t0+10
+    ops::process_switch(&conn, t0 + 10, a, None).unwrap();
+
+    // 本端 t0+100 接管 B：A 的段应收在锁标记 t0+80，A 回落挂起，B 起于 t0+100
+    ops::takeover(&conn, t0 + 100, b, t0 + 80).unwrap();
+    let (end,): (i64,) = conn
+        .query_row("SELECT ended_at FROM segments WHERE process_id = ?1", [a], |r| Ok((r.get(0)?,)))
+        .unwrap();
+    assert_eq!(end, t0 + 80, "对端段以锁标记收界");
+    let st: String = conn.query_row("SELECT state FROM processes WHERE id = ?1", [a], |r| r.get(0)).unwrap();
+    assert_eq!(st, "suspended");
+    assert!(db::timer_open(&conn, b).unwrap(), "B 应在计时");
+    let takeover_events: i64 = conn
+        .query_row("SELECT COUNT(*) FROM events WHERE kind = 'takeover' OR payload LIKE '%takeover%'", [], |r| r.get(0))
+        .unwrap();
+    assert!(takeover_events >= 1, "接管应留痕");
+
+    // 同一进程接管：B 收界到新锁标记 t0+150，原地续开
+    ops::takeover(&conn, t0 + 200, b, t0 + 150).unwrap();
+    let segs: Vec<(i64, Option<i64>)> = {
+        let mut s = conn.prepare("SELECT started_at, ended_at FROM segments WHERE process_id = ?1 ORDER BY id").unwrap();
+        s.query_map([b], |r| Ok((r.get(0)?, r.get(1)?))).unwrap().map(|r| r.unwrap()).collect()
+    };
+    assert_eq!(segs.len(), 2);
+    assert_eq!(segs[0], (t0 + 100, Some(t0 + 150)));
+    assert_eq!(segs[1], (t0 + 200, None));
+
+    // 收界不早于段起点：锁标记早于段起点时钳到段起点
+    ops::takeover(&conn, t0 + 300, b, t0 + 50).unwrap();
+    let segs2: Vec<(i64, Option<i64>)> = {
+        let mut s = conn.prepare("SELECT started_at, ended_at FROM segments WHERE process_id = ?1 ORDER BY id").unwrap();
+        s.query_map([b], |r| Ok((r.get(0)?, r.get(1)?))).unwrap().map(|r| r.unwrap()).collect()
+    };
+    assert_eq!(segs2.len(), 3);
+    assert_eq!(segs2[1], (t0 + 200, Some(t0 + 200)), "收界钳到段起点");
+    assert_eq!(segs2[2], (t0 + 300, None));
 }

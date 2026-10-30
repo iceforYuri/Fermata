@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-cancel-reminder"
+description = "Enables the cancel_reminder command without any pre-configured scope."
+commands.allow = ["cancel_reminder"]
+
+[[permission]]
+identifier = "deny-cancel-reminder"
+description = "Denies the cancel_reminder command without any pre-configured scope."
+commands.deny = ["cancel_reminder"]
