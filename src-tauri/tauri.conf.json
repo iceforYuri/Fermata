@@ -27,6 +27,10 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "publisher": "iceforYuri",
+    "copyright": "Copyright © 2026 iceforYuri",
+    "shortDescription": "跨 Windows 与 Android 的进程调度与专注记录工具",
+    "longDescription": "Fermata 把一天排成一页版面：记录进程、断点与专注时间，并可通过你自己的 WebDAV 在 Windows 与 Android 间同步。",
     "icon": ["icons/icon.ico"]
   }
 }
