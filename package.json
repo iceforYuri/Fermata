@@ -2,6 +2,7 @@
   "name": "fermata",
   "private": true,
   "version": "2.0.0",
+  "description": "跨 Windows 与 Android 的进程调度与专注记录工具",
   "type": "module",
   "scripts": {
     "dev": "vite dev",

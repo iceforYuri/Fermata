@@ -1,7 +1,7 @@
 [package]
 name = "fermata"
 version = "2.0.0"
-description = "Fermata —— 日常版面与任务调度"
+description = "Fermata —— 跨 Windows 与 Android 的进程调度与专注记录工具"
 edition = "2021"
 rust-version = "1.77.2"
 default-run = "fermata"
