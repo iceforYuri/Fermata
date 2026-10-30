@@ -6,6 +6,12 @@ set "VERSION=2.0.0"
 set "ROOT=%~dp0"
 cd /d "%ROOT%"
 set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
+if exist "E:\node.js\node_global\pnpm.cmd" set "PATH=E:\node.js\node_global;E:\node.js;%PATH%"
+if exist "%APPDATA%\npm\pnpm.cmd" set "PATH=%APPDATA%\npm;%PATH%"
+where pnpm.cmd >nul 2>&1 || (
+  echo [ERROR] pnpm.cmd not found in PATH
+  exit /b 1
+)
 
 if not defined JAVA_HOME set "JAVA_HOME=%LOCALAPPDATA%\Android\jdk17"
 if not defined ANDROID_HOME set "ANDROID_HOME=%LOCALAPPDATA%\Android\Sdk"
@@ -73,7 +79,13 @@ echo ==== Verifying ====
 if errorlevel 1 exit /b 1
 
 echo ==== Checksum ====
-powershell -NoProfile -Command "$h=(Get-FileHash '%OUT%' -Algorithm SHA256).Hash; Set-Content '%CHECKSUM%' ($h + '  ' + [IO.Path]::GetFileName('%OUT%'))"
+powershell -NoProfile -Command "$h=(Get-FileHash -LiteralPath '%OUT%' -Algorithm SHA256).Hash; Set-Content -LiteralPath '%CHECKSUM%' -Value ($h + '  ' + [IO.Path]::GetFileName('%OUT%'))"
+if errorlevel 1 exit /b 1
+if not exist "%CHECKSUM%" (
+  echo [ERROR] checksum file was not created: %CHECKSUM%
+  exit /b 1
+)
+del /q "%OUT%.idsig" 2>nul
 del /q "%ALIGNED%" 2>nul
 echo.
 echo APK: %OUT%
