@@ -12,3 +12,7 @@ src-tauri/readme-demo.db
 scripts/input-probe/target/
 docs/screenshots/poc/poc-runtime.log
 rundev*.log
+
+# Android/Gradle generated caches
+**/.gradle/
+src-tauri/plugins/keeper/android/build/
